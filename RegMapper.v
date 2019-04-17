@@ -63,7 +63,7 @@ Section Granule.
     Definition MayStructInputT
       (k : Kind)
       := STRUCT {
-           "isRead" :: Bool;
+           "isRd"   :: Bool;
            "addr"   :: Bit addrSz;
            "data"   :: k;
            "mask"   :: Bit (size k)
@@ -353,11 +353,11 @@ Section Granule.
       word in memory. Each word in memory is assumed to be a packet
       consisting of a set of fields.
 
-      When the [isRead] field in [req] is true, this function reads
+      When the [isRd] field in [req] is true, this function reads
       the word at location [req @% "addr"] and converts it into a
       packet of type [k].
 
-      When the [isRead] fields is false, this function writes the
+      When the [isRd] fields is false, this function writes the
       value given in [req @% "data"] to memory location [req @%
       "addr"].
 
@@ -381,7 +381,7 @@ Section Granule.
                       (LETA read_result
                         :  mayStructKind (mgr_kind entry)
                         <- MayStruct_RegReads ty (mgr_kind entry);
-                      If req @% "isRead"
+                      If req @% "isRd"
                         then Retv
                         else
                           LET write_mask
