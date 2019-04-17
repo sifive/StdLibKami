@@ -60,6 +60,15 @@ Section Granule.
       STRUCT { "isRd" :: Bool ;
                "info" :: RegMapT }.
 
+    Definition MayStructInputT
+      (k : Kind)
+      := STRUCT {
+           "isRead" :: Bool;
+           "addr"   :: Bit addrSz;
+           "data"   :: k;
+           "mask"   :: Bit (size k)
+         }.
+
     Record GenRegField :=
       { grf_addr  : word realAddrSz ;
         grf_mask  : Bit maskSz @# ty;
@@ -311,6 +320,97 @@ Section Granule.
 
     Definition readWriteGranules_MayGroupReg rq ls := createRegMap rq (concat (map (fun x => readWriteGranules_Gen (MayGroupReg_Gen x)) ls)).
 
+    Definition mayStructKind (n : nat) (x : MayStruct n)
+      :  Kind
+      := Struct (fun i : Fin.t n => projT1 (vals x i)) (names x).
+
+    Definition mayStructKami (n : nat) (x : MayStruct (S n)) (pkt : mayStructKind x @# ty)
+      :  mayStructKind x @# ty
+      := BuildStruct
+           (fun i : Fin.t (S n)
+             => projT1 (vals x i) : Kind)
+           (fun i : Fin.t (S n)
+             => names x i : string)
+           (fun i : Fin.t (S n)
+             => match (projT2 (vals x i)) with
+                  | Some y
+                    => $$y
+                  | None
+                    => @struct_get_field_default ty n
+                         (fun i : Fin.t (S n) => projT1 (vals x i))
+                         (names x)
+                         pkt
+                         (names x i)
+                         (projT1 (vals x i))
+                         ($$(getDefaultConst (projT1 (vals x i))))
+                  end).
+
+    (*
+      Accepts three arguments: [k], [req] and [entries].
+
+      [req] represents a memory request. [entries] is a list of
+      MayGroupReg records. Each MayGroupReg record describes a
+      word in memory. Each word in memory is assumed to be a packet
+      consisting of a set of fields.
+
+      When the [isRead] field in [req] is true, this function reads
+      the word at location [req @% "addr"] and converts it into a
+      packet of type [k].
+
+      When the [isRead] fields is false, this function writes the
+      value given in [req @% "data"] to memory location [req @%
+      "addr"].
+
+      When writing, this function uses the bitmask given in [req]:
+      it only over writes those bit locations in [req @% "addr"]
+      for which the corresponding bit in [req @% "mask"] equals 1.
+    *)
+    Definition mayGroupReadWrite
+      (k : Kind)
+      (req : MayStructInputT k @# ty)
+      (entries : list MayGroupReg)
+      :  ActionT ty (Maybe k)
+      := utila_acts_find_pkt
+           (map
+             (fun entry : MayGroupReg
+               => LET addr_match
+                    :  Bool
+                    <- ((req @% "addr") == ($$(mgr_addr entry)));
+                  If #addr_match
+                    then
+                      (LETA read_result
+                        :  mayStructKind (mgr_kind entry)
+                        <- MayStruct_RegReads ty (mgr_kind entry);
+                      If req @% "isRead"
+                        then Retv
+                        else
+                          LET write_mask
+                            :  Bit (size (mayStructKind (mgr_kind entry)))
+                            <- ZeroExtendTruncLsb
+                                 (size (mayStructKind (mgr_kind entry)))
+                                 (req @% "mask");
+                          LET write_value
+                            :  mayStructKind (mgr_kind entry)
+                            <- unpack (mayStructKind (mgr_kind entry))
+                                 (((~ (#write_mask)) &
+                                   (pack #read_result)) |
+                                  ((#write_mask) &
+                                   (ZeroExtendTruncLsb
+                                     (size (mayStructKind (mgr_kind entry)))
+                                     (pack (req @% "data")))));
+                          LETA write_result
+                            :  Void
+                            <- MayStruct_RegWrites (mgr_kind entry) #write_value;
+                          Retv;
+                      Ret
+                        (unpack k
+                          (ZeroExtendTruncLsb (size k)
+                            (pack (#read_result)))))
+                    else
+                      Ret $$(getDefaultConst k)
+                    as result;
+                  (utila_acts_opt_pkt #result #addr_match))
+             entries).
     
     Local Close Scope kami_expr.
     Local Close Scope kami_action.
