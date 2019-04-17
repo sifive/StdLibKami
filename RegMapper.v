@@ -381,9 +381,8 @@ Section Granule.
                       (LETA read_result
                         :  mayStructKind (mgr_kind entry)
                         <- MayStruct_RegReads ty (mgr_kind entry);
-                      If req @% "isRd"
-                        then Retv
-                        else
+                      If !(req @% "isRd")
+                        then
                           LET write_mask
                             :  Bit (size (mayStructKind (mgr_kind entry)))
                             <- ZeroExtendTruncLsb
