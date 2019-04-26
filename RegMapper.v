@@ -1,4 +1,7 @@
 Require Import Kami.All RegStruct.
+Require Import Utila.
+Require Import List.
+Import ListNotations.
 
 Section Granule.
   Variable lgGranuleSize : nat.
@@ -67,6 +70,19 @@ Section Granule.
            "addr"   :: Bit addrSz;
            "data"   :: k;
            "mask"   :: Bit (size k)
+         }.
+
+    Variable numContexts : nat.
+    Variable ContextCodeWidth : nat.
+    Definition ContextCodeT := Bit ContextCodeWidth.
+
+    Definition MayStructInputT2
+      (k : Kind)
+      := STRUCT {
+           "isRd"        :: Bool;
+           "addr"        :: Bit addrSz;
+           "contextCode" :: ContextCodeT;
+           "data"        :: k
          }.
 
     Record GenRegField :=
@@ -308,6 +324,20 @@ Section Granule.
         mgr_name : string
       }.
 
+    Record View :=
+      {
+        view_context : ContextCodeT @# ty;
+        view_size : nat ;
+        view_kind : MayStruct view_size
+      }.
+
+    Record MayGroupReg2 :=
+      {
+        mgr2_name : string ;
+        mgr2_addr : word addrSz ;
+        mgr2_views : Vector.t View numContexts
+      }.
+
     Definition MayStruct_Struct n (x: MayStruct n) := Struct (fun i => projT1 (vals x i)) (names x).
 
 
@@ -323,27 +353,6 @@ Section Granule.
     Definition mayStructKind (n : nat) (x : MayStruct n)
       :  Kind
       := Struct (fun i : Fin.t n => projT1 (vals x i)) (names x).
-
-    Definition mayStructKami (n : nat) (x : MayStruct (S n)) (pkt : mayStructKind x @# ty)
-      :  mayStructKind x @# ty
-      := BuildStruct
-           (fun i : Fin.t (S n)
-             => projT1 (vals x i) : Kind)
-           (fun i : Fin.t (S n)
-             => names x i : string)
-           (fun i : Fin.t (S n)
-             => match (projT2 (vals x i)) with
-                  | Some y
-                    => $$y
-                  | None
-                    => @struct_get_field_default ty n
-                         (fun i : Fin.t (S n) => projT1 (vals x i))
-                         (names x)
-                         pkt
-                         (names x i)
-                         (projT1 (vals x i))
-                         ($$(getDefaultConst (projT1 (vals x i))))
-                  end).
 
     (*
       Accepts three arguments: [k], [req] and [entries].
@@ -376,11 +385,27 @@ Section Granule.
                => LET addr_match
                     :  Bool
                     <- ((req @% "addr") == ($$(mgr_addr entry)));
+                  System [
+                    DispString _ "[RegMapper.mayGroupReadWrite]\n";
+                    DispString _ ("  entry name: " ++  (mgr_name entry) ++ "\n");
+                    DispString _ "  request address:";
+                    DispBinary (req @% "addr");
+                    DispString _ "\n";
+                    DispString _ "  entry address:";
+                    DispBinary ($$(mgr_addr entry));
+                    DispString _ "\n"
+                  ]%list;
                   If #addr_match
                     then
                       (LETA read_result
                         :  mayStructKind (mgr_kind entry)
                         <- MayStruct_RegReads ty (mgr_kind entry);
+                      System [
+                        DispString _ "  entry matches.\n";
+                        DispString _ "  read result: ";
+                        DispBinary (pack #read_result);
+                        DispString _ "\n"
+                      ];
                       If !(req @% "isRd")
                         then
                           LET write_mask
@@ -400,6 +425,15 @@ Section Granule.
                           LETA write_result
                             :  Void
                             <- MayStruct_RegWrites (mgr_kind entry) #write_value;
+                          System [
+                            DispString _ "  is write request.\n";
+                            DispString _ "  write mask: ";
+                            DispBinary (#write_mask);
+                            DispString _ "\n";
+                            DispString _ "  write value: ";
+                            DispBinary (pack #write_value);
+                            DispString _ "\n"
+                          ];
                           Retv;
                       Ret
                         (unpack k
@@ -411,6 +445,103 @@ Section Granule.
                   (utila_acts_opt_pkt #result #addr_match))
              entries).
     
+    Definition mayGroupReadWriteAux
+      (n : nat)
+      (k : Kind)
+      (req : MayStructInputT2 k @# ty)
+      (view : MayStruct n)
+      :  ActionT ty k
+      := LETA read_result
+           :  mayStructKind view
+           <- MayStruct_RegReads ty view;
+         System [
+           DispString _ "[mayGroupReadWriteAux]\n";
+           DispString _ "  read result: ";
+           DispBinary (pack #read_result);
+           DispString _ "\n"
+         ];
+         If !(req @% "isRd")
+           then
+             LET write_mask
+               :  Bit (size (mayStructKind view))
+               <- $$(wones (size (mayStructKind view)));
+             LET write_value
+               :  mayStructKind view
+               <- unpack (mayStructKind view)
+                    (((~ (#write_mask)) &
+                      (pack #read_result)) |
+                     ((#write_mask) &
+                      (ZeroExtendTruncLsb
+                        (size (mayStructKind view))
+                        (pack (req @% "data")))));
+             LETA write_result
+               :  Void
+               <- MayStruct_RegWrites view #write_value;
+             System [
+               DispString _ "  is write request.\n";
+               DispString _ "  write mask: ";
+               DispBinary (#write_mask);
+               DispString _ "\n";
+               DispString _ "  write value: ";
+               DispBinary (pack #write_value);
+               DispString _ "\n"
+             ];
+             Retv;
+         Ret
+           (unpack k
+             (ZeroExtendTruncLsb (size k)
+               (pack (#read_result)))).
+
+    (*
+      This function reads and writes to memory. Every memory
+      location has an associated set of "views." A view is a set of
+      fields. When this function reads a memory location, it selects
+      one of the location's views, reads the values stored within
+      the view fields, concatenates these field values together,
+      and returns them.
+
+      When this function writes to a memory location, it selects a
+      view associated with the location. It then parses the write
+      value into bit ranges corresponding to the view fields. It
+      then writes the values stored within these bit ranges to the
+      corresponding view fields.
+
+      This function accepts three arguments: [k], [req] and [entries].
+
+      [req] represents a memory request. Every memory request has
+      an associated address and context code.
+
+      [entries] represents a list of memory locations. Each entry
+      contains a vector of views - one for each context code
+      value. Each view contains a MayStruct that lists the fields
+      that comprise the view.
+    *)
+    Definition mayGroupReadWrite2
+      (k : Kind) 
+      (req : MayStructInputT2 k @# ty)
+      (entries : list MayGroupReg2)
+      :  ActionT ty (Maybe k)
+      := utila_acts_find_pkt
+           (map
+             (fun addr_entry : MayGroupReg2
+               => utila_acts_find_pkt
+                    (map
+                      (fun view_entry : View
+                        => LET entry_match
+                             :  Bool
+                             <- ((req @% "addr") == $$(mgr2_addr addr_entry) &&
+                                 (req @% "contextCode") != view_context view_entry);
+                           If #entry_match
+                             then
+                               mayGroupReadWriteAux req (view_kind view_entry)
+                             else
+                               Ret (unpack k $0)
+                             as result;
+                           (utila_acts_opt_pkt #result #entry_match))
+                      (Vector.to_list
+                        (mgr2_views addr_entry))))
+             entries).
+
     Local Close Scope kami_expr.
     Local Close Scope kami_action.
 
