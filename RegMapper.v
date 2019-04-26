@@ -45,7 +45,7 @@ Section Granule.
 
   Section RegMapper.
     Variable ty: Kind -> Type.
-    Variable lgMaskSz realAddrSz: nat.
+    Variable realAddrSz lgMaskSz: nat.
     
     Local Notation maskSz := (pow2 lgMaskSz).
     Local Notation addrSz := (lgMaskSz + realAddrSz).
