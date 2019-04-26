@@ -63,20 +63,11 @@ Section Granule.
       STRUCT { "isRd" :: Bool ;
                "info" :: RegMapT }.
 
-    Definition MayStructInputT
-      (k : Kind)
-      := STRUCT {
-           "isRd"   :: Bool;
-           "addr"   :: Bit addrSz;
-           "data"   :: k;
-           "mask"   :: Bit (size k)
-         }.
-
     Variable numContexts : nat.
     Variable ContextCodeWidth : nat.
     Definition ContextCodeT := Bit ContextCodeWidth.
 
-    Definition MayStructInputT2
+    Definition LocationReadWriteInputT
       (k : Kind)
       := STRUCT {
            "isRd"        :: Bool;
@@ -331,11 +322,12 @@ Section Granule.
         view_kind : MayStruct view_size
       }.
 
-    Record MayGroupReg2 :=
+    (* Represents a memory location supporting context-dependent views. *)
+    Record Location :=
       {
-        mgr2_name : string ;
-        mgr2_addr : word addrSz ;
-        mgr2_views : Vector.t View numContexts
+        loc_name : string ;
+        loc_addr : word addrSz ;
+        loc_views : Vector.t View numContexts
       }.
 
     Definition MayStruct_Struct n (x: MayStruct n) := Struct (fun i => projT1 (vals x i)) (names x).
@@ -354,134 +346,34 @@ Section Granule.
       :  Kind
       := Struct (fun i : Fin.t n => projT1 (vals x i)) (names x).
 
-    (*
-      Accepts three arguments: [k], [req] and [entries].
-
-      [req] represents a memory request. [entries] is a list of
-      MayGroupReg records. Each MayGroupReg record describes a
-      word in memory. Each word in memory is assumed to be a packet
-      consisting of a set of fields.
-
-      When the [isRd] field in [req] is true, this function reads
-      the word at location [req @% "addr"] and converts it into a
-      packet of type [k].
-
-      When the [isRd] fields is false, this function writes the
-      value given in [req @% "data"] to memory location [req @%
-      "addr"].
-
-      When writing, this function uses the bitmask given in [req]:
-      it only over writes those bit locations in [req @% "addr"]
-      for which the corresponding bit in [req @% "mask"] equals 1.
-    *)
-    Definition mayGroupReadWrite
-      (k : Kind)
-      (req : MayStructInputT k @# ty)
-      (entries : list MayGroupReg)
-      :  ActionT ty (Maybe k)
-      := utila_acts_find_pkt
-           (map
-             (fun entry : MayGroupReg
-               => LET addr_match
-                    :  Bool
-                    <- ((req @% "addr") == ($$(mgr_addr entry)));
-                  System [
-                    DispString _ "[RegMapper.mayGroupReadWrite]\n";
-                    DispString _ ("  entry name: " ++  (mgr_name entry) ++ "\n");
-                    DispString _ "  request address:";
-                    DispBinary (req @% "addr");
-                    DispString _ "\n";
-                    DispString _ "  entry address:";
-                    DispBinary ($$(mgr_addr entry));
-                    DispString _ "\n"
-                  ]%list;
-                  If #addr_match
-                    then
-                      (LETA read_result
-                        :  mayStructKind (mgr_kind entry)
-                        <- MayStruct_RegReads ty (mgr_kind entry);
-                      System [
-                        DispString _ "  entry matches.\n";
-                        DispString _ "  read result: ";
-                        DispBinary (pack #read_result);
-                        DispString _ "\n"
-                      ];
-                      If !(req @% "isRd")
-                        then
-                          LET write_mask
-                            :  Bit (size (mayStructKind (mgr_kind entry)))
-                            <- ZeroExtendTruncLsb
-                                 (size (mayStructKind (mgr_kind entry)))
-                                 (req @% "mask");
-                          LET write_value
-                            :  mayStructKind (mgr_kind entry)
-                            <- unpack (mayStructKind (mgr_kind entry))
-                                 (((~ (#write_mask)) &
-                                   (pack #read_result)) |
-                                  ((#write_mask) &
-                                   (ZeroExtendTruncLsb
-                                     (size (mayStructKind (mgr_kind entry)))
-                                     (pack (req @% "data")))));
-                          LETA write_result
-                            :  Void
-                            <- MayStruct_RegWrites (mgr_kind entry) #write_value;
-                          System [
-                            DispString _ "  is write request.\n";
-                            DispString _ "  write mask: ";
-                            DispBinary (#write_mask);
-                            DispString _ "\n";
-                            DispString _ "  write value: ";
-                            DispBinary (pack #write_value);
-                            DispString _ "\n"
-                          ];
-                          Retv;
-                      Ret
-                        (unpack k
-                          (ZeroExtendTruncLsb (size k)
-                            (pack (#read_result)))))
-                    else
-                      Ret $$(getDefaultConst k)
-                    as result;
-                  (utila_acts_opt_pkt #result #addr_match))
-             entries).
-    
-    Definition mayGroupReadWriteAux
+    Definition viewReadWrite
       (n : nat)
       (k : Kind)
-      (req : MayStructInputT2 k @# ty)
+      (req : LocationReadWriteInputT k @# ty)
       (view : MayStruct n)
       :  ActionT ty k
       := LETA read_result
            :  mayStructKind view
            <- MayStruct_RegReads ty view;
          System [
-           DispString _ "[mayGroupReadWriteAux]\n";
+           DispString _ "[viewReadWrite]\n";
            DispString _ "  read result: ";
            DispBinary (pack #read_result);
            DispString _ "\n"
          ];
          If !(req @% "isRd")
            then
-             LET write_mask
-               :  Bit (size (mayStructKind view))
-               <- $$(wones (size (mayStructKind view)));
              LET write_value
                :  mayStructKind view
                <- unpack (mayStructKind view)
-                    (((~ (#write_mask)) &
-                      (pack #read_result)) |
-                     ((#write_mask) &
-                      (ZeroExtendTruncLsb
-                        (size (mayStructKind view))
-                        (pack (req @% "data")))));
+                    (ZeroExtendTruncLsb
+                      (size (mayStructKind view))
+                      (pack (req @% "data")));
              LETA write_result
                :  Void
                <- MayStruct_RegWrites view #write_value;
              System [
                DispString _ "  is write request.\n";
-               DispString _ "  write mask: ";
-               DispBinary (#write_mask);
-               DispString _ "\n";
                DispString _ "  write value: ";
                DispBinary (pack #write_value);
                DispString _ "\n"
@@ -515,31 +407,40 @@ Section Granule.
       contains a vector of views - one for each context code
       value. Each view contains a MayStruct that lists the fields
       that comprise the view.
+
+      When the [isRd] field in [req] is true, this function reads
+      the word at location [req @% "addr"] and converts it into a
+      packet of type [k].
+
+      When the [isRd] fields is false, this function writes the
+      value given in [req @% "data"] to memory location [req @%
+      "addr"].
+
     *)
-    Definition mayGroupReadWrite2
+    Definition locationReadWrite
       (k : Kind) 
-      (req : MayStructInputT2 k @# ty)
-      (entries : list MayGroupReg2)
+      (req : LocationReadWriteInputT k @# ty)
+      (entries : list Location)
       :  ActionT ty (Maybe k)
       := utila_acts_find_pkt
            (map
-             (fun addr_entry : MayGroupReg2
+             (fun addr_entry : Location
                => utila_acts_find_pkt
                     (map
                       (fun view_entry : View
                         => LET entry_match
                              :  Bool
-                             <- ((req @% "addr") == $$(mgr2_addr addr_entry) &&
+                             <- ((req @% "addr") == $$(loc_addr addr_entry) &&
                                  (req @% "contextCode") == view_context view_entry);
                            If #entry_match
                              then
-                               mayGroupReadWriteAux req (view_kind view_entry)
+                               viewReadWrite req (view_kind view_entry)
                              else
                                Ret (unpack k $0)
                              as result;
                            (utila_acts_opt_pkt #result #entry_match))
                       (Vector.to_list
-                        (mgr2_views addr_entry))))
+                        (loc_views addr_entry))))
              entries).
 
     Local Close Scope kami_expr.
