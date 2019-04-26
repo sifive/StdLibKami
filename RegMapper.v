@@ -530,7 +530,7 @@ Section Granule.
                         => LET entry_match
                              :  Bool
                              <- ((req @% "addr") == $$(mgr2_addr addr_entry) &&
-                                 (req @% "contextCode") != view_context view_entry);
+                                 (req @% "contextCode") == view_context view_entry);
                            If #entry_match
                              then
                                mayGroupReadWriteAux req (view_kind view_entry)
