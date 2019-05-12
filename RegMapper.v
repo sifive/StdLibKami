@@ -64,7 +64,8 @@ Section Granule.
                "info" :: RegMapT }.
 
     Variable numContexts : nat.
-    Definition ContextCodeWidth := Nat.log2_up numContexts.
+    (* Warning: log2_up numContext <= ContextCodeWidth *)
+    Variable ContextCodeWidth : nat.
     Definition ContextCodeT := Bit ContextCodeWidth.
 
     Definition LocationReadWriteInputT
@@ -357,6 +358,12 @@ Section Granule.
            <- MayStruct_RegReads ty view;
          System [
            DispString _ "[viewReadWrite]\n";
+           DispString _ "  read context code: ";
+           DispDecimal (req @% "contextCode");
+           DispString _ "\n";
+           DispString _ "  read address: ";
+           DispHex (req @% "addr");
+           DispString _ "\n";
            DispString _ "  read result: ";
            DispBinary (pack #read_result);
            DispString _ "\n"
@@ -422,7 +429,13 @@ Section Granule.
       (req : LocationReadWriteInputT k @# ty)
       (entries : list Location)
       :  ActionT ty (Maybe k)
-      := utila_acts_find_pkt
+      := System [
+           DispString _ "[locationReadWrite]\n";
+           DispString _ "[locationReadWrite] request:\n";
+           DispHex req;
+           DispString _ "\n"
+         ];
+         utila_acts_find_pkt
            (map
              (fun addr_entry : Location
                => utila_acts_find_pkt
@@ -434,6 +447,12 @@ Section Granule.
                                  (req @% "contextCode") == view_context view_entry);
                            If #entry_match
                              then
+                               System [
+                                 DispString _ "[locationReadWrite]\n";
+                                 DispString _ "  location name: ";
+                                 DispString _ (loc_name addr_entry);
+                                 DispString _ "\n"
+                               ];
                                viewReadWrite req (view_kind view_entry)
                              else
                                Ret (unpack k $0)

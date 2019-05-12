@@ -1,4 +1,5 @@
 Require Import Kami.All.
+Require Import Kami.Utila.
 
 Local Open Scope kami_expr.
 Local Open Scope kami_action.
