@@ -54,14 +54,15 @@ Section Granule.
     (* For tile-link, addr, mask and size should all be compatible, which is why maskSz, dataSz are powers of 2 *)
     
     Definition RegMapT :=
-      STRUCT
+      STRUCT_TYPE
         { "addr" :: Bit realAddrSz ;
           "mask" :: Bit maskSz ;
           "data" :: Bit dataSz }.
 
     Definition FullRegMapT :=
-      STRUCT { "isRd" :: Bool ;
-               "info" :: RegMapT }.
+      STRUCT_TYPE
+        { "isRd" :: Bool ;
+          "info" :: RegMapT }.
 
     Variable numContexts : nat.
     (* Warning: log2_up numContext <= ContextCodeWidth *)
@@ -70,7 +71,7 @@ Section Granule.
 
     Definition LocationReadWriteInputT
       (k : Kind)
-      := STRUCT {
+      := STRUCT_TYPE {
            "isRd"        :: Bool;
            "addr"        :: Bit addrSz;
            "contextCode" :: ContextCodeT;
