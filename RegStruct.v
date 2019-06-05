@@ -73,13 +73,13 @@ Delimit Scope kami_maystruct_scope with kami_maystruct.
 Record MayStruct n := { vals  : Fin.t n -> {k: Kind & option (ConstT k)} ;
                         names : Fin.t n -> string }.
 
-Definition getMayStruct n ls: MayStruct n :=
-  {| vals  := fun i => snd (Vector.nth ls i) ;
-     names := fun i => fst (Vector.nth ls i)
+Definition getMayStruct ls: MayStruct (length ls) :=
+  {| vals  := fun i => snd (nth_Fin ls i) ;
+     names := fun i => fst (nth_Fin ls i)
   |}.
 
 Notation "'MAYSTRUCT' { s1 ; .. ; sN }" :=
-  (getMayStruct (Vector.cons _ s1%kami_maystruct _ .. (Vector.cons _ sN%kami_maystruct _ (Vector.nil _)) ..)).
+  (getMayStruct (cons s1%kami_maystruct .. (cons sN%kami_maystruct nil) ..)).
 
 Definition MayStruct_RegReads ty n (v: MayStruct n) := MayStruct_RegReads' ty (names v) (vals v).
 Definition MayStruct_RegWrites (ty: Kind -> Type) n (v: MayStruct n) e := MayStruct_RegWrites' (ty := ty) (s := names v) (vals v) e.

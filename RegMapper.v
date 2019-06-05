@@ -64,8 +64,6 @@ Section Granule.
         { "isRd" :: Bool ;
           "info" :: RegMapT }.
 
-    Variable numContexts : nat.
-    (* Warning: log2_up numContext <= ContextCodeWidth *)
     Variable ContextCodeWidth : nat.
     Definition ContextCodeT := Bit ContextCodeWidth.
 
@@ -329,7 +327,7 @@ Section Granule.
       {
         loc_name : string ;
         loc_addr : word addrSz ;
-        loc_views : Vector.t View numContexts
+        loc_views : list View
       }.
 
     Definition MayStruct_Struct n (x: MayStruct n) := Struct (fun i => projT1 (vals x i)) (names x).
@@ -459,8 +457,7 @@ Section Granule.
                                Ret (unpack k $0)
                              as result;
                            (utila_acts_opt_pkt #result #entry_match))
-                      (Vector.to_list
-                        (loc_views addr_entry))))
+                      (loc_views addr_entry)))
              entries).
 
     Local Close Scope kami_expr.
