@@ -51,8 +51,12 @@ Section Granule.
     Local Notation addrSz := (lgMaskSz + realAddrSz).
     Local Notation dataSz := (maskSz * n).
 
-    (* For tile-link, addr, mask and size should all be compatible, which is why maskSz, dataSz are powers of 2 *)
-    
+    (* For tile-link, addr, mask and size should all be compatible,
+       which is why maskSz, dataSz are powers of 2 *)
+
+    (* Each entry represents a single data entry of size dataSz,
+       indexed by an addr of size realAddrSz.
+       The mask represents the granuleEnable for granules of size n that make up the data *)
     Definition RegMapT :=
       STRUCT_TYPE
         { "addr" :: Bit realAddrSz ;
@@ -64,18 +68,6 @@ Section Granule.
         { "isRd" :: Bool ;
           "info" :: RegMapT }.
 
-    Variable ContextCodeWidth : nat.
-    Definition ContextCodeT := Bit ContextCodeWidth.
-
-    Definition LocationReadWriteInputT
-      (k : Kind)
-      := STRUCT_TYPE {
-           "isRd"        :: Bool;
-           "addr"        :: Bit addrSz;
-           "contextCode" :: ContextCodeT;
-           "data"        :: k
-         }.
-
     Record GenRegField :=
       { grf_addr  : word realAddrSz ;
         grf_mask  : Bit maskSz @# ty;
@@ -84,6 +76,11 @@ Section Granule.
 
     Local Open Scope kami_action.
     Local Open Scope kami_expr.
+
+    (* Given an addr of size realAddrSz and a mask, if the addr matches any entry's address
+       and if any granule in the data is enabled by the mask, then do the corresponding
+       read or write, sending the whole mask, data and the address itself (address is
+       redundant for the final reader/writer) *)
     Definition createRegMap (rq: Maybe FullRegMapT @# ty) (ls: list GenRegField): ActionT ty (Bit dataSz) :=
       If rq @% "valid"
     then (If rq @% "data" @% "isRd"
@@ -161,6 +158,11 @@ Section Granule.
       Transparent Nat.div.
     Defined.
 
+    (* Represents a register group starting at address represented by srg_addr.
+       Note that srg_addr is of size addrSz, which means it indexes into a single
+       granule, unlike grf_addr, which indexes into the entire data.
+       IMPORTANT: The size of srg_kind can be well beyond dataSz of RegMapT.
+       The value is just loaded contiguously starting from srg_addr and padded to fill granule boundaries *)
     Record SimpleRegGroup :=
       { srg_addr  : word addrSz ;
         srg_kind  : Kind ;
@@ -169,29 +171,16 @@ Section Granule.
         srg_name  : option string 
       }.
 
-    Local Notation "x @## y" := (x ++ "_" ++ natToHexStr (proj1_sig (Fin.to_nat y)))%string (at level 0).
-
-    Local Notation "'CallDebug' x @@@ y (@ z @) ; cont" := (match srg_name x with
-                                                            | None => cont
-                                                            | Some x' => Call (x' ++ "_" ++ y)((z): _); cont
-                                                            end)%kami_action (at level 100).
-
     Definition expandRqMask (m: Bit maskSz @# ty): Bit dataSz @# ty.
       refine (castBits _ (pack (BuildArray (fun i => replicate (ReadArrayConst (unpack (Array maskSz (Bit 1)) (castBits _ m)) i) n))));
         abstract (auto; simpl; lia).
     Defined.
-
-    (* Eval compute in (evalExpr (unpack (Array 2 (Bit 1)) (Const type WO~1~0)%kami_expr) (Fin.FS Fin.F1)). *)
-
-    (* Eval compute in (evalExpr (pack (unpack (Array 2 (Bit 1)) (Const type WO~1~0)%kami_expr))). *)
 
     Local Open Scope kami_action.
     Local Open Scope kami_expr.
     Definition readWriteGranules_Gen (x: SimpleRegGroup): list GenRegField :=
       map (fun y => {| grf_addr  := (split2 _ realAddrSz (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word ;
                        grf_mask  := ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y ;
-                       (* $$(wones maskSz) << $$ (split1 _ realAddrSz (srg_addr x)) ; *)
-                       (* natToWord maskSz (proj1_sig (Fin.to_nat y)) ; *)
                        grf_read  :=
                          fun rm =>
                            (LETA readK: srg_kind x <- srg_read x ;
@@ -205,11 +194,6 @@ Section Granule.
                                                   (Const ty (wones (size (srg_kind x)))))
                                                y;
                               LET finalVal: Bit dataSz <- expandRqMask (rm @% "mask") & #readVal & #maskVal;
-                              (* CallDebug x @@@ "addrR" @## y (@ $$ (split2 _ realAddrSz (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word @) ; *)
-                              (* CallDebug x @@@ "maskR" @## y (@ (ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y) @); *)
-                              (* CallDebug x @@@ "readValR" @## y (@ #readVal @); *)
-                              (* CallDebug x @@@ "maskValR" @## y (@ #maskVal @); *)
-                              (* CallDebug x @@@ "finalValR" @## y (@ #finalVal @); *)
                               Ret #finalVal) ;
                        grf_write :=
                          fun rm =>
@@ -222,24 +206,6 @@ Section Granule.
                               LET t2Val <- (~(expandRqMask (rm @% "mask") & #maskVali)) & (ReadArrayConst # readVal y);
                               LET t3Val <- (#t1Val | #t2Val);
                               LET finalVal <- UpdateArrayConst #readVal y #t3Val;
-                              (* CallDebug x @@@ "addrW" @## y *)
-                              (*           (@ {< $$ (split2 _ realAddrSz (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word, $$WO~0~0 >} @); *)
-                              (* CallDebug x @@@ "addrBaseW" @## y *)
-                              (*           (@ {< $$ (split2 _ realAddrSz (srg_addr x))%word, $$WO~0~0 >} @); *)
-                              (* CallDebug x @@@ "addrOffsetW" @## y *)
-                              (*           (@ {< $$ (natToWord 4 (proj1_sig (Fin.to_nat y)))%word >} @); *)
-                              (* CallDebug x @@@ "expandW" @## y (@ expandRqMask (rm @% "mask") @); *)
-                              (* CallDebug x @@@ "rqMaskW" @## y (@ rm @% "mask" @); *)
-                              (* CallDebug x @@@ "rqAddrW" @## y (@ rm @% "addr" @); *)
-                              (* CallDebug x @@@ "rqDataW" @## y (@ rm @% "data" @); *)
-                              (* CallDebug x @@@ "maskW" @## y (@ (ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y) @); *)
-                              (* CallDebug x @@@ "readValW" @## y (@ #readVal @); *)
-                              (* CallDebug x @@@ "maskValW" @## y (@ #maskVal @); *)
-                              (* CallDebug x @@@ "maskValiW" @## y (@ #maskVali @); *)
-                              (* CallDebug x @@@ "t1ValW" @## y (@ #t1Val @); *)
-                              (* CallDebug x @@@ "t2ValW" @## y (@ #t2Val @); *)
-                              (* CallDebug x @@@ "testValW" @## y (@ #t3Val @); *)
-                              (* CallDebug x @@@ "finalValW" @## y (@ #finalVal @); *)
                               srg_write x (makeJoinBits (srg_addr x) (srg_kind x) #finalVal)
                            )
                     |})
@@ -315,21 +281,6 @@ Section Granule.
         mgr_name : string
       }.
 
-    Record View :=
-      {
-        view_context : ContextCodeT @# ty;
-        view_size : nat ;
-        view_kind : MayStruct view_size
-      }.
-
-    (* Represents a memory location supporting context-dependent views. *)
-    Record Location :=
-      {
-        loc_name : string ;
-        loc_addr : word addrSz ;
-        loc_views : list View
-      }.
-
     Definition MayStruct_Struct n (x: MayStruct n) := Struct (fun i => projT1 (vals x i)) (names x).
 
 
@@ -345,6 +296,33 @@ Section Granule.
     Definition mayStructKind (n : nat) (x : MayStruct n)
       :  Kind
       := Struct (fun i : Fin.t n => projT1 (vals x i)) (names x).
+
+    Variable ContextCodeWidth : nat.
+    Definition ContextCodeT := Bit ContextCodeWidth.
+
+    Definition LocationReadWriteInputT
+      (k : Kind)
+      := STRUCT_TYPE {
+           "isRd"        :: Bool;
+           "addr"        :: Bit addrSz;
+           "contextCode" :: ContextCodeT;
+           "data"        :: k
+         }.
+
+    Record View :=
+      {
+        view_context : ContextCodeT @# ty;
+        view_size : nat ;
+        view_kind : MayStruct view_size
+      }.
+
+    (* Represents a memory location supporting context-dependent views. *)
+    Record Location :=
+      {
+        loc_name : string ;
+        loc_addr : word addrSz ;
+        loc_views : list View
+      }.
 
     Definition viewReadWrite
       (n : nat)
