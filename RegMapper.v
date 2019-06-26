@@ -162,7 +162,7 @@ Section Granule.
        Note that srg_addr is of size addrSz, which means it indexes into a single
        granule, unlike grf_addr, which indexes into the entire data.
        IMPORTANT: The size of srg_kind can be well beyond dataSz of RegMapT.
-       The value is just loaded contiguously starting from srg_addr and padded to fill granule boundaries *)
+       The value is just loaded contiguously starting from srg_addr and padded to fill entire data boundaries *)
     Record SimpleRegGroup :=
       { srg_addr  : word addrSz ;
         srg_kind  : Kind ;
