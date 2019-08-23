@@ -1,4 +1,4 @@
-Require Import Kami.AllDefn Kami.Notations.
+Require Import Kami.AllNotations.
 Require Import Kami.Utila.
 
 Local Open Scope kami_expr.
