@@ -1,4 +1,4 @@
-Require Import Kami.All StdLibKami.RegStruct.
+Require Import Kami.AllDefn Kami.Notations StdLibKami.RegStruct.
 Require Import Kami.Utila.
 Require Import List.
 Import ListNotations.
