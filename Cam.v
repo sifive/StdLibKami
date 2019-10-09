@@ -4,18 +4,23 @@ Require Import Kami.AllNotations.
 Axiom cheat : forall A, A.
 
 Section cam.
-  Variable Tag : Kind.
-  Variable Data : Kind.
-  Variable ty: Kind -> Type.
-
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Definition camRead: Tag @# ty -> ActionT ty (Maybe Data) := cheat _.
+  Variable ty: Kind -> Type.
+  Variable Tag Data ReadCtxt ClearCtxt: Kind.
 
-  Definition camWrite: Pair Tag Data @# ty -> ActionT ty Void := cheat _.
+  Variable matchRead: Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Data @# ty -> Bool @# ty.
+
+  Variable matchClear: Tag @# ty -> ClearCtxt @# ty -> Tag @# ty -> Data @# ty -> Bool @# ty.
+
+  Definition camRead: Tag @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data) := cheat _.
+
+  Definition camWrite: Tag @# ty -> Data @# ty -> ActionT ty Void := cheat _.
 
   Definition camFlush: ActionT ty Void := cheat _.
+
+  Definition camClear: Tag @# ty -> ClearCtxt @# ty -> ActionT ty Void := cheat _.
 
   Close Scope kami_action.
   Close Scope kami_expr.
