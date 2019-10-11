@@ -7,7 +7,10 @@ Section lru.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  (* the number of data registers *)
+  (*
+    the number of data registers.
+    Note: should be of the form 2^n for some n.
+  *)
   Variable num : nat.
 
  (* the type of data stored in the registers *)
@@ -90,6 +93,54 @@ Section lru.
          Write lruRegName : Lru <- #result @% "snd";
          Ret (#result @% "fst").
 
+    Definition treeIndex
+      (reg : RegIndex @# ty)
+      :  Index @# ty
+      := (~ (ZeroExtendTruncLsb indexWidth reg)) - $1.
+
+    (* Note: index must not be the root or the dual of the root - i.e. regIndex index != 0 *)
+    Definition parentIndex
+      (index : Index @# ty)
+      :  Index @# ty
+      := OneExtendTruncLsb indexWidth
+           (ZeroExtendTruncMsb (indexWidth - 1) index).
+
+    Fixpoint accessAux
+      (maxDepth : nat)
+      (lru : Lru @# ty)
+      (index : Index @# ty)
+      (dir : Bool @# ty)
+      :  Lru ## ty
+      := match maxDepth with
+         | 0 => RetE lru (* impossible case - bounding recursion. *)
+         | S depth
+           => LETC reg : RegIndex <- regIndex index;
+              LETC nextLru : Lru <- lru@[#reg <- dir];
+              LETE result : Lru
+                <- accessAux depth #nextLru (parentIndex index)
+                     (ZeroExtendTruncLsb 1 index == $0);
+              RetE
+                (IF index == initIndex
+                  then #nextLru
+                  else #result)
+         end.
+
+    (* updates the least recently used data to point away from the given register. *)
+    Definition access
+      (reg : RegIndex @# ty)
+      :  ActionT ty Void
+      := Read lru : Lru <- lruRegName;
+         LET rawIndex : Index <- treeIndex reg;
+         LET index : Index
+           <- IF #rawIndex == initIndex
+               then #rawIndex << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
+               else #rawIndex;
+         LETA result : Lru
+           <- convertLetExprSyntax_ActionT
+                (accessAux depth #lru #index (ZeroExtendTruncLsb 1 #index == $0));
+         Write lruRegName : Lru <- #result;
+         Retv.
+
   End ty.
 
   Close Scope kami_action.
@@ -103,10 +154,11 @@ Section tests.
   Local Definition T := Const type true.
   Local Definition F := Const type false.
 
-  Definition test
+  Definition testGetVictim
     (num : nat)
     (lru : Lru num @# type)
-    (expected : word (regIndexWidth num)) : Prop
+    (expected : word (regIndexWidth num))
+    :  Prop
     := (evalLetExpr
          (LETE result
            : Pair (RegIndex num) (Lru num)
@@ -117,24 +169,31 @@ Section tests.
           RetE ((Var type (SyntaxKind _) result) @% "fst"))) =
         expected.
 
-  Goal test (num := 3) (ARRAY {T; T}) $3. Proof ltac:(reflexivity). 
-  Goal test (num := 3) (ARRAY {T; F}) $0. Proof ltac:(reflexivity).
-  Goal test (num := 3) (ARRAY {F; T}) $2. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 3) (ARRAY {T; T}) $3. Proof ltac:(reflexivity). 
+  Goal testGetVictim (num := 3) (ARRAY {T; F}) $0. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 3) (ARRAY {F; T}) $2. Proof ltac:(reflexivity).
 
-  Goal test (num := 6) (ARRAY {T; T; T; T; T}) $7. Proof ltac:(reflexivity).
-  Goal test (num := 6) (ARRAY {F; T; T; T; T}) $5. Proof ltac:(reflexivity).
-  Goal test (num := 6) (ARRAY {F; T; F; T; T}) $6. Proof ltac:(reflexivity).
-  Goal test (num := 6) (ARRAY {T; F; T; T; F}) $2. Proof ltac:(reflexivity).
-  Goal test (num := 6) (ARRAY {T; F; T; T; T}) $1. Proof ltac:(reflexivity).
-  Goal test (num := 6) (ARRAY {T; T; T; F; T}) $0. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {T; T; T; T; T}) $7. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {F; T; T; T; T}) $5. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {F; T; F; T; T}) $6. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {T; F; T; T; F}) $2. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {T; F; T; T; T}) $1. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 6) (ARRAY {T; T; T; F; T}) $0. Proof ltac:(reflexivity).
 
-  Goal test (num := 7) (ARRAY {T; T; T; T; T; T}) $7. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {T; T; T; F; T; T}) $0. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {T; F; F; T; T; T}) $1. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {T; F; T; T; F; T}) $2. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {F; T; T; T; T; T}) $3. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {F; T; T; T; T; F}) $4. Proof ltac:(reflexivity).
-  Goal test (num := 7) (ARRAY {F; T; F; T; T; T}) $6. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {T; T; T; T; T; T}) $7. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {T; T; T; F; T; T}) $0. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {T; F; F; T; T; T}) $1. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {T; F; T; T; F; T}) $2. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {F; T; T; T; T; T}) $3. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {F; T; T; T; T; F}) $4. Proof ltac:(reflexivity).
+  Goal testGetVictim (num := 7) (ARRAY {F; T; F; T; T; T}) $6. Proof ltac:(reflexivity).
+
+  Goal (evalExpr (treeIndex (num := 5) (Const type (natToWord _ 7)))) = natToWord _ 7. Proof. reflexivity. Qed.
+  Goal (evalExpr (treeIndex (num := 5) (Const type (natToWord _ 4)))) = 4'b"1010". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentIndex (num := 5) (Const type (4'b"1010")))) = 4'b"1101". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentIndex (num := 5) (Const type (4'b"1001")))) = 4'b"1100". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentIndex (num := 5) (Const type (4'b"0110")))) = 4'b"1011". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentIndex (num := 5) (Const type (4'b"0111")))) = 4'b"1011". Proof. reflexivity. Qed.
 
   Close Scope kami_expr.
 
