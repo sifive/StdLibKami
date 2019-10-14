@@ -47,18 +47,15 @@ Section lru.
       (depth : nat)
       (state : State @# ty)
       (treeNode : TreeNodeIndex @# ty)
-      :  Pair Index State ## ty
+      :  Index ## ty
       := LETC index : Index <- treeNodeIndex treeNode;
          LETC direction : Bool <- state@[#index];
          match depth with
          | 0
-           => RetE (STRUCT {
-                "fst" ::= #index;
-                "snd" ::= state
-                } : Pair Index State @# ty)
+           => RetE #index
          | S depth'
            => LETE result
-                :  Pair Index State
+                :  Index
                 <- getVictimAux depth'
                      (state@[#index <- !#direction])
                      (IF #direction
@@ -66,11 +63,7 @@ Section lru.
                        else (treeNode << ($1 : Bit 1 @# ty)));    (* right child's treeNode *)
               RetE
                 (IF #index >= $(num - 1)
-                  then
-                    (STRUCT {
-                       "fst" ::= #index;
-                       "snd" ::= state
-                     } : Pair Index State @# ty)
+                  then #index
                   else #result)
          end.
 
@@ -84,12 +77,8 @@ Section lru.
     Definition getVictim
       :  ActionT ty Index
       := Read state : State <- stateRegName;
-         LETA result
-           :  Pair Index State
-           <- convertLetExprSyntax_ActionT
-                (getVictimAux Depth #state rootTreeNodeIndex);
-         Write stateRegName : State <- #result @% "snd";
-         Ret (#result @% "fst").
+        convertLetExprSyntax_ActionT
+          (getVictimAux Depth #state rootTreeNodeIndex).
 
     Definition indexTreeNodeIndex
       (index : Index @# ty)
