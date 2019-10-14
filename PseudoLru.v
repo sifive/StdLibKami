@@ -77,8 +77,8 @@ Section lru.
     Definition getVictim
       :  ActionT ty Index
       := Read state : State <- stateRegName;
-        convertLetExprSyntax_ActionT
-          (getVictimAux Depth #state rootTreeNodeIndex).
+         convertLetExprSyntax_ActionT
+           (getVictimAux Depth #state rootTreeNodeIndex).
 
     Definition indexTreeNodeIndex
       (index : Index @# ty)
