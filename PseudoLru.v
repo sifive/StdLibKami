@@ -29,7 +29,7 @@ Section lru.
   (*
     Note: the total number nodes and leaves in the tree is [2*num - 1].
   *)
-  Definition indexWidth := Nat.log2_up (2 * num + 1)%nat.
+  Definition indexWidth := Nat.log2_up (2 * num - 1)%nat.
 
   Definition Index := Bit indexWidth.
 
