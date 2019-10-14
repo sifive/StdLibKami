@@ -215,35 +215,25 @@ Section tests.
               (fun (H : 0 < (S n)) xs
                 => [(evalLetExpr xs) (Fin.of_nat_lt H)])
               (fun m F (H : S m < (S n)) xs
-                => ((evalLetExpr xs) (Fin.of_nat_lt H)) ::
-                   (F (Nat.lt_succ_l m (S n) H) xs))
+                => (F (Nat.lt_succ_l m (S n) H) xs) ++
+                   [(evalLetExpr xs) (Fin.of_nat_lt H)])
               n (Nat.lt_succ_diag_r n)
       end%nat.
-(*
-  Goal
-    evalArray
-      (accessAux (num := 2) 1
-        (ARRAY {T})
-        (Const type (2'b"00"))) =
-    [true].
-  Proof. reflexivity. Qed.
 
-  Goal
-    evalArray
-      (accessAux (num := 2) 2
-        (ARRAY {T})
-        (Const type (2'b"01"))) =
-    [false].
-  Proof. reflexivity. Qed.
+  Definition testAccess
+    (num : nat)
+    (state : State num @# type)
+    (index : Index num @# type)
+    (expected : list bool)
+    :  Prop
+    := evalArray (accessAux (num := num) state index) = expected.
 
-  Goal
-    evalArray
-      (accessAux (num := 3) 3
-        (ARRAY {T; T})
-        (Const type (3'b"011"))) =
-    [false].
-  Proof. reflexivity. Qed.
-*)
+  Goal testAccess (num := 2) (ARRAY {T}) (Const type (1'b"0")) [true]. Proof ltac:(reflexivity).
+  Goal testAccess (num := 2) (ARRAY {T}) (Const type (1'b"1")) [false]. Proof ltac:(reflexivity).
+  Goal testAccess (num := 3) (ARRAY {T; T}) (Const type (2'b"11")) [false; false]. Proof ltac:(reflexivity).
+  Goal testAccess (num := 3) (ARRAY {T; T}) (Const type (2'b"00")) [false; true]. Proof ltac:(reflexivity).
+  Goal testAccess (num := 3) (ARRAY {T; T}) (Const type (2'b"10")) [true; true]. Proof ltac:(reflexivity).
+
   Close Scope kami_expr.
 
 End tests.
