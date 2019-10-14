@@ -106,7 +106,7 @@ Section lru.
       := OneExtendTruncLsb labelWidth
            (ZeroExtendTruncMsb (labelWidth - 1) label).
 
-    Fixpoint accessAux
+    Fixpoint accessAuxRec
       (maxDepth : nat)
       (state : State @# ty)
       (label : Label @# ty)
@@ -118,7 +118,7 @@ Section lru.
            => LETC index : Index <- labelIndex label;
               LETC nextState : State <- state@[#index <- dir];
               LETE result : State
-                <- accessAux depth #nextState (parentLabel label)
+                <- accessAuxRec depth #nextState (parentLabel label)
                      (ZeroExtendTruncLsb 1 label == $0);
               RetE
                 (IF label == rootLabel
@@ -126,19 +126,25 @@ Section lru.
                   else #result)
          end.
 
+    Definition accessAux
+      (state : State @# ty)
+      (index : Index @# ty)
+      :  State ## ty
+      := LETC rawLabel : Label <- indexLabel index;
+         LETC label : Label
+           <- IF #rawLabel == rootLabel
+               then #rawLabel << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
+               else #rawLabel;
+         accessAuxRec depth #state
+           (parentLabel #label)
+           (ZeroExtendTruncLsb 1 #label == $0).
+
     (* updates the least recently used data to point away from the given register. *)
     Definition access
       (index : Index @# ty)
       :  ActionT ty Void
       := Read state : State <- stateRegName;
-         LET rawLabel : Label <- indexLabel index;
-         LET label : Label
-           <- IF #rawLabel == rootLabel
-               then #rawLabel << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
-               else #rawLabel;
-         LETA result : State
-           <- convertLetExprSyntax_ActionT
-                (accessAux depth #state #label (ZeroExtendTruncLsb 1 #label == $0));
+         LETA result : State <- convertLetExprSyntax_ActionT (accessAux #state index);
          Write stateRegName : State <- #result;
          Retv.
 
@@ -196,6 +202,48 @@ Section tests.
   Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"0110")))) = 4'b"1011". Proof. reflexivity. Qed.
   Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"0111")))) = 4'b"1011". Proof. reflexivity. Qed.
 
+  Definition evalArray
+    (k : Kind)
+    (n : nat)
+    :  Array n k ## type -> list (type k)
+    := match n return Array n k ## type -> list (type k) with
+       | 0 => fun _ => []
+       | S n
+         => nat_rect
+              (fun m : nat
+                => m < (S n) -> Array (S n) k ## type -> list (type k))
+              (fun (H : 0 < (S n)) xs
+                => [(evalLetExpr xs) (Fin.of_nat_lt H)])
+              (fun m F (H : S m < (S n)) xs
+                => ((evalLetExpr xs) (Fin.of_nat_lt H)) ::
+                   (F (Nat.lt_succ_l m (S n) H) xs))
+              n (Nat.lt_succ_diag_r n)
+      end%nat.
+(*
+  Goal
+    evalArray
+      (accessAux (num := 2) 1
+        (ARRAY {T})
+        (Const type (2'b"00"))) =
+    [true].
+  Proof. reflexivity. Qed.
+
+  Goal
+    evalArray
+      (accessAux (num := 2) 2
+        (ARRAY {T})
+        (Const type (2'b"01"))) =
+    [false].
+  Proof. reflexivity. Qed.
+
+  Goal
+    evalArray
+      (accessAux (num := 3) 3
+        (ARRAY {T; T})
+        (Const type (3'b"011"))) =
+    [false].
+  Proof. reflexivity. Qed.
+*)
   Close Scope kami_expr.
 
 End tests.
