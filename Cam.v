@@ -9,9 +9,10 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Class Cam
-    (Tag Data ReadCtxt ClearCtxt : Kind)
-    (regNames : list string)
+  Variable Tag Data ReadCtxt ClearCtxt : Kind.
+  Variable regNames : list string.
+
+  Record Cam
     := {
       matchRead: forall ty, Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Bool @# ty;
 
@@ -41,7 +42,7 @@ Section cam.
 
       camFlush: forall ty, ActionT ty Void := cheat _;
 
-      camClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> ActionT ty Void := cheat _;
+      camClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> ActionT ty Void := cheat _
     }.
 
   Close Scope kami_action.
