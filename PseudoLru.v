@@ -135,7 +135,7 @@ Section lru.
            <- IF #rawLabel == rootLabel
                then #rawLabel << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
                else #rawLabel;
-         accessAuxRec depth #state
+         accessAuxRec depth state
            (parentLabel #label)
            (ZeroExtendTruncLsb 1 #label == $0).
 
