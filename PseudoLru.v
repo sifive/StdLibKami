@@ -13,9 +13,6 @@ Section lru.
   *)
   Variable num : nat.
 
- (* the type of data stored in the registers *)
-  Variable Data : Kind.
-
   (* the name of the register that stores the path of the least recently used data register *)
   Variable stateRegName : string.
 
@@ -30,29 +27,29 @@ Section lru.
   (*
     Note: the total number nodes and leaves in the tree is [2*num - 1].
   *)
-  Definition labelWidth := Nat.log2_up (2 * num - 1)%nat.
+  Definition treeNodeWidth := Nat.log2_up (2 * num - 1)%nat.
 
-  Definition Label := Bit labelWidth.
+  Definition TreeNodeIndex := Bit treeNodeWidth.
 
-  Definition indexWidth := Nat.log2_up num.
+  Definition IndexWidth := Nat.log2_up num.
 
-  Definition Index := Bit indexWidth.
+  Definition Index := Bit IndexWidth.
 
   Section ty.
     Variable ty : Kind -> Type.
 
-    Definition labelIndex
-      (label : Label @# ty)
+    Definition treeNodeIndex
+      (treeNode : TreeNodeIndex @# ty)
       :  Index @# ty
-      := ~(ZeroExtendTruncLsb indexWidth label + $1).
+      := ~(ZeroExtendTruncLsb IndexWidth treeNode + $1).
 
     Fixpoint getVictimAux
       (depth : nat)
       (state : State @# ty)
-      (label : Label @# ty)
+      (treeNode : TreeNodeIndex @# ty)
       :  Pair Index State ## ty
-      := LETC index : Index <- labelIndex label;
-         LETC dir : Bool <- state@[ZeroExtendTruncLsb stateWidth #index];
+      := LETC index : Index <- treeNodeIndex treeNode;
+         LETC direction : Bool <- state@[#index];
          match depth with
          | 0
            => RetE (STRUCT {
@@ -63,10 +60,10 @@ Section lru.
            => LETE result
                 :  Pair Index State
                 <- getVictimAux depth'
-                     (state@[#index <- !#dir])
-                     (IF #dir
-                       then (label << ($1 : Bit 1 @# ty)) | $1 (* left child's label *)
-                       else (label << ($1 : Bit 1 @# ty)));    (* right child's label *)
+                     (state@[#index <- !#direction])
+                     (IF #direction
+                       then (treeNode << ($1 : Bit 1 @# ty)) | $1 (* left child's treeNode *)
+                       else (treeNode << ($1 : Bit 1 @# ty)));    (* right child's treeNode *)
               RetE
                 (IF #index >= $(num - 1)
                   then
@@ -78,10 +75,10 @@ Section lru.
          end.
 
     (* The maximum depth of the balanced tree. *)
-    Definition depth := Nat.log2_up num.
+    Definition Depth := Nat.log2_up num.
 
-    (* The root node label. *)
-    Definition rootLabel : Label @# ty := $$(wones labelWidth) << ($1 : Bit 1 @# ty).
+    (* The root node treeNode. *)
+    Definition rootTreeNodeIndex : TreeNodeIndex @# ty := $$(wones treeNodeWidth) << ($1 : Bit 1 @# ty).
 
     (* Returns the index of the least recently used register *)
     Definition getVictim
@@ -90,38 +87,38 @@ Section lru.
          LETA result
            :  Pair Index State
            <- convertLetExprSyntax_ActionT
-                (getVictimAux depth #state rootLabel);
+                (getVictimAux Depth #state rootTreeNodeIndex);
          Write stateRegName : State <- #result @% "snd";
          Ret (#result @% "fst").
 
-    Definition indexLabel
+    Definition indexTreeNodeIndex
       (index : Index @# ty)
-      :  Label @# ty
-      := (~ (ZeroExtendTruncLsb labelWidth index)) - $1.
+      :  TreeNodeIndex @# ty
+      := (~ (ZeroExtendTruncLsb treeNodeWidth index)) - $1.
 
-    (* Note: label must not be the root or the dual of the root - i.e. labelIndex label != 0 *)
-    Definition parentLabel
-      (label : Label @# ty)
-      :  Label @# ty
-      := OneExtendTruncLsb labelWidth
-           (ZeroExtendTruncMsb (labelWidth - 1) label).
+    (* Note: treeNode must not be the root or the dual of the root - i.e. treeNodeIndex treeNode != 0 *)
+    Definition parentTreeNodeIndex
+      (treeNode : TreeNodeIndex @# ty)
+      :  TreeNodeIndex @# ty
+      := OneExtendTruncLsb treeNodeWidth
+           (ZeroExtendTruncMsb (treeNodeWidth - 1) treeNode).
 
     Fixpoint accessAuxRec
       (maxDepth : nat)
       (state : State @# ty)
-      (label : Label @# ty)
-      (dir : Bool @# ty)
+      (treeNode : TreeNodeIndex @# ty)
+      (direction : Bool @# ty)
       :  State ## ty
       := match maxDepth with
          | 0 => RetE state (* impossible case - bounding recursion. *)
          | S depth
-           => LETC index : Index <- labelIndex label;
-              LETC nextState : State <- state@[#index <- dir];
+           => LETC index : Index <- treeNodeIndex treeNode;
+              LETC nextState : State <- state@[#index <- direction];
               LETE result : State
-                <- accessAuxRec depth #nextState (parentLabel label)
-                     (ZeroExtendTruncLsb 1 label == $0);
+                <- accessAuxRec depth #nextState (parentTreeNodeIndex treeNode)
+                     (ZeroExtendTruncLsb 1 treeNode == $0);
               RetE
-                (IF label == rootLabel
+                (IF treeNode == rootTreeNodeIndex
                   then #nextState
                   else #result)
          end.
@@ -130,14 +127,14 @@ Section lru.
       (state : State @# ty)
       (index : Index @# ty)
       :  State ## ty
-      := LETC rawLabel : Label <- indexLabel index;
-         LETC label : Label
-           <- IF #rawLabel == rootLabel
-               then #rawLabel << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
-               else #rawLabel;
-         accessAuxRec depth state
-           (parentLabel #label)
-           (ZeroExtendTruncLsb 1 #label == $0).
+      := LETC rawTreeNodeIndex : TreeNodeIndex <- indexTreeNodeIndex index;
+         LETC treeNode : TreeNodeIndex
+           <- IF #rawTreeNodeIndex == rootTreeNodeIndex
+               then #rawTreeNodeIndex << ($1 : Bit 1 @# ty) >> ($1 : Bit 1 @# ty) (* set msb to 0 *)
+               else #rawTreeNodeIndex;
+         accessAuxRec Depth state
+           (parentTreeNodeIndex #treeNode)
+           (ZeroExtendTruncLsb 1 #treeNode == $0).
 
     (* updates the least recently used data to point away from the given register. *)
     Definition access
@@ -164,15 +161,15 @@ Section tests.
   Definition testGetVictim
     (num : nat)
     (state : State num @# type)
-    (expected : word (indexWidth num))
+    (expected : word (IndexWidth num))
     :  Prop
     := (evalLetExpr
          (LETE result
            : Pair (Index num) (State num)
            <- getVictimAux
-                (depth num)
+                (Depth num)
                 state
-                (rootLabel num type);
+                (rootTreeNodeIndex num type);
           RetE ((Var type (SyntaxKind _) result) @% "fst"))) =
         expected.
 
@@ -195,12 +192,12 @@ Section tests.
   Goal testGetVictim (num := 7) (ARRAY {F; T; T; T; T; F}) $4. Proof ltac:(reflexivity).
   Goal testGetVictim (num := 7) (ARRAY {F; T; F; T; T; T}) $6. Proof ltac:(reflexivity).
 
-  Goal (evalExpr (indexLabel (num := 5) (Const type (natToWord _ 7)))) = natToWord _ 7. Proof. reflexivity. Qed.
-  Goal (evalExpr (indexLabel (num := 5) (Const type (natToWord _ 4)))) = 4'b"1010". Proof. reflexivity. Qed.
-  Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"1010")))) = 4'b"1101". Proof. reflexivity. Qed.
-  Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"1001")))) = 4'b"1100". Proof. reflexivity. Qed.
-  Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"0110")))) = 4'b"1011". Proof. reflexivity. Qed.
-  Goal (evalExpr (parentLabel (num := 5) (Const type (4'b"0111")))) = 4'b"1011". Proof. reflexivity. Qed.
+  Goal (evalExpr (indexTreeNodeIndex (num := 5) (Const type (natToWord _ 7)))) = natToWord _ 7. Proof. reflexivity. Qed.
+  Goal (evalExpr (indexTreeNodeIndex (num := 5) (Const type (natToWord _ 4)))) = 4'b"1010". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentTreeNodeIndex (num := 5) (Const type (4'b"1010")))) = 4'b"1101". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentTreeNodeIndex (num := 5) (Const type (4'b"1001")))) = 4'b"1100". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentTreeNodeIndex (num := 5) (Const type (4'b"0110")))) = 4'b"1011". Proof. reflexivity. Qed.
+  Goal (evalExpr (parentTreeNodeIndex (num := 5) (Const type (4'b"0111")))) = 4'b"1011". Proof. reflexivity. Qed.
 
   Definition evalArray
     (k : Kind)
