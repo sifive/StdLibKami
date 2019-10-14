@@ -154,12 +154,12 @@ Section tests.
     :  Prop
     := (evalLetExpr
          (LETE result
-           : Pair (Index num) (State num)
+           : Index num
            <- getVictimAux
                 (Depth num)
                 state
                 (rootTreeNodeIndex num type);
-          RetE ((Var type (SyntaxKind _) result) @% "fst"))) =
+          RetE (Var type (SyntaxKind _) result))) =
         expected.
 
   Goal testGetVictim (num := 3) (ARRAY {T; T}) $3. Proof ltac:(reflexivity). 
