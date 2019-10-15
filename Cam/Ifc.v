@@ -5,20 +5,20 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Class Params
+  Class CamParams
     := {
          Tag : Kind;
          Data : Kind;
          ReadCtxt : Kind;
          ClearCtxt : Kind;
-         matchRead : forall ty, Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Bool @# ty;
-         matchClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> Tag @# ty -> Bool @# ty
+         MatchRead : forall ty, Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Bool @# ty;
+         MatchClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> Tag @# ty -> Bool @# ty
     }.
 
   Section interface.
-    Variable params : Params.
+    Variable camParams : CamParams.
   
-    Record Ifc
+    Record Cam
       := {
            read: forall ty, Tag @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data);
            write: forall ty, Tag @# ty -> Data @# ty -> ActionT ty Void;

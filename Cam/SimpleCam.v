@@ -1,5 +1,5 @@
 Require Import Kami.AllNotations.
-Require Import StdLibKami.Cam.Interface.
+Require Import StdLibKami.Cam.Ifc.
 Require Import StdLibKami.ReplacementPolicy.Interface.
 
 Section cam.
@@ -8,19 +8,19 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Class Params := {
+  Class SimpleParams := {
     regName : string;
     size : nat;
     policy: ReplacementPolicy.Interface.Ifc size;
-    CamParams : Cam.Interface.Params
+    CamParamsInst : CamParams
   }.
 
   Section instance.
-    Context `{params: Params}.
+    Variable (params: SimpleParams).
 
     Local Definition Index : Kind := Bit (Nat.log2_up size).
 
-    Definition simpleCam : Cam.Interface.Ifc CamParams
+    Definition SimpleCam : Cam CamParamsInst
       := {| 
            read
              := fun ty tag ctxt
@@ -36,7 +36,7 @@ Section cam.
                               Ret (STRUCT {
                                   "valid"
                                     ::= #x @% "valid" &&
-                                        matchRead tag ctxt (#x @% "data" @% "fst");
+                                        MatchRead tag ctxt (#x @% "data" @% "fst");
                                   "data"
                                     ::= #x @% "data" @% "snd"
                                 } : Maybe Data @# ty))
@@ -65,21 +65,21 @@ Section cam.
                        <- $$(getDefaultConst
                               (Array size
                                 (Maybe
-                                  (Pair (@Tag CamParams)
-                                        (@Data CamParams)))));
+                                (Pair (@Tag CamParamsInst)
+                                   (@Data CamParamsInst)))));
                              
                      Retv;
            clear
              := fun ty tag ctxt
                   => Read xs
-                       :  Array size (Maybe (Pair (@Tag CamParams) (@Data CamParams)))
+                       :  Array size (Maybe (Pair Tag (@Data CamParamsInst)))
                        <- regName;
                      GatherActions
                        (map
                          (fun i : nat
                             => LET x : Maybe (Pair Tag Data)
                                  <- #xs@[$i : Index @# ty];
-                               If matchClear tag ctxt (#x @% "data" @% "fst")
+                               If MatchClear tag ctxt (#x @% "data" @% "fst")
                                  then
                                    Write regName
                                      :  Array size (Maybe (Pair Tag Data))
