@@ -5,19 +5,28 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Record Cam
+  Class CamParams
     := {
-         Tag : Kind;
-         Data : Kind;
-         ReadCtxt : Kind;
-         ClearCtxt : Kind;
-         matchRead : forall ty, Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Bool @# ty;
-         matchClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> Tag @# ty -> Bool @# ty;
-         camRead: forall ty, Tag @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data);
-         camWrite: forall ty, Tag @# ty -> Data @# ty -> ActionT ty Void;
-         camFlush: forall ty, ActionT ty Void;
-         camClear: forall ty, Tag @# ty -> ClearCtxt @# ty -> ActionT ty Void
+         CamTag : Kind;
+         CamData : Kind;
+         CamReadCtxt : Kind;
+         CamClearCtxt : Kind;
+         camMatchRead : forall ty, CamTag @# ty -> CamReadCtxt @# ty -> CamTag @# ty -> Bool @# ty;
+         camMatchClear: forall ty, CamTag @# ty -> CamClearCtxt @# ty -> CamTag @# ty -> Bool @# ty
     }.
+
+  Section interface.
+    Variable camParams : CamParams.
+  
+    Record Cam
+      := {
+           camRead: forall ty, CamTag @# ty -> CamReadCtxt @# ty -> ActionT ty (Maybe CamData);
+           camWrite: forall ty, CamTag @# ty -> CamData @# ty -> ActionT ty Void;
+           camFlush: forall ty, ActionT ty Void;
+           camClear: forall ty, CamTag @# ty -> CamClearCtxt @# ty -> ActionT ty Void
+      }.
+
+  End interface.
 
   Close Scope kami_action.
   Close Scope kami_expr.

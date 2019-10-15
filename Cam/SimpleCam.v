@@ -8,16 +8,31 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
+  Class SimpleCamParams := {
+    simpleCamRegName : string;
+    simpleCamSize : nat;
+    simpleCamCamParams : CamParams
+  }.
+
   Record SimpleCam := {
+    camIfc : Cam
+  }.
+
+  Definition simpleCam : SimpleCam
+    := {|
+         camIfc := Build_Cam camMatchRead camMatchClear camRead camWrite camFlush camClear
+       |}
+
+
     Tag : Kind;
     Data : Kind;
     ReadCtxt : Kind;
     ClearCtxt : Kind;
 
-    regName : string;
-    size : nat;
+    simpleCamRegName : string;
+    simpleCamSize : nat;
 
-    Index : Kind := Bit (Nat.log2_up size);
+    Index : Kind := Bit (Nat.log2_up simpleCamSize);
     policy : ReplacementPolicy Index;
 
     camMatchRead : forall ty, Tag @# ty -> ReadCtxt @# ty -> Tag @# ty -> Bool @# ty;
@@ -27,8 +42,8 @@ Section cam.
       :  forall ty, Tag @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data)
       := fun ty tag ctxt
            => Read xs
-                :  Array size (Maybe (Pair Tag Data))
-                <- regName;
+                :  Array simpleCamSize (Maybe (Pair Tag Data))
+                <- simpleCamRegName;
               utila_acts_find_pkt
                 (map
                   (fun i : nat
@@ -42,37 +57,37 @@ Section cam.
                            "data"
                              ::= #x @% "data" @% "snd"
                          } : Maybe Data @# ty))
-                   (seq 0 size));
+                   (seq 0 simpleCamSize));
 
     camWrite
       :  forall ty, Tag @# ty -> Data @# ty -> ActionT ty Void
       := fun ty tag data
            => LETA index : Index <- getVictim policy ty;
               Read xs
-                :  Array size (Maybe (Pair Tag Data))
-                <- regName;
+                :  Array simpleCamSize (Maybe (Pair Tag Data))
+                <- simpleCamRegName;
               LET value
                 :  Pair Tag Data
                 <- STRUCT {
                      "fst"  ::= tag;
                      "snd" ::= data
                    };
-              Write regName
+              Write simpleCamRegName
                 <- #xs@[#index <- STRUCT {"valid" ::= $$true; "data" ::= #value}];
               Retv;
     
     camFlush
       :  forall ty, ActionT ty Void
       := fun ty
-           => Write regName <- unpack (Array size (Maybe (Pair Tag Data))) $0;
+           => Write simpleCamRegName <- unpack (Array simpleCamSize (Maybe (Pair Tag Data))) $0;
               Retv;
 
     camClear
       :  forall ty, Tag @# ty -> ClearCtxt @# ty -> ActionT ty Void
       := fun ty tag ctxt
            => Read xs
-                :  Array size (Maybe (Pair Tag Data))
-                <- regName;
+                :  Array simpleCamSize (Maybe (Pair Tag Data))
+                <- simpleCamRegName;
               GatherActions
                 (map
                   (fun i : nat
@@ -80,19 +95,14 @@ Section cam.
                           <- #xs@[$i : Index @# ty];
                         If camMatchClear tag ctxt (#x @% "data" @% "fst")
                           then
-                            Write regName
+                            Write simpleCamRegName
                               <- #xs@[($i : Index @# ty)
                                    <- $$(getDefaultConst (Maybe (Pair Tag Data)))];
                             Retv;
                         Retv)
-                   (seq 0 size))
+                   (seq 0 simpleCamSize))
                 as _;
               Retv;
-
-    camInst
-      :  Cam
-      := Build_Cam camMatchRead camMatchClear camRead camWrite camFlush camClear
-  }.
 
   Close Scope kami_action.
   Close Scope kami_expr.
