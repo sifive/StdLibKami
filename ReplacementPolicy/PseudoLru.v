@@ -72,7 +72,7 @@ Section lru.
     Definition rootTreeNodeIndex : TreeNodeIndex @# ty := $$(wones treeNodeWidth) << ($1 : Bit 1 @# ty).
 
     (* Returns the index of the least recently used register *)
-    Definition getVictim
+    Definition getVictim'
       :  ActionT ty Index
       := Read state : State <- stateRegName;
          convertLetExprSyntax_ActionT
@@ -124,7 +124,7 @@ Section lru.
            (ZeroExtendTruncLsb 1 #treeNode == $0).
 
     (* updates the least recently used data to point away from the given register. *)
-    Definition access
+    Definition access'
       (index : Index @# ty)
       :  ActionT ty Void
       := Read state : State <- stateRegName;
@@ -142,14 +142,23 @@ Section interface.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Record PseudoLru := {
-    num : nat;
-    stateRegName : string;
-    impl : ReplacementPolicy (Index num)
-      := Build_ReplacementPolicy 
-           (fun ty => getVictim num stateRegName ty)
-           (fun ty index => access stateRegName index)
-  }.
+  Class Params
+    := {
+      num : nat;
+      stateRegName : string
+    }.
+
+  Section instance.
+    Context `{params : Params}.
+
+    Definition psuedoLru
+      :  ReplacementPolicy.Interface.Ifc num
+      := {|
+           getVictim := fun ty => getVictim' num stateRegName ty;
+           access := fun ty index => access' stateRegName index
+         |}.
+
+  End instance.
 
   Close Scope kami_action.
   Close Scope kami_expr.

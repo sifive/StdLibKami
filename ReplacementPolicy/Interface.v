@@ -4,7 +4,10 @@ Section interface.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Record ReplacementPolicy (Index : Kind)
+  Variable size : nat.
+  Definition Index := Bit (Nat.log2_up size).
+
+  Record Ifc
     := {
          getVictim : forall ty, ActionT ty Index;
          access : forall ty, Index @# ty -> ActionT ty Void
