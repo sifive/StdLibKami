@@ -1,6 +1,6 @@
 (* Implements the Pseudo Least Recently Used Algorithm. *)
 Require Import Kami.AllNotations.
-Require Import StdLibKami.ReplacementPolicy.Interface.
+Require Import StdLibKami.ReplacementPolicy.Ifc.
 
 Section lru.
   Open Scope kami_expr.
@@ -142,17 +142,17 @@ Section interface.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Class Params
+  Class PseudoLruParams
     := {
-      num : nat;
-      stateRegName : string
+      stateRegName : string;
+      num : nat
     }.
 
   Section instance.
-    Context `{params : Params}.
+    Context `{psuedoLruParams : PseudoLruParams}.
 
-    Definition psuedoLru
-      :  ReplacementPolicy.Interface.Ifc num
+    Definition PsuedoLru
+      :  ReplacementPolicy num
       := {|
            getVictim := fun ty => getVictim' num stateRegName ty;
            access := fun ty index => access' stateRegName index
