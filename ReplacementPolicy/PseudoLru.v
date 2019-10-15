@@ -1,7 +1,6 @@
 (* Implements the Pseudo Least Recently Used Algorithm. *)
-Require Import Wf.
-Require Import Wf_nat.
 Require Import Kami.AllNotations.
+Require Import StdLibKami.ReplacementPolicy.Interface.
 
 Section lru.
   Open Scope kami_expr.
@@ -56,8 +55,7 @@ Section lru.
          | S depth'
            => LETE result
                 :  Index
-                <- getVictimAux depth'
-                     (state@[#index <- !#direction])
+                <- getVictimAux depth' state
                      (IF #direction
                        then (treeNode << ($1 : Bit 1 @# ty)) | $1 (* left child's treeNode *)
                        else (treeNode << ($1 : Bit 1 @# ty)));    (* right child's treeNode *)
@@ -139,6 +137,23 @@ Section lru.
   Close Scope kami_action.
   Close Scope kami_expr.
 End lru.
+
+Section interface.
+  Open Scope kami_expr.
+  Open Scope kami_action.
+
+  Record PseudoLru := {
+    num : nat;
+    stateRegName : string;
+    impl : ReplacementPolicy (Index num)
+      := Build_ReplacementPolicy 
+           (fun ty => getVictim num stateRegName ty)
+           (fun ty index => access stateRegName index)
+  }.
+
+  Close Scope kami_action.
+  Close Scope kami_expr.
+End interface.
 
 Section tests.
 
