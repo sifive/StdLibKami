@@ -151,7 +151,7 @@ Section interface.
   Section instance.
     Context `{psuedoLruParams : PseudoLruParams}.
 
-    Definition PsuedoLru
+    Definition psuedoLru
       :  ReplacementPolicy num
       := {|
            getVictim := fun ty => getVictim' num stateRegName ty;

@@ -1,6 +1,6 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.Cam.Ifc.
-Require Import StdLibKami.ReplacementPolicy.Interface.
+Require Import StdLibKami.ReplacementPolicy.Ifc.
 
 Section cam.
   Axiom cheat : forall A, A.
@@ -8,19 +8,19 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Class SimpleParams := {
+  Class SimpleCamParams := {
     regName : string;
     size : nat;
-    policy: ReplacementPolicy.Interface.Ifc size;
+    policy: ReplacementPolicy size;
     CamParamsInst : CamParams
   }.
 
   Section instance.
-    Variable (params: SimpleParams).
+    Variable (params: SimpleCamParams).
 
     Local Definition Index : Kind := Bit (Nat.log2_up size).
 
-    Definition SimpleCam : Cam CamParamsInst
+    Definition simpleCam : Cam CamParamsInst
       := {| 
            read
              := fun ty tag ctxt
