@@ -20,7 +20,7 @@ Section cam.
 
     Local Definition Index : Kind := Bit (Nat.log2_up size).
 
-    Definition simpleCam : Cam CamParamsInst
+    Definition SimpleCam : Cam CamParamsInst
       := {| 
            read
              := fun ty tag ctxt
