@@ -103,35 +103,6 @@ Section lru.
   Local Close Scope kami_expr.
 End lru.
 
-<<<<<<< HEAD
-Section interface.
-  Open Scope kami_expr.
-  Open Scope kami_action.
-
-  Class PseudoLruParams
-    := {
-      stateRegName : string;
-      num : nat
-    }.
-
-  Section instance.
-    Context `{psuedoLruParams : PseudoLruParams}.
-
-    Definition psuedoLru
-      :  ReplacementPolicy num
-      := {|
-           getVictim := fun ty => getVictim' num stateRegName ty;
-           access := fun ty index => access' stateRegName index
-         |}.
-
-  End instance.
-
-  Close Scope kami_action.
-  Close Scope kami_expr.
-End interface.
-
-=======
->>>>>>> master
 Section tests.
 
   Transparent wlt_dec.
