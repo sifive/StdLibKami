@@ -21,31 +21,29 @@ Section AsyncTagFreeList.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
+
+    Definition InitDone: ActionT ty (Maybe Tag) := 
+      Read init: Bit TagSize <- @^InitName;
+      LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
+                             then $$true
+                             else $$false);
+      Ret (STRUCT { "valid" ::= #initDone;
+                    "data" ::= #init }: Maybe Tag @# ty).
   
   (* Initialization rule, which will fill the free list *)
   Definition initialize: ActionT ty Void :=
-    Read init: Bit TagSize <- @^InitName;
-    LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
-                          then $$true
-                          else $$false);
-    If !#initDone then (
-      (* TODO: hide enq to outside of Async? *)
-      LETA suc: Bool <- (Ifc.enq BackingFifo) #init;
-      If #suc then (
-         Write @^InitName: Bit TagSize <- #init + $1;
-         Retv
-      );
+    LETA initDone: Maybe Tag <- InitDone;
+    If !(#initDone @% "valid") then (
+      LETA _ <- (Ifc.enq BackingFifo) (#initDone @% "data");
+      Write @^InitName: Bit TagSize <- (#initDone @% "data") + $1;
       Retv
     );
     Retv.
 
   Definition alloc: ActionT ty (Maybe Tag) :=
-    Read init: Bit TagSize <- @^InitName;
-    LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
-                          then $$true
-                          else $$false);
+    LETA initDone: Maybe Tag <- InitDone;
     LETA first: Maybe Tag <- (Ifc.first BackingFifo);
-    LET doDequeue: Bool <- #initDone && #first @% "valid";
+    LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid";
     LET res: Maybe Tag <- STRUCT { "valid" ::= #doDequeue;
                                  "data" ::= #first @% "data" };
     If #doDequeue then (
@@ -54,18 +52,13 @@ Section AsyncTagFreeList.
     );
     Ret #res.
   
-  Definition free (tag: Tag @# ty): ActionT ty Bool :=
-    Read init: Bit TagSize <- @^InitName;
-    LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
-                          then $$true
-                          else $$false);
-    If #initDone then (
-      LETA suc: Bool <- (Ifc.enq BackingFifo) tag;
-      Ret #suc
-    ) else (
-      Ret $$false
-    ) as ret;
-    Ret #ret.
+  Definition free (tag: Tag @# ty): ActionT ty Void :=
+    LETA initDone: Maybe Tag <- InitDone;
+    If (#initDone @% "valid") then (
+      LETA _ <- (Ifc.enq BackingFifo) tag;
+      Retv
+    );
+    Retv.
 
   Definition asyncFreeList: FreeList := Build_FreeList initialize alloc free.
   End withParams.

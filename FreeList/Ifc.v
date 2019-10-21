@@ -8,6 +8,6 @@ Section Freelist.
     {
       initialize: ActionT ty Void;
       alloc: ActionT ty (Maybe k);
-      free: k @# ty -> ActionT ty Bool;
+      free: k @# ty -> ActionT ty Void;
     }.
 End Freelist.
