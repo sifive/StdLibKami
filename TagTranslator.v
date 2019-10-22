@@ -26,7 +26,7 @@ Section MemTagTranslator.
 
   Definition ServerTag := Bit serverTagSz.
 
-  Definition MemResp := STRUCT_TYPE { "tag" :: ClientTag;
+  Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
                                       "data" :: respK }.
 
   Context (freelist: @FreeList ty serverTagNum).
@@ -71,8 +71,8 @@ Section MemTagTranslator.
      translator; This is where the routing of responses to individual
      clients occurs. *)
   Definition memCallback (resp: MemResp @# ty): ActionT ty Void :=
-    LET sTag: ClientTag <- resp @% "tag";
-    Call idtag: IdTag <- alistRead(#sTag: ClientTag);
+    LET sTag: ServerTag <- resp @% "tag";
+    Call idtag: IdTag <- alistRead(#sTag: ServerTag);
     LET respId: Id <- #idtag @% "id";
     LET respTag: ClientTag <- #idtag @% "tag";
     GatherActions (List.map (fun (c: nat * ClientData) => 
