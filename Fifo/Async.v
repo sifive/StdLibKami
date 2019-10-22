@@ -12,11 +12,10 @@ Section AsyncFifo.
     }.
 
   Section withParams.
+    Context (ty: Kind -> Type).
     Context (asyncFifoParams: AsyncFifoParams).
     Local Definition len := Nat.pow 2 FifoSize.
     Local Definition twoLen := 2 * len.
-
-    Context (ty: Kind -> Type).
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
