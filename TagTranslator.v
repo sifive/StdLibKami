@@ -26,16 +26,19 @@ Section MemTagTranslator.
 
   Definition ServerTag := Bit serverTagSz.
 
+  Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
+                                     "data" :: reqK }.
+  
   Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
                                       "data" :: respK }.
 
   Context (freelist: @FreeList ty serverTagNum).
-  Definition alloc := (FreeList.Ifc.alloc freelist).
   Definition nextToAlloc := (FreeList.Ifc.nextToAlloc freelist).
+  Definition alloc := (FreeList.Ifc.alloc freelist).
   Definition free := (FreeList.Ifc.free freelist).
 
   (* Action that allows us to make a request to physical memory *)
-  Context (memReq: Bit serverTagSz @# ty -> reqK @# ty -> ActionT ty Bool).
+  Context (memReq: MemReq @# ty -> ActionT ty Bool).
   
   (* Names of read/write names for the reg-file backing the
      associative array with which we will map server tags to client
@@ -54,7 +57,8 @@ Section MemTagTranslator.
     LETA serverTag: Maybe ServerTag <- nextToAlloc;
     If !#arb && #serverTag @% "valid" then (
       Write arbiter: Bool <- $$true;
-      LETA reqOk: Bool <- memReq (#serverTag @% "data") (taggedReq @% "req");
+      LETA reqOk: Bool <- memReq (STRUCT { "tag" ::=  #serverTag @% "data";
+                                           "data" ::= taggedReq @% "req" } : MemReq @# ty);
       If #reqOk then (
         Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                  "data" ::= STRUCT { "id" ::= $id;
