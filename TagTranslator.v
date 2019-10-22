@@ -2,13 +2,13 @@ Require Import Kami.All.
 Require Import StdLibKami.FreeList.Ifc.
 
 Section MemTagTranslator.
-  Context (name: string).
   Context (ty: Kind -> Type).
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
   Context (respK: Kind).
   Context (reqK: Kind).
   Context (serverTagNum: nat).
+  Context (arbiter: string).
 
   Definition serverTagSz := Nat.log2_up serverTagNum.
 
@@ -42,9 +42,6 @@ Section MemTagTranslator.
      tags/IDs *)
   Context (alistRead alistWrite: string).
   
-  (* Method name prefix for client callback methods *)
-  Context (clientCallbackPrefix: string).
-
   Definition ClientReq (client: ClientData): Kind := STRUCT_TYPE { "tag" :: Bit (tagSz client);
                                                                    "req" :: reqK }.
 
@@ -53,8 +50,10 @@ Section MemTagTranslator.
 
   (* Per-client translator request action *)
   Definition clientReq (id: nat) (client: ClientData) (taggedReq: (ClientReq client) @# ty): ActionT ty Bool :=
+    Read arb: Bool <- arbiter;
     LETA serverTag: Maybe ServerTag <- nextToAlloc;
-    If #serverTag @% "valid" then (
+    If !#arb && #serverTag @% "valid" then (
+      Write arbiter: Bool <- $$true;
       LETA reqOk: Bool <- memReq (#serverTag @% "data") (taggedReq @% "req");
       If #reqOk then (
         Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
@@ -81,4 +80,9 @@ Section MemTagTranslator.
                  ); Retv
               )
               (List.combine (seq 0 (List.length clients)) clients)) as _; Retv.
+
+  Definition arbiterRule: ActionT ty Void :=
+    Write arbiter: Bool <- $$false;
+    Retv.
+  
 End MemTagTranslator.
