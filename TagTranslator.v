@@ -29,7 +29,9 @@ Section MemTagTranslator.
   Definition free := (FreeList.Ifc.free freelist).
 
   (* Action that allows us to make a request to physical memory *)
-  Context (memReq: reqK @# ty -> ActionT ty Bool).
+  Definition TagReq: Kind := STRUCT_TYPE { "tag" :: ServerTag;
+                                           "data" :: reqK}.
+  Context (memReq: TagReq @# ty -> ActionT ty Bool).
   
   (* Names of read/write names for the reg-file backing the
      associative array with which we will map server tags to client
@@ -52,7 +54,8 @@ Section MemTagTranslator.
   Definition clientReq (id: nat) (client: ClientData) (taggedReq: (ClientReq client) @# ty): ActionT ty Bool :=
     LETA mTag <- alloc;
     If (#mTag @% "valid") then (
-      LETA reqRet: Bool <- memReq (taggedReq @% "req": reqK @# ty);
+      LETA reqRet: Bool <- memReq (STRUCT { "tag" ::= (#mTag @% "data");
+                                           "data" ::= (taggedReq @% "req") }: TagReq @# ty);
       Ret #reqRet
       )
     else (
