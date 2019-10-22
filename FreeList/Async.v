@@ -10,32 +10,23 @@ Section AsyncTagFreeList.
   Class AsyncTagFreeListParams := {
                                 TagSize: nat;
                                 InitName: string;
-                                BackingFifo: forall {ty}, @Fifo ty (Bit TagSize);
+                                BackingFifo: forall {ty},
+                                    @Fifo ty (Bit (Nat.log2_up (Nat.pow 2 TagSize)));
                               }.
 
   Section withParams.
     Variable ty: Kind -> Type.
     Variable asyncTagFreeListParams: AsyncTagFreeListParams.
-    Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
-    Definition Tag := Bit TagSize.
-
-    Definition log2_up_pow_2 a := Nat.log2_up_pow2 _ (@le_0_n a).
-
-    Definition castTag (a: ActionT ty (Maybe Tag)) :=
-      match eq_sym (log2_up_pow_2 TagSize) in _ = Y return ActionT ty (Maybe (Bit Y))with
-      | eq_refl => a
-      end.
-
-    Definition castTagExpr e :=
-      match log2_up_pow_2 TagSize in _ = Y return Bit Y @# ty with
-      | eq_refl => e
-      end.
     
+    Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
+    Definition CastTagSize := Nat.log2_up len.
+    Definition Tag := Bit CastTagSize.
+
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
     Definition InitDone: ActionT ty (Maybe Tag) := (
-      Read init: Bit TagSize <- @^InitName;
+      Read init: Tag <- @^InitName;
       LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
                              then $$true
                              else $$false);
@@ -47,7 +38,7 @@ Section AsyncTagFreeList.
       LETA initDone: Maybe Tag <- InitDone;
       If (!(#initDone @% "valid")) then (
         LETA _ <- (Ifc.enq BackingFifo) (#initDone @% "data");
-        Write @^InitName: Bit TagSize <- (#initDone @% "data") + $1;
+        Write @^InitName: Tag <- (#initDone @% "data") + $1;
         Retv
         );
       Retv).
@@ -64,7 +55,7 @@ Section AsyncTagFreeList.
     LETA first: Maybe Tag <- (Ifc.first BackingFifo);
     LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid";
     LET res: Maybe Tag <- STRUCT { "valid" ::= #doDequeue;
-                                 "data" ::= #first @% "data" };
+                                   "data" ::= #first @% "data" };
     If #doDequeue then (
       LETA _: Maybe Tag <- (Ifc.deq BackingFifo);
       Retv
@@ -79,7 +70,7 @@ Section AsyncTagFreeList.
     );
     Retv).
 
-  Definition asyncFreeList: FreeList := Build_FreeList len initialize (castTag nextToAlloc)
-                                                       (castTag alloc) (fun tag => free (castTagExpr tag)).
+  Definition asyncFreeList: FreeList := Build_FreeList len initialize nextToAlloc
+                                                       alloc free.
   End withParams.
 End AsyncTagFreeList.
