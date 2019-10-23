@@ -53,7 +53,7 @@ Section ArbiterImpl.
                                      "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                                          "tag" ::= (ZeroExtendTruncLsb _ (taggedReq @% "tag") : ClientTag @# ty) }
                                    }: WriteRq serverTagSz IdTag);
-        LETA _ <- alloc;
+        LETA _ <- alloc (#serverTag @% "data");
         Retv);
       Ret #reqOk )
      else Ret $$false as retVal;
