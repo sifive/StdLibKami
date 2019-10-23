@@ -1,10 +1,8 @@
 Require Import Kami.All.
 Require Import StdLibKami.Arbiter.Ifc.
-Require Import StdLibKami.FreeList.Ifc.
-
-Section ArbiterImpl.
+Section ArbiterSpec.
   Context `{ArbiterParams}.
-  Class ArbiterImplParams :=
+  Class ArbiterSpecParams :=
     {
       arbiter: string;
       (* Names of read/write names for the reg-file backing the
@@ -12,9 +10,14 @@ Section ArbiterImpl.
          tags/IDs *)
       alistRead: string;
       alistWrite: string;
+      (* Name of the free array register *)
+      freeArrayName: string;
+      (* Name of the register which will store the array representing
+         the mapping from server tags to ClientTag, ID tag pairs *)
+      assocArrayName: string
     }.
   Section withParams.
-    Context `{ArbiterImplParams}.
+    Context `{ArbiterSpecParams}.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
@@ -30,11 +33,6 @@ Section ArbiterImpl.
     Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
                                        "data" :: reqK }.
   
-    Context (freelist: @FreeList ty serverTagNum).
-    Definition nextToAlloc := freelist.(nextToAlloc).
-    Definition alloc := freelist.(alloc).
-    Definition free := freelist.(free).
-
     (* Action that allows us to make a request to physical memory *)
     Context (memReq: MemReq @# ty -> ActionT ty Bool).
     
@@ -42,30 +40,36 @@ Section ArbiterImpl.
     Open Scope kami_expr_scope.
     Definition clientReq (id: Fin.t numClients) (taggedReq: STRUCT_TYPE { "tag" :: Bit (Vector.nth clientTagSizes id);
                                                                           "req" :: reqK } @# ty): ActionT ty Bool :=
+      LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
+                               "tag" ::= (ZeroExtendTruncLsb _ (taggedReq @% "tag") : ClientTag @# ty) };
       Read arb: Bool <- arbiter;
-      LETA serverTag: Maybe ServerTag <- nextToAlloc;
-      If !#arb && #serverTag @% "valid" then (
+      Read freeArray: Array serverTagNum Bool <- freeArrayName;
+      Nondet tag: ServerTag;
+      LET tagFree: Bool <- !(#freeArray@[#tag]);
+      If !#arb && #tagFree then (
         Write arbiter: Bool <- $$true;
-        LETA reqOk: Bool <- memReq (STRUCT { "tag" ::=  #serverTag @% "data";
+        LETA reqOk: Bool <- memReq (STRUCT { "tag" ::=  #tag;
                                              "data" ::= taggedReq @% "req" } : MemReq @# ty);
         If #reqOk then (
-            Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
-                                     "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
-                                                         "tag" ::= (ZeroExtendTruncLsb _ (taggedReq @% "tag") : ClientTag @# ty) }
-                                   }: WriteRq serverTagSz IdTag);
-        LETA _ <- alloc;
-        Retv);
-      Ret #reqOk )
-     else Ret $$false as retVal;
-     Ret #retVal.
+            Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#tag <- $$true];
+            Read assocArray: Array serverTagNum IdTag <- assocArrayName;
+            Write assocArrayName: Array serverTagNum IdTag <- #assocArray@[#tag <- #newEntry];
+            Retv
+          );
+        Ret #reqOk
+      )
+    else Ret $$false as retVal;
+    Ret #retVal.
 
   (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual
      clients occurs. *)
   Definition memCallback (resp: MemResp @# ty): ActionT ty Void :=
     LET sTag: ServerTag <- resp @% "tag";
-    Call idtag: IdTag <- alistRead(#sTag: ServerTag);
-    LETA _ <- free #sTag;
+    Read freeArray: Array serverTagNum Bool <- freeArrayName;
+    Read assocArray: Array serverTagNum IdTag <- assocArrayName;
+    LET idtag: IdTag <- #assocArray@[#sTag];
+    Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#sTag <- $$false];
     LET respId: Id <- #idtag @% "id";
     LET respTag: ClientTag <- #idtag @% "tag";
     GatherActions (List.map (fun (id: Fin.t numClients) => 
@@ -84,4 +88,4 @@ Section ArbiterImpl.
                               memCallback
                               arbiterRule.
   End withParams.
-End ArbiterImpl.
+End ArbiterSpec.
