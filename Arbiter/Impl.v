@@ -4,6 +4,8 @@ Require Import StdLibKami.FreeList.Ifc.
 
 Section ArbiterImpl.
   Context `{ArbiterParams}.
+  Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
+                                     "data" :: reqK }.
   Class ArbiterImplParams :=
     {
       arbiter: string;
@@ -12,6 +14,9 @@ Section ArbiterImpl.
          tags/IDs *)
       alistRead: string;
       alistWrite: string;
+      freelist: @FreeList ty serverTagNum;
+      (* Action that allows us to make a request to physical memory *)
+      memReq: MemReq @# ty -> ActionT ty Bool
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -26,18 +31,11 @@ Section ArbiterImpl.
 
     Definition IdTag: Kind := STRUCT_TYPE { "id" :: Id;
                                             "tag" :: ClientTag }.
-
-    Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                       "data" :: reqK }.
   
-    Context (freelist: @FreeList ty serverTagNum).
     Definition nextToAlloc := freelist.(nextToAlloc).
     Definition alloc := freelist.(alloc).
     Definition free := freelist.(free).
 
-    (* Action that allows us to make a request to physical memory *)
-    Context (memReq: MemReq @# ty -> ActionT ty Bool).
-    
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
     Definition clientReq (id: Fin.t numClients) (taggedReq: STRUCT_TYPE { "tag" :: Bit (Vector.nth clientTagSizes id);
