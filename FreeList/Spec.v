@@ -39,7 +39,7 @@ Section FreeListSpec.
       Write ArrayRegName: Array len Bool <- #freeArray@[tag <- $$false];
       Retv.
 
-    Definition asyncFreeList: FreeList := Build_FreeList len initialize nextToAlloc
-                                                         alloc free.
+    Definition specFreeList: FreeList := Build_FreeList len initialize nextToAlloc
+                                                        alloc free.
   End withParams.
 End FreeListSpec.
