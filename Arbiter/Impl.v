@@ -16,7 +16,7 @@ Section ArbiterImpl.
       alistWrite: string;
       freelist: @FreeList ty serverTagNum;
       (* Action that allows us to make a request to physical memory *)
-      memReq: MemReq @# ty -> ActionT ty Bool
+      memReq: ty MemReq -> ActionT ty Bool
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -38,20 +38,22 @@ Section ArbiterImpl.
 
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
-    Definition clientReq (id: Fin.t numClients) (taggedReq: STRUCT_TYPE { "tag" :: Bit (Vector.nth clientTagSizes id);
-                                                                          "req" :: reqK } @# ty): ActionT ty Bool :=
+    Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (Vector.nth clientTagSizes id);
+                                                                             "req" :: reqK }): ActionT ty Bool :=
       Read arb: Bool <- arbiter;
       LETA serverTag: Maybe ServerTag <- nextToAlloc;
+      LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
+                          "data" ::= #taggedReq @% "req" };
+      LET sTagDat <- #serverTag @% "data";
       If !#arb && #serverTag @% "valid" then (
         Write arbiter: Bool <- $$true;
-        LETA reqOk: Bool <- memReq (STRUCT { "tag" ::=  #serverTag @% "data";
-                                             "data" ::= taggedReq @% "req" } : MemReq @# ty);
+        LETA reqOk: Bool <- memReq mRq;
         If #reqOk then (
             Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                      "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
-                                                         "tag" ::= (ZeroExtendTruncLsb _ (taggedReq @% "tag") : ClientTag @# ty) }
+                                                         "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
                                    }: WriteRq serverTagSz IdTag);
-        LETA _ <- alloc (#serverTag @% "data");
+        LETA _ <- alloc sTagDat ;
         Retv);
       Ret #reqOk )
      else Ret $$false as retVal;
@@ -60,15 +62,17 @@ Section ArbiterImpl.
   (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual
      clients occurs. *)
-  Definition memCallback (resp: MemResp @# ty): ActionT ty Void :=
-    LET sTag: ServerTag <- resp @% "tag";
+  Definition memCallback (resp: ty MemResp): ActionT ty Void :=
+    LET sTag: ServerTag <- #resp @% "tag";
     Call idtag: IdTag <- alistRead(#sTag: ServerTag);
-    LETA _ <- free #sTag;
+    LETA _ <- free sTag;
     LET respId: Id <- #idtag @% "id";
     LET respTag: ClientTag <- #idtag @% "tag";
     GatherActions (List.map (fun (id: Fin.t numClients) => 
+                LET clientTag: Bit (Vector.nth clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
+                LET respDat <- #resp @% "data";
                 If $(proj1_sig (Fin.to_nat id)) == #respId then (
-                   LETA _ <- (clientCallbacks id) (ZeroExtendTruncLsb _ (resp @% "tag") : Bit (Vector.nth clientTagSizes id) @# ty) (resp @% "data"); Retv
+                   LETA _ <- (clientCallbacks id) clientTag respDat; Retv
                  ); Retv
               )
               (getFins numClients)) as _; Retv.

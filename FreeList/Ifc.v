@@ -10,7 +10,7 @@ Section Freelist.
       length: nat;
       initialize: ActionT ty Void;
       nextToAlloc: ActionT ty (Maybe k);
-      alloc: k @# ty -> ActionT ty Bool;
-      free: k @# ty -> ActionT ty Void;
+      alloc: ty k -> ActionT ty Bool;
+      free: ty k -> ActionT ty Void;
     }.
 End Freelist.
