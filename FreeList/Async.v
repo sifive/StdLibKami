@@ -3,10 +3,6 @@ Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.Fifo.Async.
 Require Import StdLibKami.FreeList.Ifc.
 Section AsyncTagFreeList.
-  Variable name: string.
-
-  Local Notation "@^ x" := (name ++ "_" ++ x)%string (at level 0).
-
   Class AsyncTagFreeListParams := {
                                 TagSize: nat;
                                 InitName: string;
@@ -26,7 +22,7 @@ Section AsyncTagFreeList.
     Local Open Scope kami_action.
 
     Definition InitDone: ActionT ty (Maybe Tag) := (
-      Read init: Tag <- @^InitName;
+      Read init: Tag <- InitName;
       LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
                              then $$true
                              else $$false);
@@ -38,7 +34,7 @@ Section AsyncTagFreeList.
       LETA initDone: Maybe Tag <- InitDone;
       If (!(#initDone @% "valid")) then (
         LETA _ <- (Ifc.enq BackingFifo) (#initDone @% "data");
-        Write @^InitName: Tag <- (#initDone @% "data") + $1;
+        Write InitName: Tag <- (#initDone @% "data") + $1;
         Retv
         );
       Retv).
@@ -50,17 +46,15 @@ Section AsyncTagFreeList.
                                    "data" ::= #first @% "data" };
     Ret #res).
   
-  Definition alloc: ActionT ty (Maybe Tag) := (
+  Definition alloc (a: Tag @# ty): ActionT ty Bool := (
     LETA initDone: Maybe Tag <- InitDone;
     LETA first: Maybe Tag <- (Ifc.first BackingFifo);
-    LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid";
-    LET res: Maybe Tag <- STRUCT { "valid" ::= #doDequeue;
-                                   "data" ::= #first @% "data" };
+    LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid" && (a == #first @% "data");
     If #doDequeue then (
       LETA _: Maybe Tag <- (Ifc.deq BackingFifo);
       Retv
     );
-    Ret #res).
+    Ret #doDequeue).
   
   Definition free (tag: Tag @# ty): ActionT ty Void := (
     LETA initDone: Maybe Tag <- InitDone;
