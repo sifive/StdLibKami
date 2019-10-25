@@ -32,8 +32,9 @@ Section AsyncTagFreeList.
     (* Initialization rule, which will fill the free list *)
     Definition initialize: ActionT ty Void := (
       LETA initDone: Maybe Tag <- InitDone;
+      LET initDoneDat <- #initDone @% "data";
       If (!(#initDone @% "valid")) then (
-        LETA _ <- (Ifc.enq BackingFifo) (#initDone @% "data");
+        LETA _ <- (Ifc.enq BackingFifo) initDoneDat;
         Write InitName: Tag <- (#initDone @% "data") + $1;
         Retv
         );
@@ -46,17 +47,17 @@ Section AsyncTagFreeList.
                                    "data" ::= #first @% "data" };
     Ret #res).
   
-  Definition alloc (a: Tag @# ty): ActionT ty Bool := (
+  Definition alloc (a: ty Tag): ActionT ty Bool := (
     LETA initDone: Maybe Tag <- InitDone;
     LETA first: Maybe Tag <- (Ifc.first BackingFifo);
-    LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid" && (a == #first @% "data");
+    LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid" && (#a == #first @% "data");
     If #doDequeue then (
       LETA _: Maybe Tag <- (Ifc.deq BackingFifo);
       Retv
     );
     Ret #doDequeue).
   
-  Definition free (tag: Tag @# ty): ActionT ty Void := (
+  Definition free (tag: ty Tag): ActionT ty Void := (
     LETA initDone: Maybe Tag <- InitDone;
     If (#initDone @% "valid") then (
       LETA _ <- (Ifc.enq BackingFifo) tag;

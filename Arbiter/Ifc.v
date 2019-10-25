@@ -11,7 +11,7 @@ Section Arbiter.
       serverTagNum: nat;
       numClients: nat;
       clientTagSizes: Vector.t nat numClients;
-      clientCallbacks: forall (id: Fin.t numClients), (Bit (Vector.nth clientTagSizes id) @# ty -> respK @# ty -> ActionT ty Void);
+      clientCallbacks: forall (id: Fin.t numClients), (ty (Bit (Vector.nth clientTagSizes id))) -> ty respK -> ActionT ty Void;
     }.
 
   Section withParams.
@@ -22,9 +22,9 @@ Section Arbiter.
                                         "data" :: respK }.
     Record Arbiter: Type :=
       {
-        ClientReqGen : forall (id: Fin.t numClients), STRUCT_TYPE {("tag", Bit (Vector.nth clientTagSizes id));
-                                                                   ("req", reqK)} @# ty -> ActionT ty Bool;
-        memCallback: MemResp @# ty -> ActionT ty Void;
+        ClientReqGen : forall (id: Fin.t numClients), ty STRUCT_TYPE {"tag" :: Bit (Vector.nth clientTagSizes id);
+                                                                      "req" :: reqK} -> ActionT ty Bool;
+        memCallback: ty MemResp -> ActionT ty Void;
         arbiterRule: ActionT ty Void;
       }.
   End withParams.

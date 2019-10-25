@@ -46,13 +46,13 @@ Section AsyncFifo.
         Write DeqPtr: Bit (FifoSize + 1) <- #deq + (IF #dat @% "valid" then $1 else $0);
         Ret #dat.
 
-    Definition enq (new: K @# ty): ActionT ty Bool :=
+    Definition enq (new: ty K): ActionT ty Bool :=
       Read enq: Bit (FifoSize + 1) <- EnqPtr;
       LET idx: Bit FifoSize <- (fastModLen #enq);
       LETA full: Bool <- isFull;
       If !#full then (
         Call WriteName(STRUCT { "addr" ::= #idx;
-                                "data" ::= new } : WriteRq FifoSize K );
+                                "data" ::= #new } : WriteRq FifoSize K );
         Write EnqPtr: Bit (FifoSize + 1) <- #enq + $1;
         Retv
         );

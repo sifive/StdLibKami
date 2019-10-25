@@ -28,15 +28,15 @@ Section FreeListSpec.
                                      "data" ::= #random };
       Ret #res.
   
-    Definition alloc (a: Tag @# ty): ActionT ty Bool := 
+    Definition alloc (a: ty Tag): ActionT ty Bool := 
       Read freeArray: Array len Bool <- ArrayRegName;
-      LET res: Bool <- #freeArray@[a];
-      Write ArrayRegName: Array len Bool <- #freeArray@[a <- IF #res then #res else $$true];
+      LET res: Bool <- #freeArray@[#a];
+      Write ArrayRegName: Array len Bool <- #freeArray@[#a <- IF #res then #res else $$true];
       Ret !#res.
   
-    Definition free (tag: Tag @# ty): ActionT ty Void :=
+    Definition free (tag: ty Tag): ActionT ty Void :=
       Read freeArray: Array len Bool <- ArrayRegName;                                                        
-      Write ArrayRegName: Array len Bool <- #freeArray@[tag <- $$false];
+      Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$false];
       Retv.
 
     Definition specFreeList: FreeList := Build_FreeList len initialize nextToAlloc
