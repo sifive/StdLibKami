@@ -52,7 +52,7 @@ Section ArbiterImpl.
             Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                      "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                                          "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
-                                   }: WriteRq serverTagSz IdTag);
+                                   }: WriteRq (Nat.log2_up serverTagNum) IdTag);
         LETA _ <- alloc sTagDat ;
         Retv);
       Ret #reqOk )
