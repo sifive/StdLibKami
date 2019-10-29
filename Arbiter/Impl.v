@@ -26,7 +26,7 @@ Section ArbiterImpl.
     Definition IdSz: nat := Nat.log2_up numClients.
     Definition Id: Kind := Bit IdSz.
 
-    Definition ClientTagSz := Vector.fold_left Nat.max 0 clientTagSizes.
+    Definition ClientTagSz := List.fold_left Nat.max clientTagSizes 0.
     Definition ClientTag := Bit ClientTagSz.
 
     Definition IdTag: Kind := STRUCT_TYPE { "id" :: Id;
@@ -38,7 +38,7 @@ Section ArbiterImpl.
 
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
-    Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (Vector.nth clientTagSizes id);
+    Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
                                                                              "req" :: reqK }): ActionT ty Bool :=
       Read arb: Bool <- arbiter;
       LETA serverTag: Maybe ServerTag <- nextToAlloc;
@@ -52,7 +52,7 @@ Section ArbiterImpl.
             Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                      "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                                          "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
-                                   }: WriteRq serverTagSz IdTag);
+                                   }: WriteRq (Nat.log2_up serverTagNum) IdTag);
         LETA _ <- alloc sTagDat ;
         Retv);
       Ret #reqOk )
@@ -69,7 +69,7 @@ Section ArbiterImpl.
     LET respId: Id <- #idtag @% "id";
     LET respTag: ClientTag <- #idtag @% "tag";
     GatherActions (List.map (fun (id: Fin.t numClients) => 
-                LET clientTag: Bit (Vector.nth clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
+                LET clientTag: Bit (nth_Fin clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
                 LET respDat <- #resp @% "data";
                 If $(proj1_sig (Fin.to_nat id)) == #respId then (
                    LETA _ <- (clientCallbacks id) clientTag respDat; Retv
