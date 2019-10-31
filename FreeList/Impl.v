@@ -1,9 +1,9 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
-Require Import StdLibKami.Fifo.Async.
+Require Import StdLibKami.Fifo.Impl.
 Require Import StdLibKami.FreeList.Ifc.
-Section AsyncTagFreeList.
-  Class AsyncTagFreeListParams := {
+Section ImplTagFreeList.
+  Class ImplTagFreeListParams := {
                                 TagSize: nat;
                                 InitName: string;
                                 BackingFifo: forall {ty},
@@ -12,7 +12,7 @@ Section AsyncTagFreeList.
 
   Section withParams.
     Variable ty: Kind -> Type.
-    Variable asyncTagFreeListParams: AsyncTagFreeListParams.
+    Variable implTagFreeListParams: ImplTagFreeListParams.
     
     Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
     Definition CastTagSize := Nat.log2_up len.
@@ -65,7 +65,7 @@ Section AsyncTagFreeList.
     );
     Retv).
 
-  Definition asyncFreeList: FreeList := Build_FreeList len initialize nextToAlloc
+  Definition implFreeList: FreeList := Build_FreeList len initialize nextToAlloc
                                                        alloc free.
   End withParams.
-End AsyncTagFreeList.
+End ImplTagFreeList.

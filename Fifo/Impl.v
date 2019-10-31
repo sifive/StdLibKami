@@ -1,7 +1,7 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
-Section AsyncFifo.
-  Class AsyncFifoParams :=
+Section ImplFifo.
+  Class ImplFifoParams :=
     {
       K: Kind;
       FifoSize: nat;
@@ -13,7 +13,7 @@ Section AsyncFifo.
 
   Section withParams.
     Context (ty: Kind -> Type).
-    Context (asyncFifoParams: AsyncFifoParams).
+    Context (implFifoParams: ImplFifoParams).
     Local Definition len := Nat.pow 2 FifoSize.
     Local Definition twoLen := 2 * len.
 
@@ -63,7 +63,7 @@ Section AsyncFifo.
         Write EnqPtr: Bit (FifoSize + 1) <- $0;
         Retv.
       
-      Definition asyncFifo: @Fifo ty K :=
+      Definition implFifo: @Fifo ty K :=
         {| Fifo.Ifc.isEmpty := isEmpty;
            Fifo.Ifc.isFull := isFull;
            Fifo.Ifc.first := first;
@@ -71,5 +71,5 @@ Section AsyncFifo.
            Fifo.Ifc.enq := enq;
            Fifo.Ifc.flush := flush |}.
   End withParams.
-End AsyncFifo.
+End ImplFifo.
   
