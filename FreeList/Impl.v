@@ -1,6 +1,5 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
-Require Import StdLibKami.Fifo.Impl.
 Require Import StdLibKami.FreeList.Ifc.
 Section ImplTagFreeList.
   Class ImplTagFreeListParams := {
