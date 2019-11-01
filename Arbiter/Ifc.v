@@ -9,8 +9,6 @@ Section Arbiter.
       respK: Kind;
       serverTagSz: nat;
       serverTagNum: nat := pow2 serverTagSz;
-      (* TODO: change to list of nats; investigate possible problems
-         with this *)
       clientTagSizes: list nat;
       numClients: nat := List.length clientTagSizes;
       clientCallbacks: forall (id: Fin.t numClients), (ty (Bit (nth_Fin clientTagSizes id))) -> ty respK -> ActionT ty Void;
