@@ -64,6 +64,7 @@ Definition MayStruct_RegWrites' ty n (s: Fin.t n -> string) (vals: Fin.t n -> {k
 Local Close Scope kami_action.
 Local Close Scope kami_expr.
 
+Declare Scope kami_maystruct_scope.
 Notation "name :: ty" := (name%string, existT (fun k => option (ConstT k)) ty None) (only parsing) : kami_maystruct_scope.
 Notation "name ::# ty #:: val " := (name%string, existT (fun k => option (ConstT k)) ty (Some val))
                                       (only parsing, at level 99): kami_maystruct_scope.
