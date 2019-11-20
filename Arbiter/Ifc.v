@@ -2,7 +2,6 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.FreeList.Ifc.
 Section Arbiter.
   Open Scope kami_expr_scope.
-  Context {ty: Kind -> Type}.
   Class ArbiterParams :=
     {
       reqK: Kind;
@@ -11,7 +10,8 @@ Section Arbiter.
       serverTagNum: nat := pow2 serverTagSz;
       clientTagSizes: list nat;
       numClients: nat := List.length clientTagSizes;
-      clientCallbacks: forall (id: Fin.t numClients), (ty (Bit (nth_Fin clientTagSizes id))) -> ty respK -> ActionT ty Void;
+      clientCallbacks: forall {ty} (id: Fin.t numClients), ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
+                                                                       "resp" :: respK } -> ActionT ty Void;
     }.
 
   Section withParams.
@@ -21,10 +21,10 @@ Section Arbiter.
                                         "data" :: respK }.
     Record Arbiter: Type :=
       {
-        clientReqGen : forall (id: Fin.t numClients), ty STRUCT_TYPE {"tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                      "req" :: reqK} -> ActionT ty Bool;
-        memCallback: ty MemResp -> ActionT ty Void;
-        arbiterRule: ActionT ty Void;
+        clientReqGen : forall {ty} (id: Fin.t numClients), ty STRUCT_TYPE {"tag" :: Bit (nth_Fin clientTagSizes id);
+                                                                                          "req" :: reqK} -> ActionT ty Bool;
+        memCallback: forall {ty}, ty MemResp -> ActionT ty Void;
+        arbiterRule: forall {ty}, ActionT ty Void;
       }.
   End withParams.
 End Arbiter.

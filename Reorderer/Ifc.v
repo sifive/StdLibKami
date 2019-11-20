@@ -1,8 +1,5 @@
 Require Import Kami.All.
-
-
 Section Reorderer.
-  Context (ty: Kind -> Type).
   Class ReordererParams := {
       reqK: Kind;
       resK: Kind;
@@ -16,10 +13,10 @@ Section Reorderer.
     Context `{ReordererParams}.
     Record Reorderer: Type :=
       {
-        handle: ActionT ty Void;
+        handle: forall {ty}, ActionT ty Void;
         TranslatorResponse: Kind := STRUCT_TYPE { "id" :: ReqId; "res" :: resK };
-        reordererCallback (resp: ty TranslatorResponse): ActionT ty Void;
-        req (p: ty reqK): ActionT ty Bool
+        reordererCallback {ty} (resp: ty TranslatorResponse): ActionT ty Void;
+        req {ty} (p: ty reqK): ActionT ty Bool
       }.
   End withParams.
 End Reorderer.

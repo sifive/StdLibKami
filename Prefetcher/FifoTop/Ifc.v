@@ -12,7 +12,6 @@ Class FifoTopParams :=
   }.
 
 Section FifoTopInterface.
-  Context {ty: Kind -> Type}.
   Context `{FifoTopParams}.
   (* Physical address with the two least significant bits clipped off;
      those bits are unnecessary since we will always be accessing
@@ -30,18 +29,18 @@ Section FifoTopInterface.
   Context {outstandingReqSz: nat}.
   Record FifoTop: Type :=
     {
-      getOutstandingReqCtr: ActionT ty (Bit outstandingReqSz);
-      setOutstandingReqCtr: ty (Bit outstandingReqSz) -> ActionT ty Void;
+      getOutstandingReqCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
+      setOutstandingReqCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
 
-      getDropCtr: ActionT ty (Bit outstandingReqSz);
-      setDropCtr: ty (Bit outstandingReqSz) -> ActionT ty Void;
+      getDropCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
+      setDropCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
 
-      getIsCompleting: ActionT ty Bool;
-      setIsCompleting: ty (Maybe PAddr) -> ActionT ty Void;
-      isEmpty: ActionT ty Bool;
-      isFull: ActionT ty Bool;
-      deq: ActionT ty DeqRes;
-      enq: ty AddrInst -> ActionT ty Bool;
-      flush: ActionT ty Void
+      getIsCompleting: forall {ty}, ActionT ty Bool;
+      setIsCompleting: forall {ty}, ty (Maybe PAddr) -> ActionT ty Void;
+      isEmpty: forall {ty}, ActionT ty Bool;
+      isFull: forall {ty}, ActionT ty Bool;
+      deq: forall {ty}, ActionT ty DeqRes;
+      enq: forall {ty}, ty AddrInst -> ActionT ty Bool;
+      flush: forall {ty}, ActionT ty Void
     }.
 End FifoTopInterface.

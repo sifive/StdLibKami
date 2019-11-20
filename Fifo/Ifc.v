@@ -1,14 +1,13 @@
 Require Import Kami.AllNotations.
 Section FifoInterface.
-  Context {ty: Kind -> Type}.
   Context (k: Kind).
   Record Fifo: Type :=
     {
-      isEmpty: ActionT ty Bool;
-      isFull: ActionT ty Bool;
-      first: ActionT ty (Maybe k);
-      deq: ActionT ty (Maybe k);
-      enq: ty k -> ActionT ty Bool;
-      flush: ActionT ty Void
+      isEmpty: forall {ty}, ActionT ty Bool;
+      isFull: forall {ty}, ActionT ty Bool;
+      first: forall {ty}, ActionT ty (Maybe k);
+      deq: forall {ty}, ActionT ty (Maybe k);
+      enq: forall {ty}, ty k -> ActionT ty Bool;
+      flush: forall {ty}, ActionT ty Void
     }.
 End FifoInterface.

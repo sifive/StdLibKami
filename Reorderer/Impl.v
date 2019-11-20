@@ -2,7 +2,6 @@ Require Import Kami.All.
 Require Import StdLibKami.FreeList.Ifc.
 Require Import StdLibKami.Reorderer.Ifc.
 Section Reorderer.
-  Context (ty: Kind -> Type).
   Context `{ReordererParams}.
   Class ReordererImplParams :=
     {
@@ -17,16 +16,19 @@ Section Reorderer.
       handlingName: string;
       givingName: string;
       
-      prefetcherCallback: ty ReqRes -> ActionT ty Void;
+      prefetcherCallback: forall {ty}, ty ReqRes -> ActionT ty Void;
       ReordererReq := STRUCT_TYPE { "tag" :: ReqId;
                                     "req" :: reqK };
-      memReq: ty ReordererReq -> ActionT ty Bool
+      memReq: forall {ty}, ty ReordererReq -> ActionT ty Bool
     }.
 
   Section withParams.
     Context `{ReordererImplParams}.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
+    
+    Section withTy.
+    Context (ty: Kind -> Type).
 
     (* Conceptual rule *)
    Definition handle: ActionT ty Void :=
@@ -74,7 +76,8 @@ Section Reorderer.
         Ret $$false
       ) as ret;
       Ret #ret.
-                               
+   End withTy.
+    
    Definition implReorderer := Build_Reorderer handle reordererCallback req.
   End withParams.
 End Reorderer.

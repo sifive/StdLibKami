@@ -7,7 +7,6 @@ Section Prefetch.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Context (ty: Kind -> Type).
   Context `{FifoTopParams}.
   Class PrefetcherImplParams :=
     {
@@ -17,13 +16,15 @@ Section Prefetch.
          need to try again, and in the event of success the memory unit
          will write the requested instruction directly into the
          instruction queue *)
-     memReq: ty PAddr -> ActionT ty Bool;
-     addrFifo: @Fifo ty ShortPAddr;
+     memReq: forall {ty}, ty PAddr -> ActionT ty Bool;
+     addrFifo: @Fifo ShortPAddr;
      outstandingReqSz: nat;
-     instFifoTop: @FifoTop.Ifc.FifoTop ty _ outstandingReqSz
+     instFifoTop: @FifoTop.Ifc.FifoTop _ outstandingReqSz
      }.
   Section withParams.
     Context `{PrefetcherImplParams}.
+    Section withTy.
+    Context (ty: Kind -> Type).
     (** * Address prefetch buffer FIFO actions *)
     Local Definition AddrIsEmpty: ActionT ty Bool := (Fifo.Ifc.isEmpty addrFifo).
     Local Definition AddrIsFull: ActionT ty Bool := (Fifo.Ifc.isFull addrFifo).
@@ -33,17 +34,17 @@ Section Prefetch.
     Local Definition AddrDeq: ActionT ty (Maybe ShortPAddr) := (Fifo.Ifc.deq addrFifo).
 
     (** * Instruction buffer FIFO actions *)
-    Local Definition InstIsEmpty := (FifoTop.Ifc.isEmpty instFifoTop).
-    Local Definition InstIsFull := (FifoTop.Ifc.isFull instFifoTop).
-    Local Definition InstDeq := (FifoTop.Ifc.deq instFifoTop).
-    Local Definition InstEnq := (FifoTop.Ifc.enq instFifoTop).
-    Local Definition InstFlush := (FifoTop.Ifc.flush instFifoTop).
+    Local Definition InstIsEmpty: ActionT ty Bool := (FifoTop.Ifc.isEmpty instFifoTop).
+    Local Definition InstIsFull: ActionT ty Bool := (FifoTop.Ifc.isFull instFifoTop).
+    Local Definition InstDeq: ActionT ty DeqRes := (FifoTop.Ifc.deq instFifoTop).
+    Local Definition InstEnq: ty AddrInst -> ActionT ty Bool := (FifoTop.Ifc.enq instFifoTop).
+    Local Definition InstFlush: ActionT ty Void := (FifoTop.Ifc.flush instFifoTop).
 
-    Local Definition getOutstandingReqCtr := (FifoTop.Ifc.getOutstandingReqCtr instFifoTop).
-    Local Definition getDropCtr := (FifoTop.Ifc.getDropCtr instFifoTop).
+    Local Definition getOutstandingReqCtr: ActionT ty (Bit outstandingReqSz) := (FifoTop.Ifc.getOutstandingReqCtr instFifoTop).
+    Local Definition getDropCtr: ActionT ty (Bit outstandingReqSz) := (FifoTop.Ifc.getDropCtr instFifoTop).
 
-    Local Definition setOutstandingReqCtr := (FifoTop.Ifc.setOutstandingReqCtr instFifoTop).
-    Local Definition setDropCtr := (FifoTop.Ifc.setDropCtr instFifoTop).
+    Local Definition setOutstandingReqCtr: ty (Bit outstandingReqSz) -> ActionT ty Void := (FifoTop.Ifc.setOutstandingReqCtr instFifoTop).
+    Local Definition setDropCtr: ty (Bit outstandingReqSz) -> ActionT ty Void := (FifoTop.Ifc.setDropCtr instFifoTop).
 
   Definition flush: ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
@@ -106,7 +107,7 @@ Section Prefetch.
     
     If #flushAddr then (LETA _ <- AddrFlush; Retv);
     Ret #top.
-                       
+  End withTy.                     
   Definition prefetcher := Build_Prefetcher
                              flush
                              getIsCompleting

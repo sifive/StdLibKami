@@ -7,8 +7,7 @@ Section SimpleDevRouter.
   Class DevRouterImplParams :=
     {
       (* A bool register indicating whether we've routed a response
-         from a device back to the guy to the left TODO: what's his
-         name *)
+         from a device yet *)
       routed: string;
     }.
   
@@ -16,7 +15,9 @@ Section SimpleDevRouter.
     Context `{DevRouterImplParams}.
     Open Scope kami_expr_scope.
     Open Scope kami_action_scope.
-    Definition pollRuleGenerator (dev: Fin.t numDevices): ActionT ty Void :=
+    Section withTy.
+      Context (ty: Kind -> Type).
+      Definition pollRuleGenerator (dev: Fin.t numDevices): ActionT ty Void :=
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
         LETA resp: Maybe respK <- (nth_Fin devices dev).(devPoll);
@@ -32,13 +33,15 @@ Section SimpleDevRouter.
     Definition pollingDone: ActionT ty Void :=
       Write routed: Bool <- $$false;
       Retv.
-    Definition pollRules := map pollRuleGenerator (getFins numDevices) ++ [pollingDone].
+    (* Definition pollRules := map pollRuleGenerator (getFins numDevices) ++ [pollingDone]. *)
     
     Definition devRouterReqGen (dev: Fin.t numDevices) (req: ty reqK): ActionT ty Bool :=
       LETA res: Bool <- (nth_Fin devices dev).(devReq) req;
       Ret #res.
-    Definition devRouterReqs := map devRouterReqGen (getFins numDevices). 
-
+    End withTy.
+    Definition pollRules := (map (fun dev ty => pollRuleGenerator ty dev) (getFins numDevices)) ++ [pollingDone].
+    Definition devRouterReqs := map (fun dev ty => devRouterReqGen ty dev) (getFins numDevices).
+    
     Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReqs.
   End withParams.
 End SimpleDevRouter.
