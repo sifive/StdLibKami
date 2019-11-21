@@ -4,15 +4,14 @@ Require Import StdLibKami.Prefetcher.FifoTop.Async.
 Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
 Section prefetcher.
   Context `{FifoTopParams}.
-  Context (ty: Kind -> Type).
   Record Prefetcher: Type :=
     {
-      flush: ActionT ty Void;
-      getIsCompleting: ActionT ty (Maybe PAddr);
-      addAddr: ty PAddr -> ActionT ty Bool;
-      memCallback: ty AddrInst -> ActionT ty Void;
-      fetchInstruction: ActionT ty DeqRes;
+      flush: forall {ty}, ActionT ty Void;
+      getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
+      addAddr: forall {ty}, ty PAddr -> ActionT ty Bool;
+      memCallback: forall {ty}, ty AddrInst -> ActionT ty Void;
+      fetchInstruction: forall {ty}, ActionT ty DeqRes;
       (* Rule *)
-      doPrefetch: ActionT ty Void
+      doPrefetch: forall {ty}, ActionT ty Void
     }.
-End prefetcher.      
+End prefetcher.

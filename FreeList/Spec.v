@@ -7,7 +7,6 @@ Section FreeListSpec.
                          }.
 
   Section withParams.
-    Context (ty: Kind -> Type).
     Context `{FreeListParams}.
     
     Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
@@ -18,9 +17,9 @@ Section FreeListSpec.
     Local Open Scope kami_action.
 
     (* Initialization rule, which will fill the free list *)
-    Definition initialize: ActionT ty Void := Retv.
+    Definition initialize ty: ActionT ty Void := Retv.
 
-    Definition nextToAlloc: ActionT ty (Maybe Tag) := 
+    Definition nextToAlloc ty: ActionT ty (Maybe Tag) := 
       Read freeArray: Array len Bool <- ArrayRegName;
       Nondet random: Tag;
       LET randomOk: Bool <- #freeArray@[#random];
@@ -28,13 +27,13 @@ Section FreeListSpec.
                                      "data" ::= #random };
       Ret #res.
   
-    Definition alloc (a: ty Tag): ActionT ty Bool := 
+    Definition alloc ty (a: ty Tag): ActionT ty Bool := 
       Read freeArray: Array len Bool <- ArrayRegName;
       LET res: Bool <- #freeArray@[#a];
       Write ArrayRegName: Array len Bool <- #freeArray@[#a <- IF #res then #res else $$true];
       Ret !#res.
   
-    Definition free (tag: ty Tag): ActionT ty Void :=
+    Definition free ty (tag: ty Tag): ActionT ty Void :=
       Read freeArray: Array len Bool <- ArrayRegName;                                                        
       Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$false];
       Retv.

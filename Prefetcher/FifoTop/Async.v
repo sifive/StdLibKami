@@ -6,7 +6,7 @@ Section AsyncFifoTop.
   Context `{FifoTopParams}.
   Class AsyncFifoTopParams :=
     {
-      backingFifo: forall {ty}, @Fifo ty AddrInst;
+      backingFifo: @Fifo AddrInst;
       outstandingReqSz: nat;
       outstandingReqCtr: string;
       dropCtr: string;
@@ -14,15 +14,17 @@ Section AsyncFifoTop.
       isCompleting: string;
     }.
   Section withParams.
-    Context {ty: Kind -> Type}.
     Context `{AsyncFifoTopParams}.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
-
-    Definition toFullPAddr (short: ty ShortPAddr): PAddr @# ty := ZeroExtendTruncLsb _ ({< #short, $$(natToWord 2 0) >}).
+    
+    Definition toFullPAddr {ty} (short: ty ShortPAddr): PAddr @# ty := ZeroExtendTruncLsb _ ({< #short, $$(natToWord 2 0) >}).
   
-    Definition toShortPAddr (long: ty PAddr): ShortPAddr @# ty := ZeroExtendTruncMsb _ #long.
-  
+    Definition toShortPAddr {ty} (long: ty PAddr): ShortPAddr @# ty := ZeroExtendTruncMsb _ #long.
+    
+    Section withTy.
+    Context (ty: Kind -> Type).
+    
     Definition GetIsCompleting: ActionT ty Bool :=
       Read completing: Bool <- isCompleting;
       Ret #completing.
@@ -175,6 +177,7 @@ Section AsyncFifoTop.
     Definition setDropCtr (new: ty (Bit outstandingReqSz)): ActionT ty Void :=
       Write dropCtr: Bit outstandingReqSz <- #new;
       Retv.
+    End withTy.
     
     Definition asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|

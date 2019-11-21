@@ -32,63 +32,68 @@ Section ArbiterSpec.
 
     Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
                                        "data" :: reqK }.
-  
+    
     (* Action that allows us to make a request to physical memory *)
-    Context (memReq: ty MemReq -> ActionT ty Bool).
+    Context (memReq: forall {ty}, ty MemReq -> ActionT ty Bool).
     
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
-    Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                             "req" :: reqK }): ActionT ty Bool :=
-      LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
-                               "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) };
-      Read arb: Bool <- arbiter;
-      Read freeArray: Array serverTagNum Bool <- freeArrayName;
-      Nondet tag: ServerTag;
-      LET tagFree: Bool <- !(#freeArray@[#tag]);
-      LET tagReq <- STRUCT { "tag" ::=  #tag;
-                             "data" ::= #taggedReq @% "req" };
-      If !#arb && #tagFree then (
-        Write arbiter: Bool <- $$true;
-        LETA reqOk: Bool <- memReq (tagReq);
-        If #reqOk then (
-            Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#tag <- $$true];
-            Read assocArray: Array serverTagNum IdTag <- assocArrayName;
-            Write assocArrayName: Array serverTagNum IdTag <- #assocArray@[#tag <- #newEntry];
-            Retv
-          );
-        Ret #reqOk
-      )
-    else Ret $$false as retVal;
-    Ret #retVal.
+    Section withTy.
+      Context (ty: Kind -> Type).
+      Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
+                                                                               "req" :: reqK }): ActionT ty Bool :=
+        LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
+                                 "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) };
+          Read arb: Bool <- arbiter;
+          Read freeArray: Array serverTagNum Bool <- freeArrayName;
+          Nondet tag: ServerTag;
+          LET tagFree: Bool <- !(#freeArray@[#tag]);
+          LET tagReq <- STRUCT { "tag" ::=  #tag;
+                                 "data" ::= #taggedReq @% "req" };
+          If !#arb && #tagFree then (
+          Write arbiter: Bool <- $$true;
+            LETA reqOk: Bool <- memReq ty (tagReq);
+            If #reqOk then (
+              Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#tag <- $$true];
+                Read assocArray: Array serverTagNum IdTag <- assocArrayName;
+                Write assocArrayName: Array serverTagNum IdTag <- #assocArray@[#tag <- #newEntry];
+                Retv
+            );
+                             Ret #reqOk
+        )
+      else Ret $$false as retVal;
+        Ret #retVal.
 
-  (* What the "real" memory unit will call to respond to the tag
+      (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual
      clients occurs. *)
-  Definition memCallback (resp: ty MemResp): ActionT ty Void :=
-    LET sTag: ServerTag <- #resp @% "tag";
-    Read freeArray: Array serverTagNum Bool <- freeArrayName;
-    Read assocArray: Array serverTagNum IdTag <- assocArrayName;
-    LET idtag: IdTag <- #assocArray@[#sTag];
-    Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#sTag <- $$false];
-    LET respId: Id <- #idtag @% "id";
-    LET respTag: ClientTag <- #idtag @% "tag";
-    GatherActions (List.map (fun (id: Fin.t numClients) => 
-                LET clientTag: Bit (nth_Fin clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
-                LET respDat <- #resp @% "data";
-                If $(proj1_sig (Fin.to_nat id)) == #respId then (
-                   LETA _ <- (clientCallbacks id) clientTag respDat; Retv
-                 ); Retv
-              )
-              (getFins numClients)) as _; Retv.
+      Definition memCallback (resp: ty MemResp): ActionT ty Void :=
+        LET sTag: ServerTag <- #resp @% "tag";
+          Read freeArray: Array serverTagNum Bool <- freeArrayName;
+          Read assocArray: Array serverTagNum IdTag <- assocArrayName;
+          LET idtag: IdTag <- #assocArray@[#sTag];
+          Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#sTag <- $$false];
+          LET respId: Id <- #idtag @% "id";
+          LET respTag: ClientTag <- #idtag @% "tag";
+          GatherActions (List.map (fun (id: Fin.t numClients) => 
+                                     LET clientTag: Bit (nth_Fin clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
+                                       LET respDat <- #resp @% "data";
+                                       LET taggedResp <- STRUCT { "tag" ::= #clientTag;
+                                                                  "resp" ::= #respDat };
+                                       If $(proj1_sig (Fin.to_nat id)) == #respId then (
+                                       LETA _ <- (clientCallbacks id) taggedResp;
+                                         Retv
+                                     ); Retv
+                                  )
+                                  (getFins numClients)) as _; Retv.
 
-  Definition arbiterRule: ActionT ty Void :=
-    Write arbiter: Bool <- $$false;
-    Retv.
-
-  Definition arbiterImpl := Build_Arbiter
-                              clientReq
-                              memCallback
-                              arbiterRule.
+      Definition arbiterRule: ActionT ty Void :=
+        Write arbiter: Bool <- $$false;
+          Retv.
+    End withTy.
+    Definition arbiterImpl := Build_Arbiter
+                                clientReq
+                                memCallback
+                                arbiterRule.
   End withParams.
 End ArbiterSpec.
