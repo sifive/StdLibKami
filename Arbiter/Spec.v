@@ -2,6 +2,8 @@ Require Import Kami.All.
 Require Import StdLibKami.Arbiter.Ifc.
 Section ArbiterSpec.
   Context `{ArbiterParams}.
+  Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
+                                     "data" :: reqK }.
   Class ArbiterSpecParams :=
     {
       arbiter: string;
@@ -14,7 +16,10 @@ Section ArbiterSpec.
       freeArrayName: string;
       (* Name of the register which will store the array representing
          the mapping from server tags to ClientTag, ID tag pairs *)
-      assocArrayName: string
+      assocArrayName: string;
+      (* Action that allows us to make a request to physical memory *)
+      memReq: forall {ty}, ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                           "info" :: reqResK };
     }.
   Section withParams.
     Context `{ArbiterSpecParams}.
@@ -30,18 +35,15 @@ Section ArbiterSpec.
     Definition IdTag: Kind := STRUCT_TYPE { "id" :: Id;
                                             "tag" :: ClientTag }.
 
-    Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                       "data" :: reqK }.
-    
-    (* Action that allows us to make a request to physical memory *)
-    Context (memReq: forall {ty}, ty MemReq -> ActionT ty Bool).
-    
+
+
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
     Section withTy.
       Context (ty: Kind -> Type).
+
       Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                               "req" :: reqK }): ActionT ty Bool :=
+                                                                               "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK }  :=
         LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                  "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) };
           Read arb: Bool <- arbiter;
@@ -52,17 +54,18 @@ Section ArbiterSpec.
                                  "data" ::= #taggedReq @% "req" };
           If !#arb && #tagFree then (
           Write arbiter: Bool <- $$true;
-            LETA reqOk: Bool <- memReq ty (tagReq);
-            If #reqOk then (
+            LETA reqRes <- memReq (tagReq);
+            If #reqRes @% "ready" then (
               Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#tag <- $$true];
                 Read assocArray: Array serverTagNum IdTag <- assocArrayName;
                 Write assocArrayName: Array serverTagNum IdTag <- #assocArray@[#tag <- #newEntry];
                 Retv
             );
-                             Ret #reqOk
+            Ret #reqRes
         )
-      else Ret $$false as retVal;
-        Ret #retVal.
+      else Ret STRUCT { "ready" ::= $$false;
+                        "info" ::= $$(getDefaultConst reqResK) } as retVal;
+      Ret #retVal.
 
       (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual

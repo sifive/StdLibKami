@@ -8,6 +8,7 @@ Section Prefetch.
   Local Open Scope kami_action.
 
   Context `{FifoTopParams}.
+  Context {reqResK: Kind}.
   Class PrefetcherImplParams :=
     {
      AddrSize: nat; (* log len of the FIFO backing the address prefetch buffer *)
@@ -16,7 +17,8 @@ Section Prefetch.
          need to try again, and in the event of success the memory unit
          will write the requested instruction directly into the
          instruction queue *)
-     memReq: forall {ty}, ty PAddr -> ActionT ty Bool;
+     memReq: forall {ty}, ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                         "info" :: reqResK };
      addrFifo: @Fifo ShortPAddr;
      outstandingReqSz: nat;
      instFifoTop: @FifoTop.Ifc.FifoTop _ outstandingReqSz
@@ -54,7 +56,7 @@ Section Prefetch.
     Call "SetIsCompleting"(Invalid: Maybe PAddr);
     Retv.
   
-  Definition getIsCompleting: ActionT ty (Maybe PAddr) :=
+ Definition getIsCompleting: ActionT ty (Maybe PAddr) :=
     Call completing: Maybe PAddr <- "GetIsCompleting"();
     Ret #completing.
 
@@ -89,8 +91,10 @@ Section Prefetch.
     LET fullAddrFirst: PAddr <- toFullPAddr short;
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     If (#addrFirst @% "valid") then (
-      LETA res: Bool <- memReq fullAddrFirst;
-      Ret #res
+      LETA res: STRUCT_TYPE { "ready" :: Bool;
+                              "info" :: reqResK }
+                            <- memReq fullAddrFirst;
+      Ret (#res @% "ready")
     ) else (
       Ret $$false
     ) as doDequeue;
