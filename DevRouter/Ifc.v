@@ -1,10 +1,8 @@
 Require Import Kami.All.
 Section DevRouter.
-  Context {reqResK: Kind}.
   Record DeviceData (reqK respK: Kind): Type :=
     {
-      devReq: forall {ty}, ty reqK -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                         "info" :: reqResK };
+      devReq: forall {ty}, ty reqK -> ActionT ty Bool;
       devPoll: forall {ty}, ActionT ty (Maybe respK)
     }.
 
@@ -25,8 +23,9 @@ Section DevRouter.
       {
         (* Rules *)
         pollRules: list (forall {ty}, ActionT ty Void);
-        devRouterReqs: list (forall {ty}, ty reqK -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                                        "info" :: reqResK });
+        devRouterReqs: forall {ty}, ty (STRUCT_TYPE {
+                                            "dtag" :: Bit (Nat.log2_up numDevices) ;
+                                            "req" :: reqK })-> ActionT ty Bool;
       }.
   End withParams.
 End DevRouter.
