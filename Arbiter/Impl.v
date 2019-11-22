@@ -16,7 +16,8 @@ Section ArbiterImpl.
       alistWrite: string;
       freelist: @FreeList serverTagNum;
       (* Action that allows us to make a request to physical memory *)
-      memReq: forall {ty}, ty MemReq -> ActionT ty Bool
+      memReq: forall {ty}, ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                           "info" :: reqResK }
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -41,24 +42,25 @@ Section ArbiterImpl.
       (* Per-client translator request action *)
       Open Scope kami_expr_scope.
       Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                               "req" :: reqK }): ActionT ty Bool :=
+                                                                               "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
         Read arb: Bool <- arbiter;
-          LETA serverTag: Maybe ServerTag <- nextToAlloc;
-          LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
-                              "data" ::= #taggedReq @% "req" };
-          LET sTagDat <- #serverTag @% "data";
-          If !#arb && #serverTag @% "valid" then (
-             Write arbiter: Bool <- $$true;
-             LETA reqOk: Bool <- memReq mRq;
-             If #reqOk then (
-                 Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
-                                          "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
-                                                              "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
-                                        }: WriteRq (Nat.log2_up serverTagNum) IdTag);
-                 LETA _ <- alloc sTagDat ;
-                 Retv);
-             Ret #reqOk )
-      else Ret $$false as retVal;
+        LETA serverTag: Maybe ServerTag <- nextToAlloc;
+        LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
+                           "data" ::= #taggedReq @% "req" };
+        LET sTagDat <- #serverTag @% "data";
+        If !#arb && #serverTag @% "valid" then (
+          Write arbiter: Bool <- $$true;
+          LETA reqRes <- memReq mRq;
+          If #reqRes @% "ready" then (
+              Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
+                                       "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
+                                                           "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
+                                     }: WriteRq (Nat.log2_up serverTagNum) IdTag);
+              LETA _ <- alloc sTagDat ;
+              Retv);
+          Ret #reqRes )
+      else Ret STRUCT { "ready" ::= $$false;
+                        "info" ::= $$(@getDefaultConst reqResK) } as retVal;
       Ret #retVal.
 
     (* What the "real" memory unit will call to respond to the tag
@@ -90,5 +92,5 @@ Section ArbiterImpl.
                                 clientReq
                                 memCallback
                                 arbiterRule.
-  End withParams.  
+  End withParams.
 End ArbiterImpl.

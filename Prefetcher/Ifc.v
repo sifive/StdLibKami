@@ -4,6 +4,7 @@ Require Import StdLibKami.Prefetcher.FifoTop.Async.
 Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
 Section prefetcher.
   Context `{FifoTopParams}.
+  Context (reqResK: Kind).
   Record Prefetcher: Type :=
     {
       flush: forall {ty}, ActionT ty Void;

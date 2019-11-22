@@ -33,10 +33,11 @@ Section SimpleDevRouter.
     Definition pollingDone: ActionT ty Void :=
       Write routed: Bool <- $$false;
       Retv.
-    (* Definition pollRules := map pollRuleGenerator (getFins numDevices) ++ [pollingDone]. *)
     
-    Definition devRouterReqGen (dev: Fin.t numDevices) (req: ty reqK): ActionT ty Bool :=
-      LETA res: Bool <- (nth_Fin devices dev).(devReq) req;
+    Definition devRouterReqGen (dev: Fin.t numDevices) (req: ty reqK): ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                                                                "info" :: reqResK } :=
+      LETA res: STRUCT_TYPE { "ready" :: Bool;
+                              "info" :: reqResK } <- (nth_Fin devices dev).(devReq) req;
       Ret #res.
     End withTy.
     Definition pollRules := (map (fun dev ty => pollRuleGenerator ty dev) (getFins numDevices)) ++ [pollingDone].
