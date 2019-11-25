@@ -4,8 +4,6 @@ Require Import StdLibKami.FreeList.Ifc.
 
 Section ArbiterImpl.
   Context `{ArbiterParams}.
-  Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                     "data" :: reqK }.
   Class ArbiterImplParams :=
     {
       arbiter: string;
@@ -15,9 +13,6 @@ Section ArbiterImpl.
       alistRead: string;
       alistWrite: string;
       freelist: @FreeList serverTagNum;
-      (* Action that allows us to make a request to physical memory *)
-      memReq: forall {ty}, ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                           "info" :: reqResK }
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -33,15 +28,20 @@ Section ArbiterImpl.
     Definition IdTag: Kind := STRUCT_TYPE { "id" :: Id;
                                             "tag" :: ClientTag }.
     Section withTy.
-      Context (ty: Kind -> Type).
-      (* @vmurali: here is the issue with this scheme *)
-      Definition nextToAlloc := @nextToAlloc _ freelist ty.
-      Definition alloc := @alloc _ freelist ty.
-      Definition free := @free _ freelist ty.
+      Definition nextToAlloc {ty: Kind -> Type} := @nextToAlloc _ freelist ty.
+      Definition alloc {ty: Kind -> Type} := @alloc _ freelist ty.
+      Definition free {ty: Kind -> Type}:= @free _ freelist ty.
 
       (* Per-client translator request action *)
       Open Scope kami_expr_scope.
-      Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
+      Definition clientReq
+                 (memReq: forall {ty},
+                     ty MemReq ->
+                     ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                              "info" :: reqResK })
+                 (id: Fin.t numClients)
+                 (ty: Kind -> Type)
+                 (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
                                                                                "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
         Read arb: Bool <- arbiter;
         LETA serverTag: Maybe ServerTag <- nextToAlloc;
@@ -66,7 +66,12 @@ Section ArbiterImpl.
     (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual
      clients occurs. *)
-      Definition memCallback (resp: ty MemResp): ActionT ty Void :=
+      Definition memCallback
+                 (clientCallbacks: forall (id: Fin.t numClients) {ty},
+                     ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
+                                      "resp" :: respK } -> ActionT ty Void)
+                 (ty: Kind -> Type)
+                 (resp: ty MemResp): ActionT ty Void :=
         LET sTag: ServerTag <- #resp @% "tag";
         Call idtag: IdTag <- alistRead(#sTag: ServerTag);
         LETA _ <- free sTag;
@@ -84,7 +89,7 @@ Section ArbiterImpl.
                                 )
                                 (getFins numClients)) as _; Retv.
 
-      Definition arbiterRule: ActionT ty Void :=
+      Definition arbiterRule ty: ActionT ty Void :=
         Write arbiter: Bool <- $$false;
         Retv.
     End withTy.

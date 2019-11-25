@@ -4,7 +4,7 @@ Require Import StdLibKami.Prefetcher.FifoTop.Async.
 Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
 Section prefetcher.
   Context `{FifoTopParams}.
-  Context (reqResK: Kind).
+  Context (reqResK: Kind). (* TODO: move? *)
   Record Prefetcher: Type :=
     {
       flush: forall {ty}, ActionT ty Void;
@@ -13,6 +13,8 @@ Section prefetcher.
       memCallback: forall {ty}, ty AddrInst -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
       (* Rule *)
-      doPrefetch: forall {ty}, ActionT ty Void
+      doPrefetch (memReq: forall {ty},
+                     ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                          "info" :: reqResK }): forall {ty}, ActionT ty Void;
     }.
 End prefetcher.

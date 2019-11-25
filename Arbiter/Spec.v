@@ -17,9 +17,6 @@ Section ArbiterSpec.
       (* Name of the register which will store the array representing
          the mapping from server tags to ClientTag, ID tag pairs *)
       assocArrayName: string;
-      (* Action that allows us to make a request to physical memory *)
-      memReq: forall {ty}, ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                           "info" :: reqResK };
     }.
   Section withParams.
     Context `{ArbiterSpecParams}.
@@ -40,10 +37,17 @@ Section ArbiterSpec.
     (* Per-client translator request action *)
     Open Scope kami_expr_scope.
     Section withTy.
-      Context (ty: Kind -> Type).
+      (* Context (ty: Kind -> Type). *)
 
-      Definition clientReq (id: Fin.t numClients) (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                               "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK }  :=
+      Definition clientReq
+                 (memReq: forall {ty},
+                     ty MemReq ->
+                     ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                              "info" :: reqResK })
+                 (id: Fin.t numClients)
+                 (ty: Kind -> Type)
+                 (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
+                                              "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
         LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                  "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) };
           Read arb: Bool <- arbiter;
@@ -70,7 +74,12 @@ Section ArbiterSpec.
       (* What the "real" memory unit will call to respond to the tag
      translator; This is where the routing of responses to individual
      clients occurs. *)
-      Definition memCallback (resp: ty MemResp): ActionT ty Void :=
+      Definition memCallback
+                 (clientCallbacks: forall (id: Fin.t numClients) {ty},
+                     ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
+                                      "resp" :: respK } -> ActionT ty Void)
+                 (ty: Kind -> Type)
+                 (resp: ty MemResp): ActionT ty Void :=
         LET sTag: ServerTag <- #resp @% "tag";
           Read freeArray: Array serverTagNum Bool <- freeArrayName;
           Read assocArray: Array serverTagNum IdTag <- assocArrayName;
@@ -90,7 +99,7 @@ Section ArbiterSpec.
                                   )
                                   (getFins numClients)) as _; Retv.
 
-      Definition arbiterRule: ActionT ty Void :=
+      Definition arbiterRule ty: ActionT ty Void :=
         Write arbiter: Bool <- $$false;
           Retv.
     End withTy.
