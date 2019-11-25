@@ -25,18 +25,18 @@ Section cam.
            read
              := fun ty tag ctxt
                   => Read xs
-                       :  Array size (Maybe (Pair Tag Data))
+                       :  Array size (Maybe (Pair Key Data))
                        <- regName;
                      utila_acts_find_pkt
                        (map
                          (fun i : nat
                            => LET x 
-                                :  Maybe (Pair Tag Data)
+                                :  Maybe (Pair Key Data)
                                 <- #xs@[$i : Index @# ty];
                               Ret (STRUCT {
                                   "valid"
                                     ::= #x @% "valid" &&
-                                        MatchRead tag ctxt (#x @% "data" @% "fst");
+                                        MatchRead tag ctxt (#x @% "data" @% "fst") (#x @% "data" @% "snd");
                                   "data"
                                     ::= #x @% "data" @% "snd"
                                 } : Maybe Data @# ty))
@@ -46,10 +46,10 @@ Section cam.
              := fun ty tag data
                   => LETA index : Index <- getVictim policy ty;
                      Read xs
-                       :  Array size (Maybe (Pair Tag Data))
+                       :  Array size (Maybe (Pair Key Data))
                        <- regName;
                      LET value
-                       :  Pair Tag Data
+                       :  Pair Key Data
                        <- STRUCT {
                             "fst"  ::= tag;
                             "snd" ::= data
@@ -61,30 +61,30 @@ Section cam.
            flush
              := fun ty
                   => Write regName
-                       :  Array size (Maybe (Pair Tag Data))
+                       :  Array size (Maybe (Pair Key Data))
                        <- $$(getDefaultConst
                               (Array size
                                 (Maybe
-                                (Pair (@Tag CamParamsInst)
+                                (Pair (@Key CamParamsInst)
                                    (@Data CamParamsInst)))));
                              
                      Retv;
            clear
              := fun ty tag ctxt
                   => Read xs
-                       :  Array size (Maybe (Pair Tag (@Data CamParamsInst)))
+                       :  Array size (Maybe (Pair Key (@Data CamParamsInst)))
                        <- regName;
                      GatherActions
                        (map
                          (fun i : nat
-                            => LET x : Maybe (Pair Tag Data)
+                            => LET x : Maybe (Pair Key Data)
                                  <- #xs@[$i : Index @# ty];
-                               If MatchClear tag ctxt (#x @% "data" @% "fst")
+                               If MatchClear tag ctxt (#x @% "data" @% "fst") (#x @% "data" @% "snd")
                                  then
                                    Write regName
-                                     :  Array size (Maybe (Pair Tag Data))
+                                     :  Array size (Maybe (Pair Key Data))
                                      <- #xs@[($i : Index @# ty)
-                                          <- unpack (Maybe (Pair Tag Data)) $0];
+                                          <- unpack (Maybe (Pair Key Data)) $0];
                                    Retv;
                                Retv)
                           (seq 0 size))
