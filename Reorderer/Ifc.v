@@ -12,13 +12,21 @@ Section Reorderer.
     }.
   Section withParams.
     Context `{ReordererParams}.
+    Definition ReordererReq := STRUCT_TYPE { "tag" :: ReqId;
+                                             "req" :: reqK }.
+                                
     Record Reorderer: Type :=
       {
-        handle: forall {ty}, ActionT ty Void;
+        handle (prefetcherCallback: forall {ty}, ty ReqResp -> ActionT ty Void): forall {ty}, ActionT ty Void;
         TranslatorResponse: Kind := STRUCT_TYPE { "id" :: ReqId; "resp" :: respK };
         reordererCallback {ty} (resp: ty TranslatorResponse): ActionT ty Void;
-        req {ty} (p: ty reqK): ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                        "info" :: reqResK }
+        req (memReq: forall {ty}, 
+                ty ReordererReq ->
+                ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                         "info" :: reqResK })
+            {ty} 
+            (p: ty reqK): ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                   "info" :: reqResK }
       }.
   End withParams.
 End Reorderer.

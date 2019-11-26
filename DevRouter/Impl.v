@@ -17,7 +17,7 @@ Section SimpleDevRouter.
     Open Scope kami_action_scope.
     Section withTy.
       Context (ty: Kind -> Type).
-      Definition pollRuleGenerator (dev: Fin.t numDevices): ActionT ty Void :=
+      Definition pollRuleGenerator (clientCallback: forall {ty}, ty respK -> ActionT ty Void) (dev: Fin.t numDevices): ActionT ty Void :=
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
         LETA resp: Maybe respK <- (nth_Fin devices dev).(devPoll);
@@ -45,7 +45,7 @@ Section SimpleDevRouter.
                             Ret #ret
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
     End withTy.
-    Definition pollRules := (map (fun dev ty => pollRuleGenerator ty dev) (getFins numDevices)) ++ [pollingDone].
+    Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
     
     Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReqs.
   End withParams.

@@ -15,12 +15,6 @@ Section Reorderer.
       arfWrite: string;
       handlingName: string;
       givingName: string;
-      
-      prefetcherCallback: forall {ty}, ty ReqResp -> ActionT ty Void;
-      ReordererReq := STRUCT_TYPE { "tag" :: ReqId;
-                                    "req" :: reqK };
-      memReq: forall {ty}, ty ReordererReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                                 "info" :: reqResK }
     }.
 
   Section withParams.
@@ -29,10 +23,12 @@ Section Reorderer.
     Local Open Scope kami_action.
     
     Section withTy.
-    Context (ty: Kind -> Type).
 
     (* Conceptual rule *)
-   Definition handle: ActionT ty Void :=
+   Definition handle
+   (prefetcherCallback: forall {ty}, ty ReqResp -> ActionT ty Void)
+   ty
+   : ActionT ty Void :=
       Read handling: ReqId <- handlingName;
       Call MRes: Maybe respK <- rfRead(#handling: ReqId);
       Call req: reqK <- rfRead(#handling: ReqId);
@@ -49,7 +45,7 @@ Section Reorderer.
   
    (* Action the arbiter will call when giving us (the reorderer) the
       response to a prior request *)
-   Definition reordererCallback (resp: ty TranslatorResponse): ActionT ty Void :=
+   Definition reordererCallback ty (resp: ty TranslatorResponse): ActionT ty Void :=
     LET idx: ReqId <- #resp @% "id";
     LET res: respK <- #resp @% "resp";
     Call rfWrite(STRUCT { "addr" ::= #idx;
@@ -57,7 +53,12 @@ Section Reorderer.
     Retv.
     
    (* Action the prefetcher will ultimately use to make an order-preserving request for instructions at some address *)
-   Definition req (p: ty reqK): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
+   Definition req (memReq: forall {ty}, 
+                ty ReordererReq ->
+                ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                         "info" :: reqResK })
+              {ty}
+              (p: ty reqK): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
      Read giving: ReqId <- givingName;
      Read handling: ReqId <- handlingName;
      LET taggedReq <- STRUCT { "tag" ::= #giving;

@@ -17,8 +17,6 @@ Section Prefetch.
          need to try again, and in the event of success the memory unit
          will write the requested instruction directly into the
          instruction queue *)
-     memReq: forall {ty}, ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                         "info" :: reqResK };
      addrFifo: @Fifo ShortPAddr;
      outstandingReqSz: nat;
      instFifoTop: @FifoTop.Ifc.FifoTop _ outstandingReqSz
@@ -26,7 +24,7 @@ Section Prefetch.
   Section withParams.
     Context `{PrefetcherImplParams}.
     Section withTy.
-    Context (ty: Kind -> Type).
+    Context {ty: Kind -> Type}.
     (** * Address prefetch buffer FIFO actions *)
     Local Definition AddrIsEmpty: ActionT ty Bool := (Fifo.Ifc.isEmpty addrFifo).
     Local Definition AddrIsFull: ActionT ty Bool := (Fifo.Ifc.isFull addrFifo).
@@ -47,8 +45,9 @@ Section Prefetch.
 
     Local Definition setOutstandingReqCtr: ty (Bit outstandingReqSz) -> ActionT ty Void := (FifoTop.Ifc.setOutstandingReqCtr instFifoTop).
     Local Definition setDropCtr: ty (Bit outstandingReqSz) -> ActionT ty Void := (FifoTop.Ifc.setDropCtr instFifoTop).
+    End withTy.
 
-  Definition flush: ActionT ty Void :=
+  Definition flush ty: ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     LETA _ <- AddrFlush;
     LETA _ <- InstFlush;
@@ -56,16 +55,16 @@ Section Prefetch.
     Call "SetIsCompleting"(Invalid: Maybe PAddr);
     Retv.
   
- Definition getIsCompleting: ActionT ty (Maybe PAddr) :=
+ Definition getIsCompleting ty: ActionT ty (Maybe PAddr) :=
     Call completing: Maybe PAddr <- "GetIsCompleting"();
     Ret #completing.
 
-  Definition addAddr (addr: ty PAddr): ActionT ty Bool :=
+  Definition addAddr ty (addr: ty PAddr): ActionT ty Bool :=
     LET shortened <- (toShortPAddr addr);
     LETA res: Bool <- AddrEnq shortened;
     Ret #res.
   
-  Definition memCallback (m: ty AddrInst): ActionT ty Void :=
+  Definition memCallback ty (m: ty AddrInst): ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     LETA drop: Bit outstandingReqSz <- getDropCtr;
     LET newDrop: Bit outstandingReqSz <- #drop - $1;
@@ -85,7 +84,11 @@ Section Prefetch.
   (* The main action related to prefetching, does various things based
      on the current prefetcher state. Will be the body of a rule in
      the final pipeline. *)
-  Definition doPrefetch: ActionT ty Void :=
+  Definition doPrefetch
+             (memReq: forall {ty},
+                 ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
+                                                      "info" :: reqResK })
+             ty: ActionT ty Void :=
     LETA addrFirst: Maybe ShortPAddr <- AddrFirst;
     LET short: ShortPAddr <- #addrFirst @% "data";
     LET fullAddrFirst: PAddr <- toFullPAddr short;
@@ -103,7 +106,7 @@ Section Prefetch.
     If #doDequeue then (LETA _ <- AddrDeq; Retv);
     Retv.
 
-  Definition fetchInstruction: ActionT ty DeqRes :=
+  Definition fetchInstruction ty: ActionT ty DeqRes :=
     LETA top: DeqRes <- InstDeq;
     LET topMAddr: Maybe PAddr <- (#top @% "addr");
     LET topMInst: Maybe Inst <- #top @% "inst";
@@ -111,7 +114,6 @@ Section Prefetch.
     
     If #flushAddr then (LETA _ <- AddrFlush; Retv);
     Ret #top.
-  End withTy.                     
   Definition prefetcher := Build_Prefetcher
                              flush
                              getIsCompleting
