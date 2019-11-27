@@ -25,13 +25,6 @@ Section Prefetch.
     Context `{PrefetcherImplParams}.
     Section withTy.
     Context {ty: Kind -> Type}.
-    (** * Address prefetch buffer FIFO actions *)
-    Local Definition AddrIsEmpty: ActionT ty Bool := (Fifo.Ifc.isEmpty addrFifo).
-    Local Definition AddrIsFull: ActionT ty Bool := (Fifo.Ifc.isFull addrFifo).
-    Local Definition AddrFirst: ActionT ty (Maybe ShortPAddr) := (Fifo.Ifc.first addrFifo).
-    Local Definition AddrEnq: ty ShortPAddr -> ActionT ty Bool := (Fifo.Ifc.enq addrFifo).
-    Local Definition AddrFlush: ActionT ty Void := (Fifo.Ifc.flush addrFifo).
-    Local Definition AddrDeq: ActionT ty (Maybe ShortPAddr) := (Fifo.Ifc.deq addrFifo).
 
     (** * Instruction buffer FIFO actions *)
     Local Definition InstIsEmpty: ActionT ty Bool := (FifoTop.Ifc.isEmpty instFifoTop).
@@ -49,7 +42,6 @@ Section Prefetch.
 
   Definition flush ty: ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
-    LETA _ <- AddrFlush;
     LETA _ <- InstFlush;
     LETA _ <- setDropCtr outstanding;
     Call "SetIsCompleting"(Invalid: Maybe PAddr);
@@ -59,11 +51,6 @@ Section Prefetch.
     Call completing: Maybe PAddr <- "GetIsCompleting"();
     Ret #completing.
 
-  Definition addAddr ty (addr: ty PAddr): ActionT ty Bool :=
-    LET shortened <- (toShortPAddr addr);
-    LETA res: Bool <- AddrEnq shortened;
-    Ret #res.
-  
   Definition memCallback ty (m: ty AddrInst): ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     LETA drop: Bit outstandingReqSz <- getDropCtr;
@@ -88,36 +75,27 @@ Section Prefetch.
              (memReq: forall {ty},
                  ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                       "info" :: reqResK })
-             ty: ActionT ty Void :=
-    LETA addrFirst: Maybe ShortPAddr <- AddrFirst;
-    LET short: ShortPAddr <- #addrFirst @% "data";
+             {ty} (addr: ty PAddr): ActionT ty Bool :=
+    LET short: ShortPAddr <- (toShortPAddr addr);
     LET fullAddrFirst: PAddr <- toFullPAddr short;
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
-    If (#addrFirst @% "valid") then (
-      LETA res: STRUCT_TYPE { "ready" :: Bool;
-                              "info" :: reqResK }
-                            <- memReq fullAddrFirst;
-      Ret (#res @% "ready")
-    ) else (
-      Ret $$false
-    ) as doDequeue;
+    LETA res: STRUCT_TYPE { "ready" :: Bool;
+                            "info" :: reqResK }
+                          <- memReq fullAddrFirst;
+    LET doDequeue : Bool <- (#res @% "ready");
     LET newOutstanding: Bit outstandingReqSz <- #outstanding + (IF #doDequeue then $1 else $0);
     LETA _ <- setOutstandingReqCtr newOutstanding;
-    If #doDequeue then (LETA _ <- AddrDeq; Retv);
-    Retv.
+    Ret #doDequeue.
 
   Definition fetchInstruction ty: ActionT ty DeqRes :=
     LETA top: DeqRes <- InstDeq;
     LET topMAddr: Maybe PAddr <- (#top @% "addr");
     LET topMInst: Maybe Inst <- #top @% "inst";
-    LET flushAddr: Bool <- (#topMAddr @% "valid") && !(#topMInst @% "valid");
-    
-    If #flushAddr then (LETA _ <- AddrFlush; Retv);
     Ret #top.
+  
   Definition prefetcher := Build_Prefetcher
                              flush
                              getIsCompleting
-                             addAddr
                              memCallback
                              fetchInstruction
                              doPrefetch.
