@@ -15,6 +15,6 @@ Section prefetcher.
       doPrefetch (memReq: forall {ty},
                      ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                           "info" :: reqResK }):
-        forall {ty}, ty PAddr -> ActionT ty Void;
+        forall {ty}, ty PAddr -> ActionT ty Bool;
     }.
 End prefetcher.

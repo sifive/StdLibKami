@@ -75,7 +75,7 @@ Section Prefetch.
              (memReq: forall {ty},
                  ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                       "info" :: reqResK })
-             ty (addr: ty PAddr): ActionT ty Bool :=
+             {ty} (addr: ty PAddr): ActionT ty Bool :=
     LET short: ShortPAddr <- (toShortPAddr addr);
     LET fullAddrFirst: PAddr <- toFullPAddr short;
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
@@ -92,6 +92,7 @@ Section Prefetch.
     LET topMAddr: Maybe PAddr <- (#top @% "addr");
     LET topMInst: Maybe Inst <- #top @% "inst";
     Ret #top.
+  
   Definition prefetcher := Build_Prefetcher
                              flush
                              getIsCompleting
