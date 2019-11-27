@@ -9,12 +9,12 @@ Section prefetcher.
     {
       flush: forall {ty}, ActionT ty Void;
       getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
-      addAddr: forall {ty}, ty PAddr -> ActionT ty Bool;
       memCallback: forall {ty}, ty AddrInst -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
       (* Rule *)
       doPrefetch (memReq: forall {ty},
                      ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                          "info" :: reqResK }): forall {ty}, ActionT ty Void;
+                                                          "info" :: reqResK }):
+        forall {ty}, ty PAddr -> ActionT ty Void;
     }.
 End prefetcher.
