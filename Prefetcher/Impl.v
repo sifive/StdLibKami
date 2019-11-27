@@ -95,7 +95,6 @@ Section Prefetch.
   Definition prefetcher := Build_Prefetcher
                              flush
                              getIsCompleting
-                             addAddr
                              memCallback
                              fetchInstruction
                              doPrefetch.
