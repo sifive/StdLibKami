@@ -41,12 +41,12 @@ Section Reorderer.
       );
       Retv.
 
-   Definition TranslatorResponse: Kind := STRUCT_TYPE { "id" :: ReqId; "resp" :: respK }.
+   Definition ArbiterResponse: Kind := STRUCT_TYPE { "tag" :: ReqId; "resp" :: respK }.
   
    (* Action the arbiter will call when giving us (the reorderer) the
       response to a prior request *)
-   Definition reordererCallback ty (resp: ty TranslatorResponse): ActionT ty Void :=
-    LET idx: ReqId <- #resp @% "id";
+   Definition reordererCallback ty (resp: ty ArbiterResponse): ActionT ty Void :=
+    LET idx: ReqId <- #resp @% "tag";
     LET res: respK <- #resp @% "resp";
     Call rfWrite(STRUCT { "addr" ::= #idx;
                           "data" ::= Valid #res } : WriteRq reqIdSz (Maybe respK));
