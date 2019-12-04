@@ -46,7 +46,7 @@ Section ArbiterImpl.
         Read arb: Bool <- arbiter;
         LETA serverTag: Maybe ServerTag <- nextToAlloc;
         LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
-                           "data" ::= #taggedReq @% "req" };
+                            "req" ::= #taggedReq @% "req" };
         LET sTagDat <- #serverTag @% "data";
         If !#arb && #serverTag @% "valid" then (
           Write arbiter: Bool <- $$true;

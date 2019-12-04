@@ -34,12 +34,12 @@ Section SimpleDevRouter.
       Write routed: Bool <- $$false;
       Retv.
 
-    Definition devRouterReqs (req: ty (STRUCT_TYPE {
-                                           "dtag" :: Bit (Nat.log2_up numDevices);
+    Definition devRouterReq (req: ty (STRUCT_TYPE {
+                                           "tag" :: Bit (Nat.log2_up numDevices);
                                            "req" :: reqK})): ActionT ty Bool :=
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
-                            If ($(proj1_sig (Fin.to_nat i)) == #req @% "dtag")
+                            If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")
                             then (nth_Fin devices i).(devReq) req_real
                             else Ret $$false as ret;
                             Ret #ret
@@ -47,6 +47,6 @@ Section SimpleDevRouter.
     End withTy.
     Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
     
-    Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReqs.
+    Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReq.
   End withParams.
 End SimpleDevRouter.

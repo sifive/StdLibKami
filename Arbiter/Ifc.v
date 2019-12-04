@@ -17,7 +17,7 @@ Section Arbiter.
     Context `{ArbiterParams}.
     Definition ServerTag: Kind := Bit (Nat.log2_up serverTagNum).
     Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                       "data" :: reqK }.
+                                       "req" :: reqK }.
     Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
                                         "data" :: respK }.
     Record Arbiter: Type :=

@@ -16,7 +16,6 @@ Section prefetcher.
       getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
       memCallback: forall {ty}, ty FullAddrInst -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
-      (* Rule *)
       doPrefetch (memReq: forall {ty},
                      ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                           "info" :: reqResK }):

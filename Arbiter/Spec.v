@@ -3,7 +3,7 @@ Require Import StdLibKami.Arbiter.Ifc.
 Section ArbiterSpec.
   Context `{ArbiterParams}.
   Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                     "data" :: reqK }.
+                                     "req" :: reqK }.
   Class ArbiterSpecParams :=
     {
       arbiter: string;
@@ -55,7 +55,7 @@ Section ArbiterSpec.
           Nondet tag: ServerTag;
           LET tagFree: Bool <- !(#freeArray@[#tag]);
           LET tagReq <- STRUCT { "tag" ::=  #tag;
-                                 "data" ::= #taggedReq @% "req" };
+                                 "req" ::= #taggedReq @% "req" };
           If !#arb && #tagFree then (
           Write arbiter: Bool <- $$true;
             LETA reqRes <- memReq (tagReq);
