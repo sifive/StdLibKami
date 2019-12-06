@@ -32,7 +32,9 @@ Section FifoTopInterface.
                                    and need 16 bits at the address contiguous to addr to complete it;
                                    caller must prefetch addr returned.
     (Invalid Addr, Invalid Inst) |-> The Fifo + Top is empty.
-    (Invalid, Valid) |-> Absurd.
+    (Invalid Addr, Valid 0) |-> There was a device access exception for the address
+                                (even though it says Invalid, the address contains useful information);
+                                the client should handle an access exception for that address in this case
   *)
   Definition DeqRes: Kind := STRUCT_TYPE { "addr" :: Maybe PAddr ;
                                            "inst" :: Maybe Inst }.
