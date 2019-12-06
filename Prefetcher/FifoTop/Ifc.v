@@ -24,6 +24,16 @@ Section FifoTopInterface.
 
   Definition AddrInst: Kind := STRUCT_TYPE { "addr" :: ShortPAddr ;
                                              "inst" :: Inst }.
+                                             
+  (* The result type for a dequeue;
+    The bits encoded by the Maybe kinds in the fields have the following semantics:
+    (Valid Addr, Valid Inst) |-> No problems; in the inst field is a full instruction corresponding to addr.
+    (Valid Addr, Invalid Inst) |-> We only have the lower half of a 32 bit instruction in the top register,
+                                   and need 16 bits at the address contiguous to addr to complete it;
+                                   caller must prefetch addr returned.
+    (Invalid Addr, Invalid Inst) |-> The Fifo + Top is empty.
+    (Invalid, Valid) |-> Absurd.
+  *)
   Definition DeqRes: Kind := STRUCT_TYPE { "addr" :: Maybe PAddr ;
                                            "inst" :: Maybe Inst }.
   Context {outstandingReqSz: nat}.
