@@ -20,7 +20,7 @@ Section SimpleDevRouter.
       Definition pollRuleGenerator (clientCallback: forall {ty}, ty respK -> ActionT ty Void) (dev: Fin.t numDevices): ActionT ty Void :=
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
-        LETA resp: Maybe respK <- (nth_Fin devices dev).(devPoll);
+        LETA resp: Maybe respK <- (nth_Fin devices dev).(memDevicePoll);
         LET respDat: respK <- (#resp @% "data");
         If (#resp @% "valid") then (
             LETA _ <- clientCallback respDat;
@@ -40,7 +40,7 @@ Section SimpleDevRouter.
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
                             If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")
-                            then (nth_Fin devices i).(devReq) req_real
+                            then (nth_Fin devices i).(memDeviceReq) req_real
                             else Ret $$false as ret;
                             Ret #ret
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
