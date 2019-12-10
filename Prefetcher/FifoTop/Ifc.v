@@ -18,11 +18,11 @@ Section FifoTopInterface.
      32-bit chunks of memory. *)
   Definition ShortPAddrSz := (PAddrSz - 2)%nat.
   Definition ShortPAddr := Bit ShortPAddrSz.
-  Definition TopEntry: Kind := STRUCT_TYPE { "addr" :: ShortPAddr ;
+  Definition TopEntry: Kind := STRUCT_TYPE { "addr" :: Maybe ShortPAddr ;
                                              "upper" :: Maybe CompInst;
                                              "lower" :: Maybe CompInst }.
 
-  Definition AddrInst: Kind := STRUCT_TYPE { "addr" :: ShortPAddr ;
+  Definition AddrInst: Kind := STRUCT_TYPE { "addr" :: Maybe ShortPAddr ;
                                              "inst" :: Inst }.
                                              
   (* The result type for a dequeue;
