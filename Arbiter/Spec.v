@@ -77,7 +77,7 @@ Section ArbiterSpec.
       Definition memCallback
                  (clientCallbacks: forall (id: Fin.t numClients) {ty},
                      ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
-                                      "resp" :: respK } -> ActionT ty Void)
+                                      "resp" :: Maybe respK } -> ActionT ty Void)
                  (ty: Kind -> Type)
                  (resp: ty MemResp): ActionT ty Void :=
         LET sTag: ServerTag <- #resp @% "tag";
@@ -89,7 +89,7 @@ Section ArbiterSpec.
           LET respTag: ClientTag <- #idtag @% "tag";
           GatherActions (List.map (fun (id: Fin.t numClients) => 
                                      LET clientTag: Bit (nth_Fin clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
-                                       LET respDat <- #resp @% "data";
+                                       LET respDat <- #resp @% "resp";
                                        LET taggedResp <- STRUCT { "tag" ::= #clientTag;
                                                                   "resp" ::= #respDat };
                                        If $(proj1_sig (Fin.to_nat id)) == #respId then (

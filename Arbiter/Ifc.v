@@ -19,7 +19,7 @@ Section Arbiter.
     Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
                                        "req" :: reqK }.
     Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
-                                        "data" :: respK }.
+                                        "resp" :: Maybe respK }. (* Devices may indicate a failed response. *)
     Record Arbiter: Type :=
       {
         clientReqGen (memReq: forall {ty},
@@ -30,7 +30,7 @@ Section Arbiter.
                                                                                                            "info" :: reqResK };
         memCallback (clientCallbacks: forall (id: Fin.t numClients) {ty},
                         ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
-                                         "resp" :: respK } -> ActionT ty Void): forall {ty}, ty MemResp -> ActionT ty Void;
+                                         "resp" :: Maybe respK } -> ActionT ty Void): forall {ty}, ty MemResp -> ActionT ty Void;
         arbiterRule: forall {ty}, ActionT ty Void;
       }.
   End withParams.

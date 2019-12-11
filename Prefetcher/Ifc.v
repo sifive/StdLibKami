@@ -8,14 +8,14 @@ Section prefetcher.
   Context (reqResK: Kind). (* TODO: move? *)
   (* n.b.: these fields are so named to be consistent with the
      generic naming convention used in the reorderer *)
-  Definition FullAddrInst: Kind := STRUCT_TYPE
+  Definition FullAddrMaybeInst: Kind := STRUCT_TYPE
                                      { "req" :: PAddr;
-                                       "resp" :: Inst }.
+                                       "resp" :: Maybe Inst }.
   Record Prefetcher: Type :=
     {
       flush: forall {ty}, ActionT ty Void;
       getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
-      memCallback: forall {ty}, ty (Maybe FullAddrInst) -> ActionT ty Void; (* TODO: is the input type correct? *)
+      memCallback: forall {ty}, ty FullAddrMaybeInst -> ActionT ty Void; (* TODO: is the input type correct? *)
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
       doPrefetch (memReq: forall {ty},
                      ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;

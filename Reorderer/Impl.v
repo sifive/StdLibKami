@@ -33,7 +33,7 @@ Section Reorderer.
       Call MRes: Maybe respK <- rfRead(#handling: ReqId);
       Call req: reqK <- rfRead(#handling: ReqId);
       LET resp <- STRUCT { "req" ::= #req;
-                          "resp" ::= #MRes @% "data" };
+                           "resp" ::= #MRes @% "data" };
       If #MRes @% "valid" then (
         LETA _ <- prefetcherCallback (resp : ty ReqResp);
         Write handlingName <- #handling + $1;

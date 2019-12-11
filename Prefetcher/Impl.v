@@ -51,19 +51,17 @@ Section Prefetch.
     Call completing: Maybe PAddr <- "GetIsCompleting"();
     Ret #completing.
 
-  Definition memCallback ty (m: ty (Maybe FullAddrInst)): ActionT ty Void :=
+  Definition memCallback ty (m: ty FullAddrMaybeInst): ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     LETA drop: Bit outstandingReqSz <- getDropCtr;
     LET newDrop: Bit outstandingReqSz <- #drop - $1;
     LET newOutstanding: Bit outstandingReqSz <- #outstanding - $1;
-    LET mDat <- #m @% "data";
-    LET mValid <- #m @% "valid";
+    LET addr <- #m @% "req";
+    LET mInst <- #m @% "resp";
     If (#drop == $0) then (
-      LET addr <- #mDat @% "req";
-      LET inst <- #mDat @% "resp";
-      LET m' <- STRUCT { "addr" ::= STRUCT { "valid" ::= #mValid;
+      LET m' <- STRUCT { "addr" ::= STRUCT { "valid" ::= #mInst @% "valid";
                                              "data" ::= toShortPAddr addr };
-                         "inst" ::= #inst };
+                         "inst" ::= #mInst @% "data" };
       LETA _ <- InstEnq m'; (* we assume that this can't fail, since the earlier memory request would have failed if there were not room to fulfill it *)
       Retv
     ) else (
