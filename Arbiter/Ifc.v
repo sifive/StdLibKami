@@ -22,6 +22,7 @@ Section Arbiter.
                                         "resp" :: Maybe respK }. (* Devices may indicate a failed response. *)
     Record Arbiter: Type :=
       {
+        regs: list RegInitT;
         clientReqGen (memReq: forall {ty},
                          ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                                "info" :: reqResK }):

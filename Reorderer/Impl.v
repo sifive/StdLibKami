@@ -80,7 +80,19 @@ Section Reorderer.
       ) as ret;
       Ret #ret.
    End withTy.
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
     
-   Definition implReorderer := Build_Reorderer handle reordererCallback req.
+    Definition regs: list RegInitT := makeModule_regs ( Register handlingName: ReqId <- $ 0 ++
+                                                        Register givingName: ReqId <- $ 0 ).
+    
+   Definition implReorderer: Reorderer :=
+     {|
+       Reorderer.Ifc.regs := regs;
+       Reorderer.Ifc.handle := handle;
+       Reorderer.Ifc.reordererCallback := reordererCallback;
+       Reorderer.Ifc.req := req
+     |}.
   End withParams.
 End Reorderer.

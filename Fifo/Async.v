@@ -12,7 +12,7 @@ Section AsyncFifo.
     }.
 
   Section withParams.
-    Context (asyncFifoParams: AsyncFifoParams).
+    Context {asyncFifoParams: AsyncFifoParams}.
     Local Definition len := Nat.pow 2 FifoSize.
     Local Definition twoLen := 2 * len.
 
@@ -61,14 +61,22 @@ Section AsyncFifo.
         Write DeqPtr: Bit (FifoSize + 1) <- $0;
         Write EnqPtr: Bit (FifoSize + 1) <- $0;
         Retv.
+
+      Open Scope kami_scope.
+      Open Scope kami_expr_scope.
+      Definition regs: list RegInitT := makeModule_regs ( Register DeqPtr: Bit (FifoSize + 1) <- Default ++
+                                                          Register EnqPtr: Bit (FifoSize + 1) <- Default ).
       
       Definition asyncFifo: @Fifo K :=
-        {| Fifo.Ifc.isEmpty := isEmpty;
-           Fifo.Ifc.isFull := isFull;
-           Fifo.Ifc.first := first;
-           Fifo.Ifc.deq := deq;
-           Fifo.Ifc.enq := enq;
-           Fifo.Ifc.flush := flush |}.
+        {|
+          Fifo.Ifc.regs := regs;
+          Fifo.Ifc.isEmpty := isEmpty;
+          Fifo.Ifc.isFull := isFull;
+          Fifo.Ifc.first := first;
+          Fifo.Ifc.deq := deq;
+          Fifo.Ifc.enq := enq;
+          Fifo.Ifc.flush := flush
+        |}.
   End withParams.
 End AsyncFifo.
   

@@ -182,9 +182,20 @@ Section AsyncFifoTop.
       Write dropCtr: Bit outstandingReqSz <- #new;
       Retv.
     End withTy.
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+
+    Definition regs: list RegInitT := makeModule_regs ( Register outstandingReqCtr: Bit outstandingReqSz <- $ 0 ++
+                                                        Register dropCtr: Bit outstandingReqSz <- $ 0 ++
+                                                        Register topReg: TopEntry <- Default ++
+                                                        Register isCompleting: Maybe PAddr <- Default )
+                                      ++ Fifo.Ifc.regs backingFifo.
     
     Definition asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
+        FifoTop.Ifc.regs := regs;
+        
         FifoTop.Ifc.getOutstandingReqCtr := getOutstandingReqCtr;
         FifoTop.Ifc.setOutstandingReqCtr := setOutstandingReqCtr;
         FifoTop.Ifc.getDropCtr := getDropCtr;

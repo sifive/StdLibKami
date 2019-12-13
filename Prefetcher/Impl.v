@@ -96,8 +96,15 @@ Section Prefetch.
     LET topMAddr: Maybe PAddr <- (#top @% "addr");
     LET topMInst: Maybe Inst <- #top @% "inst";
     Ret #top.
+
+  Open Scope kami_scope.
+  Open Scope kami_expr_scope.
+
+  Definition regs: list RegInitT := Fifo.Ifc.regs addrFifo ++
+                                    FifoTop.Ifc.regs instFifoTop.
   
   Definition prefetcher := Build_Prefetcher
+                             regs
                              flush
                              getIsCompleting
                              memCallback

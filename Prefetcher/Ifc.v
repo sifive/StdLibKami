@@ -13,9 +13,11 @@ Section prefetcher.
                                        "resp" :: Maybe Inst }.
   Record Prefetcher: Type :=
     {
+      regs: list RegInitT;
+      
       flush: forall {ty}, ActionT ty Void;
       getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
-      memCallback: forall {ty}, ty FullAddrMaybeInst -> ActionT ty Void; (* TODO: is the input type correct? *)
+      memCallback: forall {ty}, ty FullAddrMaybeInst -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
       doPrefetch (memReq: forall {ty},
                      ty PAddr -> ActionT ty STRUCT_TYPE { "ready" :: Bool;

@@ -41,6 +41,8 @@ Section FifoTopInterface.
   Context {outstandingReqSz: nat}.
   Record FifoTop: Type :=
     {
+      regs: list RegInitT;
+      
       getOutstandingReqCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
       setOutstandingReqCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
 

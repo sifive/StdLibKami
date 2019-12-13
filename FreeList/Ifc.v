@@ -6,6 +6,7 @@ Section Freelist.
   Let k := Bit (Nat.log2_up len).
   Record FreeList: Type :=
     {
+      regs: list RegInitT;
       length: nat;
       initialize: forall {ty}, ActionT ty Void;
       nextToAlloc: forall {ty}, ActionT ty (Maybe k);

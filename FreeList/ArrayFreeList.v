@@ -74,15 +74,20 @@ Section arrayFreeList.
 
     End ty.
 
-    Definition arrayFreeList
-      :  FreeList
-      := {|
-           length      := len;
-           initialize  := arrayFreeListInit;
-           nextToAlloc := arrayFreeListNextToAlloc;
-           alloc       := arrayFreeListAlloc;
-           free        := arrayFreeListFree
-         |}.
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    
+    Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array len Bool <- Default ).
+
+    Definition arrayFreeList: FreeList :=
+      {|
+        FreeList.Ifc.regs := regs;
+        length      := len;
+        initialize  := arrayFreeListInit;
+        nextToAlloc := arrayFreeListNextToAlloc;
+        alloc       := arrayFreeListAlloc;
+        free        := arrayFreeListFree
+      |}.
 
     Local Close Scope kami_action.
     Local Close Scope kami_expr.

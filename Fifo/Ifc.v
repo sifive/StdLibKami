@@ -3,6 +3,7 @@ Section FifoInterface.
   Context (k: Kind).
   Record Fifo: Type :=
     {
+      regs: list RegInitT;
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;
       first: forall {ty}, ActionT ty (Maybe k);

@@ -103,7 +103,15 @@ Section ArbiterSpec.
         Write arbiter: Bool <- $$false;
           Retv.
     End withTy.
+    
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false ++
+                                                        Register freeArrayName: Array serverTagNum Bool <- Default ++
+                                                        Register assocArrayName: Array serverTagNum IdTag <- Default ).
+                                                                               
     Definition arbiterImpl := Build_Arbiter
+                                regs
                                 clientReq
                                 memCallback
                                 arbiterRule.

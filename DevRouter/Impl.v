@@ -46,7 +46,11 @@ Section SimpleDevRouter.
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
     End withTy.
     Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    Definition regs: list RegInitT := makeModule_regs ( Register routed: Bool <- false ).
     
-    Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReq.
+    Definition simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
   End withParams.
 End SimpleDevRouter.

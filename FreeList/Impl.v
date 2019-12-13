@@ -67,7 +67,19 @@ Section ImplTagFreeList.
 
 
     End withTy.
-    Definition implFreeList: FreeList := Build_FreeList len initialize nextToAlloc
-                                                        alloc free.
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    
+    Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 ) ++ (Fifo.Ifc.regs BackingFifo).
+    
+    Definition implFreeList: FreeList :=
+      {|
+        FreeList.Ifc.regs := regs;
+        FreeList.Ifc.length := len;
+        FreeList.Ifc.initialize := initialize;
+        FreeList.Ifc.nextToAlloc := nextToAlloc;
+        FreeList.Ifc.alloc := alloc;
+        FreeList.Ifc.free := free
+      |}.
   End withParams.
 End ImplTagFreeList.
