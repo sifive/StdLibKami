@@ -25,8 +25,8 @@ Section AsyncFifoTop.
     Section withTy.
     Context (ty: Kind -> Type).
     
-    Definition GetIsCompleting: ActionT ty Bool :=
-      Read completing: Bool <- isCompleting;
+    Definition GetIsCompleting: ActionT ty (Maybe PAddr) :=
+      Read completing: Maybe PAddr <- isCompleting;
       Ret #completing.
 
     Definition SetIsCompleting (p: ty (Maybe PAddr)): ActionT ty Void :=

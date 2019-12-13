@@ -49,7 +49,7 @@ Section FifoTopInterface.
       getDropCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
       setDropCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
 
-      getIsCompleting: forall {ty}, ActionT ty Bool;
+      getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
       setIsCompleting: forall {ty}, ty (Maybe PAddr) -> ActionT ty Void;
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;

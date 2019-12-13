@@ -41,15 +41,16 @@ Section Prefetch.
     End withTy.
 
   Definition flush ty: ActionT ty Void :=
+    LET inv: Maybe PAddr <- Invalid;
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
     LETA _ <- InstFlush;
     LETA _ <- setDropCtr outstanding;
-    Call "SetIsCompleting"(Invalid: Maybe PAddr);
+    LETA _ <- FifoTop.Ifc.setIsCompleting instFifoTop inv;
     Retv.
   
  Definition getIsCompleting ty: ActionT ty (Maybe PAddr) :=
-    Call completing: Maybe PAddr <- "GetIsCompleting"();
-    Ret #completing.
+   LETA completing: Maybe PAddr <- FifoTop.Ifc.getIsCompleting instFifoTop;
+   Ret #completing.
 
   Definition memCallback ty (m: ty FullAddrMaybeInst): ActionT ty Void :=
     LETA outstanding: Bit outstandingReqSz <- getOutstandingReqCtr;
