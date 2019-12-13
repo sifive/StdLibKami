@@ -11,13 +11,11 @@ Section Prefetch.
   Context {reqResK: Kind}.
   Class PrefetcherImplParams :=
     {
-     AddrSize: nat; (* log len of the FIFO backing the address prefetch buffer *)
      InstSize: nat; (* log len of the FIFO backing the FIFO+Top backing the instruction buffer *)
       (* Memory request can succeed or fail; in the event of a failure we
          need to try again, and in the event of success the memory unit
          will write the requested instruction directly into the
          instruction queue *)
-     addrFifo: @Fifo ShortPAddr;
      outstandingReqSz: nat;
      instFifoTop: @FifoTop.Ifc.FifoTop _ outstandingReqSz
      }.
@@ -101,8 +99,7 @@ Section Prefetch.
   Open Scope kami_scope.
   Open Scope kami_expr_scope.
 
-  Definition regs: list RegInitT := Fifo.Ifc.regs addrFifo ++
-                                    FifoTop.Ifc.regs instFifoTop.
+  Definition regs: list RegInitT := FifoTop.Ifc.regs instFifoTop.
   
   Definition prefetcher := Build_Prefetcher
                              regs
