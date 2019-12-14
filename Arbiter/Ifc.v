@@ -8,7 +8,7 @@ Section Arbiter.
       respK: Kind;
       reqResK: Kind;
       serverTagSz: nat;
-      serverTagNum: nat := pow2 serverTagSz;
+      serverTagNum: nat := 2 ^ serverTagSz;
       clientTagSizes: list nat;
       numClients: nat := List.length clientTagSizes;
     }.

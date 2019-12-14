@@ -5,15 +5,15 @@ Import ListNotations.
 
 Section Granule.
   Variable lgGranuleSize : nat.
-  Notation n := (pow2 lgGranuleSize).
+  Notation n := (2 ^ lgGranuleSize).
   
   Notation divCeil x y := (Nat.div (x + (y - 1)) y).
   Notation div_packn k := (divCeil (size k) n).
   Notation lg_packn k := (Nat.log2_up (divCeil (size k) n)).
-  Notation pow2_packn k := (pow2 (lg_packn k)).
+  Notation pow2_packn k := (2 ^ (lg_packn k)).
 
-  Notation getStartGranule addr := (wordToNat (split1 _ _ addr)).
-  Notation getFinishGranule addr k := (getStartGranule addr + div_packn k).
+  Notation getStartGranule addr := (wordToNat _ (wsplitl _ _ addr)).
+  Notation getFinishGranule addr k := (getStartGranule addr + div_packn k)%nat.
   Notation getFinishPacket addr k maskSz :=
     (divCeil (getFinishGranule addr k) maskSz).
   Notation getFinishPacketGranule addr k maskSz :=
@@ -47,7 +47,7 @@ Section Granule.
     Variable ty: Kind -> Type.
     Variable lgMaskSz realAddrSz: nat.
     
-    Local Notation maskSz := (pow2 lgMaskSz).
+    Local Notation maskSz := (2 ^ lgMaskSz).
     Local Notation addrSz := (lgMaskSz + realAddrSz).
     Local Notation dataSz := (maskSz * n).
 
@@ -81,6 +81,21 @@ Section Granule.
        and if any granule in the data is enabled by the mask, then do the corresponding
        read or write, sending the whole mask, data and the address itself (address is
        redundant for the final reader/writer) *)
+    Definition makeSplitBits (addr: word addrSz) (k: Kind) (e: k @# ty): Array (getFinishPacket addr k maskSz) (Bit dataSz) @# ty.
+      refine
+        (unpack (Array (getFinishPacket addr k maskSz) (Bit dataSz))
+                (castBits _ (putRightPosition (byteAlign e) (getStartGranule addr * n) (getFinishPacketGranule addr k maskSz * n)))).
+      Opaque Nat.div.
+      abstract (
+          simpl;
+          assert (divCeil (getStartGranule addr + (size k + (n - 1)) / n) maskSz * maskSz * n >= getStartGranule addr * n + (size k + (n-1)) / n * n)%nat by
+            (pose proof (divCeil_ge (getStartGranule addr + div_packn k) (pow2_ne_zero lgMaskSz)); simpl in *;
+             nia);
+          rewrite Nat.mul_assoc;
+          lia).
+      Transparent Nat.div.
+    Defined.
+
     Definition createRegMap (rq: Maybe FullRegMapT @# ty) (ls: list GenRegField): ActionT ty (Bit dataSz) :=
       If rq @% "valid"
     then (If rq @% "data" @% "isRd"
@@ -108,21 +123,6 @@ Section Granule.
       Ret #retVal.
     Local Close Scope kami_expr.
     Local Close Scope kami_action.
-
-    Definition makeSplitBits (addr: word addrSz) (k: Kind) (e: k @# ty): Array (getFinishPacket addr k maskSz) (Bit dataSz) @# ty.
-      refine
-        (unpack (Array (getFinishPacket addr k maskSz) (Bit dataSz))
-                (castBits _ (putRightPosition (byteAlign e) (getStartGranule addr * n) (getFinishPacketGranule addr k maskSz * n)))).
-      Opaque Nat.div.
-      abstract (
-          simpl;
-          assert (divCeil (getStartGranule addr + (size k + (n - 1)) / n) maskSz * maskSz * n >= getStartGranule addr * n + (size k + (n-1)) / n * n) by
-            (pose proof (divCeil_ge (getStartGranule addr + div_packn k) (pow2_ne_zero lgMaskSz)); simpl in *;
-             nia);
-          rewrite Nat.mul_assoc;
-          lia).
-      Transparent Nat.div.
-    Defined.
 
     Definition makeSplitMask (addr: word addrSz) (k: Kind): Array (getFinishPacket addr k maskSz) (Bit maskSz) @# ty.
       refine
@@ -179,7 +179,7 @@ Section Granule.
     Local Open Scope kami_action.
     Local Open Scope kami_expr.
     Definition readWriteGranules_Gen (x: SimpleRegGroup): list GenRegField :=
-      map (fun y => {| grf_addr  := (split2 _ realAddrSz (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word ;
+      map (fun y => {| grf_addr  := wsplitr _ realAddrSz (srg_addr x) ^+ (natToWord _ (proj1_sig (Fin.to_nat y))) ;
                        grf_mask  := ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y ;
                        grf_read  :=
                          fun rm =>

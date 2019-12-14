@@ -74,7 +74,7 @@ Delimit Scope kami_maystruct_scope with kami_maystruct.
 Record MayStruct n := { vals  : Fin.t n -> {k: Kind & option (ConstT k)} ;
                         names : Fin.t n -> string }.
 
-Definition getMayStruct ls: MayStruct (length ls) :=
+Definition getMayStruct ls: MayStruct (List.length ls) :=
   {| vals  := fun i => snd (nth_Fin ls i) ;
      names := fun i => fst (nth_Fin ls i)
   |}.

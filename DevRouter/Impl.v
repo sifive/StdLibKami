@@ -45,7 +45,7 @@ Section SimpleDevRouter.
                             Ret #ret
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
     End withTy.
-    Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
+    Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := ((map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone])%list.
     
     Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReqs.
   End withParams.
