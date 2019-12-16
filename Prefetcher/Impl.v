@@ -92,8 +92,6 @@ Section Prefetch.
 
   Definition fetchInstruction ty: ActionT ty DeqRes :=
     LETA top: DeqRes <- InstDeq;
-    LET topMAddr: Maybe PAddr <- (#top @% "addr");
-    LET topMInst: Maybe Inst <- #top @% "inst";
     Ret #top.
 
   Open Scope kami_scope.

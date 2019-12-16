@@ -95,14 +95,13 @@ Section AsyncFifoTop.
                                                       else (IF #upperCompressed
                                                             then #upperFull
                                                             else #completedInst)) };
+      LET retError: DeqError <- IF (#retAddr @% "valid") then (IF #retInst @% "valid" then $NoError else $IncompleteError) else (IF #retInst @% "valid" then $DevError else $EmptyError);
       LET newIsCompleting: Maybe PAddr <- (IF (#retAddr @% "valid") && !(#retInst @% "valid")
                                            then Valid (toFullPAddr topAddrDat + $4)
                                            else #completing);
-      LET ret: DeqRes <- (IF (#completing @% "valid")
-                          then (STRUCT { "addr" ::= Invalid;
-                                         "inst" ::= Invalid })
-                          else (STRUCT { "addr" ::= #retAddr; 
-                                         "inst" ::= #retInst }));
+      LET ret: DeqRes <- STRUCT { "error" ::= #retError;
+                                  "addr" ::= #retAddr @% "data"; 
+                                  "inst" ::= #retInst @% "data"};
       LET doDequeue: Bool <- (#retAddr @% "valid") && (#retInst @% "valid");
       (* Flush when we will return valid, invalid *)
       LET doFlush: Bool <- (#retAddr @% "valid") && !(#retInst @% "valid");
