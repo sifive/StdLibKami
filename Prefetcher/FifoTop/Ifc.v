@@ -44,17 +44,10 @@ Section FifoTopInterface.
   Definition DeqRes: Kind := STRUCT_TYPE { "error" :: DeqError;
                                            "addr" :: PAddr ;
                                            "inst" :: Inst }.
-  Context {outstandingReqSz: nat}.
   Record FifoTop: Type :=
     {
       regs: list RegInitT;
       
-      getOutstandingReqCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
-      setOutstandingReqCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
-
-      getDropCtr: forall {ty}, ActionT ty (Bit outstandingReqSz);
-      setDropCtr: forall {ty}, ty (Bit outstandingReqSz) -> ActionT ty Void;
-
       getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
       setIsCompleting: forall {ty}, ty (Maybe PAddr) -> ActionT ty Void;
       isEmpty: forall {ty}, ActionT ty Bool;

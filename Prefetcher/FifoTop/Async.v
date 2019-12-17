@@ -7,9 +7,6 @@ Section AsyncFifoTop.
   Class AsyncFifoTopParams :=
     {
       backingFifo: @Fifo AddrInst;
-      outstandingReqSz: nat;
-      outstandingReqCtr: string;
-      dropCtr: string;
       topReg: string;
       isCompleting: string;
     }.
@@ -145,7 +142,7 @@ Section AsyncFifoTop.
       LET addrDat <- #addr @% "data";
       LET addrValid <- #addr @% "valid";
       LET completingAddr: PAddr <- #completing @% "data";
-      LET newCompleting: Maybe PAddr <- (IF (toFullPAddr addrDat) == #completingAddr && #addrValid (* TODO: correct? *)
+      LET newCompleting: Maybe PAddr <- (IF (toFullPAddr addrDat) == #completingAddr && #addrValid
                                          then Invalid
                                          else #completing);
       (* if the Fifo + top are both entirely empty, we should put the new entry into the top register*)
@@ -160,45 +157,22 @@ Section AsyncFifoTop.
       Ret !#isFull.
     
     Definition flush: ActionT ty Void :=
-      Read outstanding: Bit outstandingReqSz <- outstandingReqCtr;
       LETA _ <- (Fifo.Ifc.flush backingFifo);
-
       Write topReg: TopEntry <- STRUCT { "addr" ::= ($$ (getDefaultConst (Maybe ShortPAddr))); "upper" ::= Invalid; "lower" ::= Invalid };
-      Write dropCtr: Bit outstandingReqSz <- #outstanding;
       Retv.
     
-    Definition getOutstandingReqCtr: ActionT ty (Bit outstandingReqSz) :=
-      Read outstanding: Bit outstandingReqSz <- outstandingReqCtr;
-      Ret #outstanding.
-    Definition setOutstandingReqCtr (new: ty (Bit outstandingReqSz)): ActionT ty Void :=
-      Write outstandingReqCtr: Bit outstandingReqSz <- #new;
-      Retv.
-
-    Definition getDropCtr: ActionT ty (Bit outstandingReqSz) :=
-      Read drop: Bit outstandingReqSz <- dropCtr;
-      Ret #drop.
-    Definition setDropCtr (new: ty (Bit outstandingReqSz)): ActionT ty Void :=
-      Write dropCtr: Bit outstandingReqSz <- #new;
-      Retv.
     End withTy.
 
     Open Scope kami_scope.
     Open Scope kami_expr_scope.
 
-    Definition regs: list RegInitT := makeModule_regs ( Register outstandingReqCtr: Bit outstandingReqSz <- $ 0 ++
-                                                        Register dropCtr: Bit outstandingReqSz <- $ 0 ++
-                                                        Register topReg: TopEntry <- Default ++
+    Definition regs: list RegInitT := makeModule_regs ( Register topReg: TopEntry <- Default ++
                                                         Register isCompleting: Maybe PAddr <- Default )
                                       ++ Fifo.Ifc.regs backingFifo.
     
     Definition asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
         FifoTop.Ifc.regs := regs;
-        
-        FifoTop.Ifc.getOutstandingReqCtr := getOutstandingReqCtr;
-        FifoTop.Ifc.setOutstandingReqCtr := setOutstandingReqCtr;
-        FifoTop.Ifc.getDropCtr := getDropCtr;
-        FifoTop.Ifc.setDropCtr := setDropCtr;
         
         FifoTop.Ifc.getIsCompleting := GetIsCompleting;
         FifoTop.Ifc.setIsCompleting := SetIsCompleting;
