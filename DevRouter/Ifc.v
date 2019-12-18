@@ -1,17 +1,15 @@
 Require Import Kami.All.
-Record DeviceData (deviceInfoT: Type) (reqK respK: Kind): Type :=
+Record DeviceData (reqK respK: Kind): Type :=
   {
     memDeviceReq: forall {ty}, ty reqK -> ActionT ty Bool;
-    memDevicePoll: forall {ty}, ActionT ty (Maybe respK);
-    memDeviceInfo: deviceInfoT
+    memDevicePoll: forall {ty}, ActionT ty (Maybe respK)
   }.
 
 Class DevRouterParams :=
   {
     reqK: Kind;
     respK: Kind;
-    deviceInfoT: Type;
-    devices: list (DeviceData deviceInfoT reqK respK);
+    devices: list (DeviceData reqK respK);
     numDevices: nat := List.length devices;
   }.
 
