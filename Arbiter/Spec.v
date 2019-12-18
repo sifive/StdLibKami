@@ -2,7 +2,7 @@ Require Import Kami.All.
 Require Import StdLibKami.Arbiter.Ifc.
 Section ArbiterSpec.
   Context `{ArbiterParams}.
-  Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
+  Definition MemReq := STRUCT_TYPE { "tag" :: ArbiterTag;
                                      "req" :: reqK }.
   Class ArbiterSpecParams :=
     {
@@ -51,8 +51,8 @@ Section ArbiterSpec.
         LET newEntry <- STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                  "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) };
           Read arb: Bool <- arbiter;
-          Read freeArray: Array serverTagNum Bool <- freeArrayName;
-          Nondet tag: ServerTag;
+          Read freeArray: Array arbiterTagNum Bool <- freeArrayName;
+          Nondet tag: ArbiterTag;
           LET tagFree: Bool <- !(#freeArray@[#tag]);
           LET tagReq <- STRUCT { "tag" ::=  #tag;
                                  "req" ::= #taggedReq @% "req" };
@@ -60,9 +60,9 @@ Section ArbiterSpec.
           Write arbiter: Bool <- $$true;
             LETA reqRes <- memReq (tagReq);
             If #reqRes @% "ready" then (
-              Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#tag <- $$true];
-                Read assocArray: Array serverTagNum IdTag <- assocArrayName;
-                Write assocArrayName: Array serverTagNum IdTag <- #assocArray@[#tag <- #newEntry];
+              Write freeArrayName: Array arbiterTagNum Bool <- #freeArray@[#tag <- $$true];
+                Read assocArray: Array arbiterTagNum IdTag <- assocArrayName;
+                Write assocArrayName: Array arbiterTagNum IdTag <- #assocArray@[#tag <- #newEntry];
                 Retv
             );
             Ret #reqRes
@@ -80,11 +80,11 @@ Section ArbiterSpec.
                                       "resp" :: Maybe respK } -> ActionT ty Void)
                  (ty: Kind -> Type)
                  (resp: ty MemResp): ActionT ty Void :=
-        LET sTag: ServerTag <- #resp @% "tag";
-          Read freeArray: Array serverTagNum Bool <- freeArrayName;
-          Read assocArray: Array serverTagNum IdTag <- assocArrayName;
+        LET sTag: ArbiterTag <- #resp @% "tag";
+          Read freeArray: Array arbiterTagNum Bool <- freeArrayName;
+          Read assocArray: Array arbiterTagNum IdTag <- assocArrayName;
           LET idtag: IdTag <- #assocArray@[#sTag];
-          Write freeArrayName: Array serverTagNum Bool <- #freeArray@[#sTag <- $$false];
+          Write freeArrayName: Array arbiterTagNum Bool <- #freeArray@[#sTag <- $$false];
           LET respId: Id <- #idtag @% "id";
           LET respTag: ClientTag <- #idtag @% "tag";
           GatherActions (List.map (fun (id: Fin.t numClients) => 
@@ -107,8 +107,8 @@ Section ArbiterSpec.
     Open Scope kami_scope.
     Open Scope kami_expr_scope.
     Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false ++
-                                                        Register freeArrayName: Array serverTagNum Bool <- Default ++
-                                                        Register assocArrayName: Array serverTagNum IdTag <- Default ).
+                                                        Register freeArrayName: Array arbiterTagNum Bool <- Default ++
+                                                        Register assocArrayName: Array arbiterTagNum IdTag <- Default ).
                                                                                
     Definition arbiterImpl := Build_Arbiter
                                 regs

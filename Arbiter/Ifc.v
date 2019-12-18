@@ -8,17 +8,17 @@ Section Arbiter.
       respK: Kind;
       reqResK: Kind;
       serverTagSz: nat;
-      serverTagNum: nat := pow2 serverTagSz;
+      arbiterTagNum: nat := pow2 serverTagSz;
       clientTagSizes: list nat;
       numClients: nat := List.length clientTagSizes;
     }.
 
   Section withParams.
     Context `{ArbiterParams}.
-    Definition ServerTag: Kind := Bit (Nat.log2_up serverTagNum).
-    Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
+    Definition ArbiterTag: Kind := Bit (Nat.log2_up arbiterTagNum).
+    Definition MemReq := STRUCT_TYPE { "tag" :: ArbiterTag;
                                        "req" :: reqK }.
-    Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
+    Definition MemResp := STRUCT_TYPE { "tag" :: ArbiterTag;
                                         "resp" :: Maybe respK }. (* Devices may indicate a failed response. *)
     Record Arbiter: Type :=
       {

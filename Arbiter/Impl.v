@@ -12,7 +12,7 @@ Section ArbiterImpl.
          tags/IDs *)
       alistRead: string;
       alistWrite: string;
-      freelist: @FreeList serverTagNum;
+      freelist: @FreeList arbiterTagNum;
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -44,7 +44,7 @@ Section ArbiterImpl.
                  (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
                                                                                "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
         Read arb: Bool <- arbiter;
-        LETA serverTag: Maybe ServerTag <- nextToAlloc;
+        LETA serverTag: Maybe ArbiterTag <- nextToAlloc;
         LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
                             "req" ::= #taggedReq @% "req" };
         LET sTagDat <- #serverTag @% "data";
@@ -55,7 +55,7 @@ Section ArbiterImpl.
               Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                        "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                                            "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
-                                     }: WriteRq (Nat.log2_up serverTagNum) IdTag);
+                                     }: WriteRq (Nat.log2_up arbiterTagNum) IdTag);
               LETA _ <- alloc sTagDat ;
               Retv);
           Ret #reqRes )
@@ -72,8 +72,8 @@ Section ArbiterImpl.
                                       "resp" :: Maybe respK } -> ActionT ty Void)
                  (ty: Kind -> Type)
                  (resp: ty MemResp): ActionT ty Void :=
-        LET sTag: ServerTag <- #resp @% "tag";
-        Call idtag: IdTag <- alistRead(#sTag: ServerTag);
+        LET sTag: ArbiterTag <- #resp @% "tag";
+        Call idtag: IdTag <- alistRead(#sTag: ArbiterTag);
         LETA _ <- free sTag;
         LET respId: Id <- #idtag @% "id";
         LET respTag: ClientTag <- #idtag @% "tag";
