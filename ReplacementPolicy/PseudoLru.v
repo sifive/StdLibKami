@@ -1,7 +1,6 @@
 (* Implements the Pseudo Least Recently Used Algorithm. *)
 Require Import Kami.AllNotations.
 Require Import StdLibKami.ReplacementPolicy.Ifc.
-Require Import ZArith.
 
 Section lru.
   Class PseudoLruParams := { stateRegName : string;
@@ -30,7 +29,7 @@ Section lru.
 
     Definition mul2 n (v: Bit n @# ty) := (v << ($1: Bit 1 @# ty)).
     Definition div2 n (v: Bit n @# ty) := (v >> ($1: Bit 1 @# ty)). 
-    Definition mod2 n (v: Bit n @# ty) := (v & $1).
+    Definition mod2 n (v: Bit n @# ty) := (v .& $1).
 
     Definition getPathFromIndex (i: Index @# ty) := match leftOverNum with
                                                     | 0 => i
@@ -55,7 +54,7 @@ Section lru.
                   then RetE (mul2 p)
                   else (LETC direction : Bool <- state@[i];
                           LETC newIndex : TreeIndex <- mul2 i + IF #direction then $2 else $1;
-                          LETC newPath : Path <- mul2 p | IF #direction then $1 else $0;
+                          LETC newPath : Path <- mul2 p .| IF #direction then $1 else $0;
                           LETE retPath : Path <- (getVictimAux m #newIndex #newPath);
                           RetE #retPath) as retPath;
                     RetE #retPath)
@@ -72,7 +71,7 @@ Section lru.
         | 0 => RetE s
         | S m => (IfE i >= $(num-1)
                   then RetE s
-                  else (LETC direction: Bool <- (* pathToArray@[$$ (natToWord (Nat.log2_up PathWidth) m)] *) ((path >> ($m: Bit PathWidth @# ty)) & $1) == $1;
+                  else (LETC direction: Bool <- (* pathToArray@[$$ (natToWord (Nat.log2_up PathWidth) m)] *) ((path >> ($m: Bit PathWidth @# ty)) .& $1) == $1;
                           LETC newIndex : TreeIndex <- mul2 i + (IF #direction then $2 else $1);
                           LETC newState : State <- s@[i <- !#direction];
                           LETE retState : State <- (accessAux m #newIndex #newState);
@@ -118,24 +117,24 @@ Section tests.
          (evalLetExpr (LETE path : Path params <- getVictimAux state (Depth params) $0 $0;
                          RetE (getIndexFromPath (Var _ (SyntaxKind _) path))) = expected).
 
-  Goal testGetVictim (num := 3) (ARRAY {R; R}) (zToWord _ 2). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 3) (ARRAY {R; L}) (zToWord _ 2). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 3) (ARRAY {L; R}) (zToWord _ 1). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 3) (ARRAY {R; R}) (ZToWord _ 2). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 3) (ARRAY {R; L}) (ZToWord _ 2). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 3) (ARRAY {L; R}) (ZToWord _ 1). Proof. reflexivity. Qed.
 
-  Goal testGetVictim (num := 6) (ARRAY {R; R; R; R; R}) (zToWord _ 5). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 6) (ARRAY {L; R; R; R; R}) (zToWord _ 3). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 6) (ARRAY {L; R; L; R; R}) (zToWord _ 3). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 6) (ARRAY {R; L; R; R; L}) (zToWord _ 5). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 6) (ARRAY {R; L; R; R; R}) (zToWord _ 5). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 6) (ARRAY {R; R; R; L; R}) (zToWord _ 5). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {R; R; R; R; R}) (ZToWord _ 5). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {L; R; R; R; R}) (ZToWord _ 3). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {L; R; L; R; R}) (ZToWord _ 3). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {R; L; R; R; L}) (ZToWord _ 5). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {R; L; R; R; R}) (ZToWord _ 5). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 6) (ARRAY {R; R; R; L; R}) (ZToWord _ 5). Proof. reflexivity. Qed.
   
-  Goal testGetVictim (num := 7) (ARRAY {R; R; R; R; R; R}) (zToWord _ 6). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {R; R; R; L; R; R}) (zToWord _ 6). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {R; L; L; R; R; R}) (zToWord _ 5). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {R; L; R; R; L; R}) (zToWord _ 6). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; R}) (zToWord _ 3). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; L}) (zToWord _ 3). Proof. reflexivity. Qed.
-  Goal testGetVictim (num := 7) (ARRAY {L; R; L; R; R; R}) (zToWord _ 3). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {R; R; R; R; R; R}) (ZToWord _ 6). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {R; R; R; L; R; R}) (ZToWord _ 6). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {R; L; L; R; R; R}) (ZToWord _ 5). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {R; L; R; R; L; R}) (ZToWord _ 6). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; R}) (ZToWord _ 3). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; L}) (ZToWord _ 3). Proof. reflexivity. Qed.
+  Goal testGetVictim (num := 7) (ARRAY {L; R; L; R; R; R}) (ZToWord _ 3). Proof. reflexivity. Qed.
 
   Definition evalArray
     (k : Kind)
