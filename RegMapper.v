@@ -127,7 +127,7 @@ Section Granule.
     Definition makeSplitMask (addr: word addrSz) (k: Kind): Array (getFinishPacket addr k maskSz) (Bit maskSz) @# ty.
       refine
         (unpack (Array (getFinishPacket addr k maskSz) (Bit maskSz))
-                (castBits _ (putRightPosition ($$ (wones (getFinishGranule addr k - getStartGranule addr)))%kami_expr
+                (castBits _ (putRightPosition ($$ (wmax (getFinishGranule addr k - getStartGranule addr)))%kami_expr
                                               (getStartGranule addr) (getFinishPacketGranule addr k maskSz)))).
       Opaque Nat.div.
       abstract (
@@ -191,7 +191,7 @@ Section Granule.
                                                ReadArrayConst
                                                (makeSplitBits
                                                   (srg_addr x)
-                                                  (Const ty (wones (size (srg_kind x)))))
+                                                  (Const ty (wmax (size (srg_kind x)))))
                                                y;
                               LET finalVal: Bit dataSz <- expandRqMask (rm @% "mask") .& #readVal .& #maskVal;
                               Ret #finalVal) ;
@@ -200,7 +200,7 @@ Section Granule.
                            (LETA readK: srg_kind x <- srg_read x ;
                               LET readVal <- makeSplitBits (srg_addr x) #readK;
                               LET maskVal <- makeSplitBits (srg_addr x)
-                                  (Const ty (wones (size (srg_kind x))));
+                                  (Const ty (wmax (size (srg_kind x))));
                               LET maskVali <- ReadArrayConst #maskVal y;
                               LET t1Val <- (expandRqMask (rm @% "mask") .& #maskVali) .& rm @% "data";
                               LET t2Val <- (~(expandRqMask (rm @% "mask") .& #maskVali)) .& (ReadArrayConst # readVal y);
@@ -485,7 +485,7 @@ End Granule.
   (*   end. *)
 
   (* Definition byteAlignMask k: word (div_packn k * n). *)
-  (*   refine (nat_cast word _ (combine (wones (size k)) (natToWord (div_packn k * n - size k) 0))). *)
+  (*   refine (nat_cast word _ (combine (wmax (size k)) (natToWord (div_packn k * n - size k) 0))). *)
   (*   abstract (pose proof (@divCeil_ge (size k) n ltac:(Omega.omega)); Omega.omega). *)
   (* Defined. *)
 
