@@ -29,7 +29,7 @@ Section lru.
 
     Definition mul2 n (v: Bit n @# ty) := (v << ($1: Bit 1 @# ty)).
     Definition div2 n (v: Bit n @# ty) := (v >> ($1: Bit 1 @# ty)). 
-    Definition mod2 n (v: Bit n @# ty) := (v & $1).
+    Definition mod2 n (v: Bit n @# ty) := (v .& $1).
 
     Definition getPathFromIndex (i: Index @# ty) := match leftOverNum with
                                                     | 0 => i
@@ -54,7 +54,7 @@ Section lru.
                   then RetE (mul2 p)
                   else (LETC direction : Bool <- state@[i];
                           LETC newIndex : TreeIndex <- mul2 i + IF #direction then $2 else $1;
-                          LETC newPath : Path <- mul2 p | IF #direction then $1 else $0;
+                          LETC newPath : Path <- mul2 p .| IF #direction then $1 else $0;
                           LETE retPath : Path <- (getVictimAux m #newIndex #newPath);
                           RetE #retPath) as retPath;
                     RetE #retPath)
@@ -71,7 +71,7 @@ Section lru.
         | 0 => RetE s
         | S m => (IfE i >= $(num-1)
                   then RetE s
-                  else (LETC direction: Bool <- (* pathToArray@[$$ (natToWord (Nat.log2_up PathWidth) m)] *) ((path >> ($m: Bit PathWidth @# ty)) & $1) == $1;
+                  else (LETC direction: Bool <- (* pathToArray@[$$ (natToWord (Nat.log2_up PathWidth) m)] *) ((path >> ($m: Bit PathWidth @# ty)) .& $1) == $1;
                           LETC newIndex : TreeIndex <- mul2 i + (IF #direction then $2 else $1);
                           LETC newState : State <- s@[i <- !#direction];
                           LETE retState : State <- (accessAux m #newIndex #newState);

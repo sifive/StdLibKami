@@ -87,7 +87,7 @@ Section Granule.
           then GatherActions (map (fun x =>
                                      If (rq @% "data" @% "info" @% "addr") ==
                                      ($$ (grf_addr x))
-                                       && ((rq @% "data" @% "info" @% "mask" & (grf_mask x)) != $ 0)
+                                       && ((rq @% "data" @% "info" @% "mask" .& (grf_mask x)) != $ 0)
                                    then (LETA retVal <- grf_read x (rq @% "data" @% "info");
                                            Ret #retVal)
                                    else Ret ($$ (natToWord dataSz 0))
@@ -97,7 +97,7 @@ Section Granule.
           else GatherActions (map (fun x =>
                                      If (rq @% "data" @% "info" @% "addr") ==
                                      ($$ (grf_addr x))
-                                       && ((rq @% "data" @% "info" @% "mask" & (grf_mask x)) != $ 0)
+                                       && ((rq @% "data" @% "info" @% "mask" .& (grf_mask x)) != $ 0)
                                    then grf_write x (rq @% "data" @% "info")
                                    else Retv; Retv) ls) as _;
             Ret ($$ (natToWord dataSz 0))
@@ -193,7 +193,7 @@ Section Granule.
                                                   (srg_addr x)
                                                   (Const ty (wones (size (srg_kind x)))))
                                                y;
-                              LET finalVal: Bit dataSz <- expandRqMask (rm @% "mask") & #readVal & #maskVal;
+                              LET finalVal: Bit dataSz <- expandRqMask (rm @% "mask") .& #readVal .& #maskVal;
                               Ret #finalVal) ;
                        grf_write :=
                          fun rm =>
@@ -202,9 +202,9 @@ Section Granule.
                               LET maskVal <- makeSplitBits (srg_addr x)
                                   (Const ty (wones (size (srg_kind x))));
                               LET maskVali <- ReadArrayConst #maskVal y;
-                              LET t1Val <- (expandRqMask (rm @% "mask") & #maskVali) & rm @% "data";
-                              LET t2Val <- (~(expandRqMask (rm @% "mask") & #maskVali)) & (ReadArrayConst # readVal y);
-                              LET t3Val <- (#t1Val | #t2Val);
+                              LET t1Val <- (expandRqMask (rm @% "mask") .& #maskVali) .& rm @% "data";
+                              LET t2Val <- (~(expandRqMask (rm @% "mask") .& #maskVali)) .& (ReadArrayConst # readVal y);
+                              LET t3Val <- (#t1Val .| #t2Val);
                               LET finalVal <- UpdateArrayConst #readVal y #t3Val;
                               srg_write x (makeJoinBits (srg_addr x) (srg_kind x) #finalVal)
                            )
