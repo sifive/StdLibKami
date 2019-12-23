@@ -8,20 +8,21 @@ Section Arbiter.
       respK: Kind;
       reqResK: Kind;
       serverTagSz: nat;
-      serverTagNum: nat := pow2 serverTagSz;
+      arbiterTagNum: nat := pow2 serverTagSz;
       clientTagSizes: list nat;
       numClients: nat := List.length clientTagSizes;
     }.
 
   Section withParams.
     Context `{ArbiterParams}.
-    Definition ServerTag: Kind := Bit (Nat.log2_up serverTagNum).
-    Definition MemReq := STRUCT_TYPE { "tag" :: ServerTag;
-                                       "data" :: reqK }.
-    Definition MemResp := STRUCT_TYPE { "tag" :: ServerTag;
-                                        "data" :: respK }.
+    Definition ArbiterTag: Kind := Bit (Nat.log2_up arbiterTagNum).
+    Definition MemReq := STRUCT_TYPE { "tag" :: ArbiterTag;
+                                       "req" :: reqK }.
+    Definition MemResp := STRUCT_TYPE { "tag" :: ArbiterTag;
+                                        "resp" :: Maybe respK }. (* Devices may indicate a failed response. *)
     Record Arbiter: Type :=
       {
+        regs: list RegInitT;
         clientReqGen (memReq: forall {ty},
                          ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
                                                                "info" :: reqResK }):
@@ -30,7 +31,7 @@ Section Arbiter.
                                                                                                            "info" :: reqResK };
         memCallback (clientCallbacks: forall (id: Fin.t numClients) {ty},
                         ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
-                                         "resp" :: respK } -> ActionT ty Void): forall {ty}, ty MemResp -> ActionT ty Void;
+                                         "resp" :: Maybe respK } -> ActionT ty Void): forall {ty}, ty MemResp -> ActionT ty Void;
         arbiterRule: forall {ty}, ActionT ty Void;
       }.
   End withParams.

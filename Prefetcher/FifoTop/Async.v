@@ -7,9 +7,6 @@ Section AsyncFifoTop.
   Class AsyncFifoTopParams :=
     {
       backingFifo: @Fifo AddrInst;
-      outstandingReqSz: nat;
-      outstandingReqCtr: string;
-      dropCtr: string;
       topReg: string;
       isCompleting: string;
     }.
@@ -25,8 +22,8 @@ Section AsyncFifoTop.
     Section withTy.
     Context (ty: Kind -> Type).
     
-    Definition GetIsCompleting: ActionT ty Bool :=
-      Read completing: Bool <- isCompleting;
+    Definition GetIsCompleting: ActionT ty (Maybe PAddr) :=
+      Read completing: Maybe PAddr <- isCompleting;
       Ret #completing.
 
     Definition SetIsCompleting (p: ty (Maybe PAddr)): ActionT ty Void :=
@@ -56,7 +53,7 @@ Section AsyncFifoTop.
       LETA FifoEmpty: Bool <- (Fifo.Ifc.isEmpty backingFifo);
       LETA ftop: Maybe AddrInst <- (Ifc.first backingFifo);
       
-      LET topAddr <- #top @% "addr";
+      LET topAddr: Maybe ShortPAddr <- #top @% "addr";
       LET lower: Maybe CompInst <- #top @% "lower";
       LET lowerValid: Bool <- #lower @% "valid";
       LET lowerInst: CompInst <- #lower @% "data";
@@ -66,7 +63,7 @@ Section AsyncFifoTop.
       LET upperInst: CompInst <- #upper @% "data";
       LET upperCompressed: Bool <- isCompressed #upperInst;
       LET ftopAddrInst: AddrInst <- #ftop @% "data";
-      LET ftopAddr: ShortPAddr <- #ftopAddrInst @% "addr";
+      LET ftopAddr: Maybe ShortPAddr <- #ftopAddrInst @% "addr";
       LET ftopInst: Inst <- #ftopAddrInst @% "inst";
       LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;
       LET ftopLowerInst: CompInst <- ZeroExtendTruncLsb _ #ftopInst;
@@ -74,19 +71,20 @@ Section AsyncFifoTop.
       LET upperFull: Inst <- (ZeroExtend _ #upperInst: Inst @# ty);
       LET full: Inst <- {< #upperInst, #lowerInst >};
       LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
-      LET retAddr: Maybe PAddr <- STRUCT { "valid" ::= #upperValid;
+      LET topAddrDat: ShortPAddr <- (#topAddr @% "data");
+      LET retAddr: Maybe PAddr <- STRUCT { "valid" ::= #upperValid && (#topAddr @% "valid");
                                            "data" ::= (IF #lowerValid
-                                                       then toFullPAddr topAddr
-                                                       else (IF #upperCompressed || (!#FifoEmpty && (#ftopAddr == (#topAddr + $1)))
-                                                             then toFullPAddr topAddr + $2
-                                                             else toFullPAddr topAddr + $4)) };
+                                                       then toFullPAddr topAddrDat
+                                                       else (IF #upperCompressed || (!#FifoEmpty && ((#ftopAddr @% "data") == (#topAddrDat + $1)))
+                                                             then toFullPAddr topAddrDat + $2
+                                                             else toFullPAddr topAddrDat + $4)) };
       LET retInst: Maybe Inst <- STRUCT { "valid" ::= (IF !#upperValid
                                                        then $$false
                                                        else (IF #lowerValid
                                                              then $$true
                                                              else (IF #upperCompressed
                                                                    then $$true
-                                                                   else (!#FifoEmpty && (#ftopAddr == (#topAddr + $1))))));
+                                                                   else (!#FifoEmpty && ((#ftopAddr @% "data") == (#topAddrDat + $1))))));
                                           "data" ::= (IF #lowerValid
                                                       then (IF #lowerCompressed
                                                             then #lowerFull
@@ -94,18 +92,18 @@ Section AsyncFifoTop.
                                                       else (IF #upperCompressed
                                                             then #upperFull
                                                             else #completedInst)) };
+      LET retError: DeqError <- IF (#retAddr @% "valid") then (IF #retInst @% "valid" then $NoError else $IncompleteError) else (IF #retInst @% "valid" then $DevError else $EmptyError);
       LET newIsCompleting: Maybe PAddr <- (IF (#retAddr @% "valid") && !(#retInst @% "valid")
-                                           then Valid (toFullPAddr topAddr + $4)
+                                           then Valid (toFullPAddr topAddrDat + $4)
                                            else #completing);
-      LET ret: DeqRes <- (IF (#completing @% "valid")
-                          then (STRUCT { "addr" ::= Invalid;
-                                         "inst" ::= Invalid })
-                          else (STRUCT { "addr" ::= #retAddr; 
-                                         "inst" ::= #retInst }));
+      LET ret: DeqRes <- STRUCT { "error" ::= #retError;
+                                  "addr" ::= #retAddr @% "data"; 
+                                  "inst" ::= #retInst @% "data"};
       LET doDequeue: Bool <- (#retAddr @% "valid") && (#retInst @% "valid");
       (* Flush when we will return valid, invalid *)
       LET doFlush: Bool <- (#retAddr @% "valid") && !(#retInst @% "valid");
-      LET newTopAddr: ShortPAddr <- (IF #doDequeue then #ftopAddr else #topAddr);
+      LET newTopAddr: Maybe ShortPAddr <- (STRUCT { "valid" ::= IF #doDequeue then (#ftopAddr @% "valid") else #topAddr @% "valid"; (* TODO: is this right? *)
+                                                    "data" ::= IF #doDequeue then (#ftopAddr @% "data") else #topAddrDat});
       LET newTopUpperInst: Maybe CompInst <- STRUCT { "valid" ::= IF #doDequeue then !#FifoEmpty else #upperValid;
                                                       "data" ::= IF #doDequeue then #ftopUpperInst else #upperInst };
       LET newTopLowerInst: Maybe CompInst <- 
@@ -140,9 +138,11 @@ Section AsyncFifoTop.
       LETA isEmpty: Bool <- isEmpty;
       
       LET inst: Inst <- #new @% "inst";
-      LET addr: ShortPAddr <- #new @% "addr";
+      LET addr <- #new @% "addr";
+      LET addrDat <- #addr @% "data";
+      LET addrValid <- #addr @% "valid";
       LET completingAddr: PAddr <- #completing @% "data";
-      LET newCompleting: Maybe PAddr <- (IF (toFullPAddr addr) == #completingAddr
+      LET newCompleting: Maybe PAddr <- (IF (toFullPAddr addrDat) == #completingAddr && #addrValid
                                          then Invalid
                                          else #completing);
       (* if the Fifo + top are both entirely empty, we should put the new entry into the top register*)
@@ -150,41 +150,29 @@ Section AsyncFifoTop.
       If !#isEmpty
       then (LETA _ <- (Fifo.Ifc.enq backingFifo) new; Retv)
       else (Write topReg: TopEntry <- (STRUCT { "addr" ::= #addr;
-                                                  "upper" ::= Valid (ZeroExtendTruncMsb CompInstSz #inst);
-                                                  "lower" ::= Valid (ZeroExtendTruncLsb CompInstSz #inst) });
+                                                "upper" ::= Valid (ZeroExtendTruncMsb CompInstSz #inst);
+                                                "lower" ::= Valid (ZeroExtendTruncLsb CompInstSz #inst) });
             Retv);
       Write isCompleting: Maybe PAddr <- #newCompleting;
       Ret !#isFull.
     
     Definition flush: ActionT ty Void :=
-      Read outstanding: Bit outstandingReqSz <- outstandingReqCtr;
       LETA _ <- (Fifo.Ifc.flush backingFifo);
-
-      Write topReg: TopEntry <- STRUCT { "addr" ::= $0; "upper" ::= Invalid; "lower" ::= Invalid };
-      Write dropCtr: Bit outstandingReqSz <- #outstanding;
+      Write topReg: TopEntry <- STRUCT { "addr" ::= ($$ (getDefaultConst (Maybe ShortPAddr))); "upper" ::= Invalid; "lower" ::= Invalid };
       Retv.
     
-    Definition getOutstandingReqCtr: ActionT ty (Bit outstandingReqSz) :=
-      Read outstanding: Bit outstandingReqSz <- outstandingReqCtr;
-      Ret #outstanding.
-    Definition setOutstandingReqCtr (new: ty (Bit outstandingReqSz)): ActionT ty Void :=
-      Write outstandingReqCtr: Bit outstandingReqSz <- #new;
-      Retv.
-
-    Definition getDropCtr: ActionT ty (Bit outstandingReqSz) :=
-      Read drop: Bit outstandingReqSz <- dropCtr;
-      Ret #drop.
-    Definition setDropCtr (new: ty (Bit outstandingReqSz)): ActionT ty Void :=
-      Write dropCtr: Bit outstandingReqSz <- #new;
-      Retv.
     End withTy.
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+
+    Definition regs: list RegInitT := makeModule_regs ( Register topReg: TopEntry <- Default ++
+                                                        Register isCompleting: Maybe PAddr <- Default )
+                                      ++ Fifo.Ifc.regs backingFifo.
     
     Definition asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
-        FifoTop.Ifc.getOutstandingReqCtr := getOutstandingReqCtr;
-        FifoTop.Ifc.setOutstandingReqCtr := setOutstandingReqCtr;
-        FifoTop.Ifc.getDropCtr := getDropCtr;
-        FifoTop.Ifc.setDropCtr := setDropCtr;
+        FifoTop.Ifc.regs := regs;
         
         FifoTop.Ifc.getIsCompleting := GetIsCompleting;
         FifoTop.Ifc.setIsCompleting := SetIsCompleting;

@@ -12,7 +12,7 @@ Section ArbiterImpl.
          tags/IDs *)
       alistRead: string;
       alistWrite: string;
-      freelist: @FreeList serverTagNum;
+      freelist: @FreeList arbiterTagNum;
     }.
   Section withParams.
     Context `{ArbiterImplParams}.
@@ -44,9 +44,9 @@ Section ArbiterImpl.
                  (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
                                                                                "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
         Read arb: Bool <- arbiter;
-        LETA serverTag: Maybe ServerTag <- nextToAlloc;
+        LETA serverTag: Maybe ArbiterTag <- nextToAlloc;
         LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
-                           "data" ::= #taggedReq @% "req" };
+                            "req" ::= #taggedReq @% "req" };
         LET sTagDat <- #serverTag @% "data";
         If !#arb && #serverTag @% "valid" then (
           Write arbiter: Bool <- $$true;
@@ -55,7 +55,7 @@ Section ArbiterImpl.
               Call alistWrite(STRUCT { "addr" ::= (#serverTag @% "data");
                                        "data" ::= STRUCT { "id" ::= $(proj1_sig (Fin.to_nat id));
                                                            "tag" ::= (ZeroExtendTruncLsb _ (#taggedReq @% "tag") : ClientTag @# ty) }
-                                     }: WriteRq (Nat.log2_up serverTagNum) IdTag);
+                                     }: WriteRq (Nat.log2_up arbiterTagNum) IdTag);
               LETA _ <- alloc sTagDat ;
               Retv);
           Ret #reqRes )
@@ -69,17 +69,17 @@ Section ArbiterImpl.
       Definition memCallback
                  (clientCallbacks: forall (id: Fin.t numClients) {ty},
                      ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
-                                      "resp" :: respK } -> ActionT ty Void)
+                                      "resp" :: Maybe respK } -> ActionT ty Void)
                  (ty: Kind -> Type)
                  (resp: ty MemResp): ActionT ty Void :=
-        LET sTag: ServerTag <- #resp @% "tag";
-        Call idtag: IdTag <- alistRead(#sTag: ServerTag);
+        LET sTag: ArbiterTag <- #resp @% "tag";
+        Call idtag: IdTag <- alistRead(#sTag: ArbiterTag);
         LETA _ <- free sTag;
         LET respId: Id <- #idtag @% "id";
         LET respTag: ClientTag <- #idtag @% "tag";
         GatherActions (List.map (fun (id: Fin.t numClients) => 
                                    LET clientTag: Bit (nth_Fin clientTagSizes id) <- ZeroExtendTruncLsb _ (#resp @% "tag");
-                                     LET respDat <- #resp @% "data";
+                                     LET respDat <- #resp @% "resp";
                                      LET taggedResp <- STRUCT { "tag" ::= #clientTag;
                                                                 "resp" ::= #respDat };
                                      If $(proj1_sig (Fin.to_nat id)) == #respId then (
@@ -93,7 +93,13 @@ Section ArbiterImpl.
         Write arbiter: Bool <- $$false;
         Retv.
     End withTy.
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false  ) ++ (FreeList.Ifc.regs freelist).
+
     Definition arbiterImpl := Build_Arbiter
+                                regs
                                 clientReq
                                 memCallback
                                 arbiterRule.

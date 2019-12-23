@@ -20,7 +20,7 @@ Section SimpleDevRouter.
       Definition pollRuleGenerator (clientCallback: forall {ty}, ty respK -> ActionT ty Void) (dev: Fin.t numDevices): ActionT ty Void :=
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
-        LETA resp: Maybe respK <- (nth_Fin devices dev).(devPoll);
+        LETA resp: Maybe respK <- (nth_Fin devices dev).(memDevicePoll);
         LET respDat: respK <- (#resp @% "data");
         If (#resp @% "valid") then (
             LETA _ <- clientCallback respDat;
@@ -34,19 +34,23 @@ Section SimpleDevRouter.
       Write routed: Bool <- $$false;
       Retv.
 
-    Definition devRouterReqs (req: ty (STRUCT_TYPE {
-                                           "dtag" :: Bit (Nat.log2_up numDevices);
+    Definition devRouterReq (req: ty (STRUCT_TYPE {
+                                           "tag" :: Bit (Nat.log2_up numDevices);
                                            "req" :: reqK})): ActionT ty Bool :=
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
-                            If ($(proj1_sig (Fin.to_nat i)) == #req @% "dtag")
-                            then (nth_Fin devices i).(devReq) req_real
+                            If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")
+                            then (nth_Fin devices i).(memDeviceReq) req_real
                             else Ret $$false as ret;
                             Ret #ret
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
     End withTy.
     Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) := (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
+    Definition regs: list RegInitT := makeModule_regs ( Register routed: Bool <- false ).
     
-    Definition simpleDevRouter: DevRouter := Build_DevRouter pollRules devRouterReqs.
+    Definition simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
   End withParams.
 End SimpleDevRouter.

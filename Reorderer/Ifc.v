@@ -17,9 +17,11 @@ Section Reorderer.
                                 
     Record Reorderer: Type :=
       {
+        regs: list RegInitT;
+        
         handle (prefetcherCallback: forall {ty}, ty ReqResp -> ActionT ty Void): forall {ty}, ActionT ty Void;
-        TranslatorResponse: Kind := STRUCT_TYPE { "id" :: ReqId; "resp" :: respK };
-        reordererCallback {ty} (resp: ty TranslatorResponse): ActionT ty Void;
+        ArbiterResponse: Kind := STRUCT_TYPE { "tag" :: ReqId; "resp" :: respK };
+        reordererCallback {ty} (resp: ty ArbiterResponse): ActionT ty Void;
         req (memReq: forall {ty}, 
                 ty ReordererReq ->
                 ActionT ty STRUCT_TYPE { "ready" :: Bool;

@@ -33,7 +33,7 @@ Section Reorderer.
       Call MRes: Maybe respK <- rfRead(#handling: ReqId);
       Call req: reqK <- rfRead(#handling: ReqId);
       LET resp <- STRUCT { "req" ::= #req;
-                          "resp" ::= #MRes @% "data" };
+                           "resp" ::= #MRes @% "data" };
       If #MRes @% "valid" then (
         LETA _ <- prefetcherCallback (resp : ty ReqResp);
         Write handlingName <- #handling + $1;
@@ -41,12 +41,12 @@ Section Reorderer.
       );
       Retv.
 
-   Definition TranslatorResponse: Kind := STRUCT_TYPE { "id" :: ReqId; "resp" :: respK }.
+   Definition ArbiterResponse: Kind := STRUCT_TYPE { "tag" :: ReqId; "resp" :: respK }.
   
    (* Action the arbiter will call when giving us (the reorderer) the
       response to a prior request *)
-   Definition reordererCallback ty (resp: ty TranslatorResponse): ActionT ty Void :=
-    LET idx: ReqId <- #resp @% "id";
+   Definition reordererCallback ty (resp: ty ArbiterResponse): ActionT ty Void :=
+    LET idx: ReqId <- #resp @% "tag";
     LET res: respK <- #resp @% "resp";
     Call rfWrite(STRUCT { "addr" ::= #idx;
                           "data" ::= Valid #res } : WriteRq reqIdSz (Maybe respK));
@@ -80,7 +80,19 @@ Section Reorderer.
       ) as ret;
       Ret #ret.
    End withTy.
+
+    Open Scope kami_scope.
+    Open Scope kami_expr_scope.
     
-   Definition implReorderer := Build_Reorderer handle reordererCallback req.
+    Definition regs: list RegInitT := makeModule_regs ( Register handlingName: ReqId <- $ 0 ++
+                                                        Register givingName: ReqId <- $ 0 ).
+    
+   Definition implReorderer: Reorderer :=
+     {|
+       Reorderer.Ifc.regs := regs;
+       Reorderer.Ifc.handle := handle;
+       Reorderer.Ifc.reordererCallback := reordererCallback;
+       Reorderer.Ifc.req := req
+     |}.
   End withParams.
 End Reorderer.
