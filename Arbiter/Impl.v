@@ -38,11 +38,11 @@ Section ArbiterImpl.
                  (memReq: forall {ty},
                      ty MemReq ->
                      ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                              "info" :: reqResK })
+                                              "info" :: ImmRes })
                  (id: Fin.t numClients)
                  (ty: Kind -> Type)
                  (taggedReq: ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
-                                                                               "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: reqResK } :=
+                                                                               "req" :: reqK }): ActionT ty STRUCT_TYPE { "ready" :: Bool; "info" :: ImmRes } :=
         Read arb: Bool <- arbiter;
         LETA serverTag: Maybe ArbiterTag <- nextToAlloc;
         LET mRq <- STRUCT { "tag" ::=  #serverTag @% "data";
@@ -60,7 +60,7 @@ Section ArbiterImpl.
               Retv);
           Ret #reqRes )
       else Ret STRUCT { "ready" ::= $$false;
-                        "info" ::= $$(@getDefaultConst reqResK) } as retVal;
+                        "info" ::= $$(@getDefaultConst ImmRes) } as retVal;
       Ret #retVal.
 
     (* What the "real" memory unit will call to respond to the tag

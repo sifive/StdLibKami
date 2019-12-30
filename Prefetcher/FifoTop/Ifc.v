@@ -3,28 +3,38 @@ Require Import StdLibKami.Fifo.Ifc.
 
 Class FifoTopParams :=
   {
-    PAddrSz: nat;
-    PAddr := Bit PAddrSz;
-    CompInstSz: nat;
-    CompInst := Bit CompInstSz;
-    InstSz: nat := CompInstSz + CompInstSz;
-    Inst := Bit InstSz
+    VAddrSz : nat;
+    CompInstSz: nat
   }.
 
 Section FifoTopInterface.
   Context `{FifoTopParams}.
+
+  Definition VAddr    := Bit VAddrSz.
+  Definition CompInst := Bit CompInstSz.
+  Definition InstSz   := CompInstSz + CompInstSz.
+  Definition Inst     := Bit InstSz.
+
   (* Physical address with the two least significant bits clipped off;
      those bits are unnecessary since we will always be accessing
      32-bit chunks of memory. *)
-  Definition ShortPAddrSz := (PAddrSz - 2)%nat.
-  Definition ShortPAddr := Bit ShortPAddrSz.
-  Definition TopEntry: Kind := STRUCT_TYPE { "addr" :: Maybe ShortPAddr ;
-                                             "upper" :: Maybe CompInst;
-                                             "lower" :: Maybe CompInst }.
+  Definition ShortVAddrSz := (VAddrSz - 2)%nat.
 
-  Definition AddrInst: Kind := STRUCT_TYPE { "addr" :: Maybe ShortPAddr ;
-                                             "inst" :: Inst }.
-                                             
+  Definition ShortVAddr := Bit ShortVAddrSz.
+
+  Definition PrefetcherFifoEntry
+    := STRUCT_TYPE {
+         "vaddr" :: VAddr;
+         "data"  :: Inst
+       }.
+
+  Definition TopEntry: Kind
+    := STRUCT_TYPE {
+         "vaddr" :: Maybe ShortVAddr;
+         "upper" :: Maybe CompInst;
+         "lower" :: Maybe CompInst
+       }.
+
   (* The result type for a dequeue carries a DeqError;
      The DeqError type has the following semantics:
      NoError |-> No problems; in the "inst" field is a full instruction corresponding to "addr".
@@ -41,19 +51,22 @@ Section FifoTopInterface.
   Definition IncompleteError: nat := 1.
   Definition EmptyError: nat := 2.
   Definition DevError: nat := 3.
-  Definition DeqRes: Kind := STRUCT_TYPE { "error" :: DeqError;
-                                           "addr" :: PAddr ;
-                                           "inst" :: Inst }.
+
+  Definition DeqRes
+    := STRUCT_TYPE {
+         "error" :: DeqError;
+         "vaddr" :: VAddr;
+         "inst"  :: Inst
+       }.
+
   Record FifoTop: Type :=
     {
       regs: list RegInitT;
-      
-      getIsCompleting: forall {ty}, ActionT ty (Maybe PAddr);
-      setIsCompleting: forall {ty}, ty (Maybe PAddr) -> ActionT ty Void;
+      getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;
       deq: forall {ty}, ActionT ty DeqRes;
-      enq: forall {ty}, ty AddrInst -> ActionT ty Bool;
+      enq: forall {ty}, ty (Maybe PrefetcherFifoEntry) -> ActionT ty Bool;
       flush: forall {ty}, ActionT ty Void
     }.
 End FifoTopInterface.

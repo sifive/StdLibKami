@@ -6,7 +6,7 @@ Section Arbiter.
     {
       reqK: Kind;
       respK: Kind;
-      reqResK: Kind;
+      ImmRes: Kind;
       serverTagSz: nat;
       arbiterTagNum: nat := pow2 serverTagSz;
       clientTagSizes: list nat;
@@ -25,10 +25,10 @@ Section Arbiter.
         regs: list RegInitT;
         clientReqGen (memReq: forall {ty},
                          ty MemReq -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                               "info" :: reqResK }):
+                                                               "info" :: ImmRes }):
           forall (id: Fin.t numClients) {ty}, ty STRUCT_TYPE { "tag" :: Bit (nth_Fin clientTagSizes id);
                                                                "req" :: reqK } -> ActionT ty STRUCT_TYPE { "ready" :: Bool;
-                                                                                                           "info" :: reqResK };
+                                                                                                           "info" :: ImmRes };
         memCallback (clientCallbacks: forall (id: Fin.t numClients) {ty},
                         ty STRUCT_TYPE { "tag" :: (Bit (nth_Fin clientTagSizes id));
                                          "resp" :: Maybe respK } -> ActionT ty Void): forall {ty}, ty MemResp -> ActionT ty Void;
