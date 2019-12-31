@@ -1,6 +1,7 @@
 Require Import Kami.All.
 Require Import StdLibKami.Arbiter.Ifc.
 Section ArbiterSpec.
+(*
   Context `{ArbiterParams}.
   Definition MemReq := STRUCT_TYPE { "tag" :: ArbiterTag;
                                      "req" :: reqK }.
@@ -116,4 +117,5 @@ Section ArbiterSpec.
                                 memCallback
                                 arbiterRule.
   End withParams.
+*)
 End ArbiterSpec.

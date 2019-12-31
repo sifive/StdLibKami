@@ -11,7 +11,7 @@ Require Import List.
 Section Arbiter.
   Open Scope kami_expr_scope.
 
-  Record ArbiterClient (reqK respK : Kind)
+  Record ArbiterClient (reqK resK : Kind)
     := {
          arbiterClientTagSz : nat;
          ArbiterClientTag := Bit arbiterClientTagSz;
@@ -23,7 +23,7 @@ Section Arbiter.
          ArbiterClientRes
            := STRUCT_TYPE {
                 "tag"  :: ArbiterClientTag;
-                "resp" :: Maybe respK
+                "resp" :: Maybe resK
               };
          arbiterClientHandleRes
            :  forall {ty}, ty ArbiterClientRes -> ActionT ty Void
