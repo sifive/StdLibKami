@@ -184,7 +184,8 @@ Section ArbiterImpl.
 
     Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false  ) ++ (FreeList.Ifc.regs freelist).
 
-    Definition arbiterImpl
+    Instance arbiterImpl
+      :  Arbiter
       := Build_Arbiter
            regs
            sendReq

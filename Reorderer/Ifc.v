@@ -15,8 +15,8 @@ Section Reorderer.
 
     Definition ReordererReq
       := STRUCT_TYPE {
-           "req"  :: reqK;    (* vaddr *)
-           "data" :: reqDataK (* paddr *)
+           "req"  :: reqK;    (* paddr *)
+           "data" :: reqDataK (* vaddr *)
          }.
 
     Definition ReordererArbiterReq
@@ -55,7 +55,7 @@ Section Reorderer.
            "resp" :: respK
          }.
 
-    Record Reorderer: Type :=
+    Class Reorderer: Type :=
       {
         regs: list RegInitT;
         handle (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;

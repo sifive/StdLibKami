@@ -4,8 +4,8 @@ Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
 Require Import StdLibKami.Prefetcher.FifoTop.Impl.
 
 Section prefetcher.
-  Context `{FifoTopParams}.
-  Context (ImmRes: Kind). (* TODO: move? *)
+  Context `{fifoTopParams : FifoTopParams}.
+  Context `{ImmRes : Kind}.
   Variable PAddrSz : nat.
 
   Local Definition PAddr := Bit PAddrSz.
@@ -21,8 +21,8 @@ Section prefetcher.
   *)
   Definition PrefetcherReordererReq
     := STRUCT_TYPE {
-         "req"  :: VAddr;
-         "data" :: PAddr
+         "req"  :: PAddr;
+         "data" :: VAddr
        }.
 
   (*
@@ -47,7 +47,7 @@ Section prefetcher.
          "resp" :: Maybe Inst
        }.
 
-  Record Prefetcher: Type :=
+  Class Prefetcher: Type :=
     {
       regs: list RegInitT;
       

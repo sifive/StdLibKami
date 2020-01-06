@@ -43,6 +43,9 @@ Section Arbiter.
 
     Definition arbiterNumClients := length clients.
 
+    Definition arbiterClientTag (clientId : Fin.t arbiterNumClients)
+      := ArbiterClientTag (nth_Fin clients clientId).
+
     Definition arbiterClientReq (clientId : Fin.t arbiterNumClients)
       := ArbiterClientReq (nth_Fin clients clientId).
 
@@ -73,7 +76,7 @@ Section Arbiter.
 
     Definition ArbiterImmRes := ArbiterRouterImmRes.
 
-    Record Arbiter
+    Class Arbiter
       := {
            regs : list RegInitT;
 

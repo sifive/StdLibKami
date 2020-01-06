@@ -15,12 +15,18 @@ Class DevRouterParams :=
 
 Section withParams.
     Context `{DevRouterParams}.
-    Record DevRouter : Type :=
+
+    Definition DevRouterReq
+      := STRUCT_TYPE {
+           "tag" :: Bit (Nat.log2_up numDevices);
+           "req" :: reqK
+         }.
+
+    Class DevRouter : Type :=
       {
         regs: list RegInitT;
         (* Rules *)
         pollRules (clientCallback: forall {ty}, ty respK -> ActionT ty Void): list (forall {ty}, ActionT ty Void);
-        devRouterReq: forall {ty}, ty (STRUCT_TYPE { "tag" :: Bit (Nat.log2_up numDevices);
-                                                     "req" :: reqK }) -> ActionT ty Bool;
+        devRouterReq: forall {ty}, ty DevRouterReq -> ActionT ty Bool;
       }.
 End withParams.

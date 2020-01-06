@@ -3,10 +3,11 @@ Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.Prefetcher.FifoTop.Impl.
 Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
 Require Import StdLibKami.Prefetcher.Ifc.
+
 Section Prefetch.
 
-  Context `{FifoTopParams}.
-  Context {ImmRes: Kind}.
+  Context `{fifoTopParams : FifoTopParams}.
+  Context `{ImmRes: Kind}.
 
   Class PrefetcherImplParams
     := {
@@ -38,7 +39,7 @@ Section Prefetch.
       := LET entryData
            :  PrefetcherFifoEntry
            <- STRUCT {
-                "vaddr" ::= (#reordererRes @% "req" @% "req" : VAddr @# ty);
+                "vaddr" ::= (#reordererRes @% "req" @% "data" : VAddr @# ty);
                 "data"  ::= (#reordererRes @% "resp" @% "data" : Inst @# ty)
               };
          LET entry
@@ -54,17 +55,17 @@ Section Prefetch.
         (memReq
           : forall {ty},
             ty (PrefetcherReordererReq PAddrSz) ->
-            ActionT ty (PrefetcherReordererImmRes ImmRes))
+            ActionT ty (@PrefetcherReordererImmRes ImmRes))
         {ty} (prefetcherReq: ty (PrefetcherReq PAddrSz))
       :  ActionT ty Bool
       := LET reordererReq
            :  PrefetcherReordererReq PAddrSz
            <- STRUCT {
-                "req"  ::= #prefetcherReq @% "vaddr";
-                "data" ::= #prefetcherReq @% "paddr"
+                "req"  ::= #prefetcherReq @% "paddr";
+                "data" ::= #prefetcherReq @% "vaddr"
               };
          LETA reordererImmRes
-           :  PrefetcherReordererImmRes ImmRes
+           :  @PrefetcherReordererImmRes ImmRes
            <- memReq reordererReq;
          Ret (#reordererImmRes @% "ready").
 

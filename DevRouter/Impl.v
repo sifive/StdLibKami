@@ -34,9 +34,9 @@ Section SimpleDevRouter.
       Write routed: Bool <- $$false;
       Retv.
 
-    Definition devRouterReq (req: ty (STRUCT_TYPE {
-                                           "tag" :: Bit (Nat.log2_up numDevices);
-                                           "req" :: reqK})): ActionT ty Bool :=
+    Definition devRouterReq
+      (req: ty DevRouterReq)
+      : ActionT ty Bool :=
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
                             If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")
@@ -51,6 +51,6 @@ Section SimpleDevRouter.
     Open Scope kami_expr_scope.
     Definition regs: list RegInitT := makeModule_regs ( Register routed: Bool <- false ).
     
-    Definition simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
+    Instance simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
   End withParams.
 End SimpleDevRouter.
