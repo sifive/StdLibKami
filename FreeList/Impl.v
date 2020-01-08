@@ -21,36 +21,34 @@ Section ImplTagFreeList.
     Section withTy.
       Context (ty: Kind -> Type).
 
-      Definition InitDone: ActionT ty (Maybe Tag) := (
+      Definition InitNotDone: ActionT ty (Maybe Tag) := (
         Read init: Tag <- InitName;
-        LET initDone: Bool <- (IF (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) == $1 (* if the counter has reached len, stop *)
-                               then $$true
-                               else $$false);
-        Ret (STRUCT { "valid" ::= #initDone;
+        LET initNotDone: Bool <- (ZeroExtendTruncMsb _ #init: Bit 1 @# ty) != $1;
+        Ret (STRUCT { "valid" ::= #initNotDone;
                       "data" ::= #init }: Maybe Tag @# ty)).
     
     (* Initialization rule, which will fill the free list *)
       Definition initialize: ActionT ty Void := (
-        LETA initDone: Maybe Tag <- InitDone;
-        LET initDoneDat <- #initDone @% "data";
-        If (!(#initDone @% "valid")) then (
-            LETA _ <- (Ifc.enq BackingFifo) initDoneDat;
-            Write InitName: Tag <- (#initDone @% "data") + $1;
+        LETA initNotDone: Maybe Tag <- InitNotDone;
+        LET initNotDoneData <- #initNotDone @% "data";
+        If ((#initNotDone @% "valid")) then (
+            LETA _ <- (Ifc.enq BackingFifo) initNotDoneData;
+            Write InitName: Tag <- #initNotDoneData + $1;
             Retv
           );
         Retv).
 
       Definition nextToAlloc: ActionT ty (Maybe Tag) := (
-        LETA initDone: Maybe Tag <- InitDone;
+        LETA initNotDone: Maybe Tag <- InitNotDone;
         LETA first: Maybe Tag <- (Ifc.first BackingFifo);
-        LET res: Maybe Tag <- STRUCT { "valid" ::= ((#initDone @% "valid") && (#first @% "valid")) ;
+        LET res: Maybe Tag <- STRUCT { "valid" ::= (!(#initNotDone @% "valid") && (#first @% "valid")) ;
                                        "data" ::= #first @% "data" };
         Ret #res).
   
-      Definition alloc (a: ty Tag): ActionT ty Bool := (
-        LETA initDone: Maybe Tag <- InitDone;
+      Definition alloc (tag: ty Tag): ActionT ty Bool := (
+        LETA initNotDone: Maybe Tag <- InitNotDone;
         LETA first: Maybe Tag <- (Ifc.first BackingFifo);
-        LET doDequeue: Bool <- (#initDone @% "valid") && #first @% "valid" && (#a == #first @% "data");
+        LET doDequeue: Bool <- !(#initNotDone @% "valid") && #first @% "valid" && (#tag == #first @% "data");
         If #doDequeue then (
             LETA _: Maybe Tag <- (Ifc.deq BackingFifo);
             Retv
@@ -58,23 +56,21 @@ Section ImplTagFreeList.
         Ret #doDequeue).
   
       Definition free (tag: ty Tag): ActionT ty Void := (
-        LETA initDone: Maybe Tag <- InitDone;
-        If (#initDone @% "valid") then (
+        LETA initNotDone: Maybe Tag <- InitNotDone;
+        If !(#initNotDone @% "valid") then (
             LETA _ <- (Ifc.enq BackingFifo) tag;
             Retv
         );
         Retv).
 
-
     End withTy.
-    Open Scope kami_scope.
-    Open Scope kami_expr_scope.
     
-    Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 ) ++ (Fifo.Ifc.regs BackingFifo).
+    Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 )%kami ++ (Fifo.Ifc.regs BackingFifo).
     
     Definition implFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
+        FreeList.Ifc.regFiles := Fifo.Ifc.regFiles BackingFifo;
         FreeList.Ifc.length := len;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;

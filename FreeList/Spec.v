@@ -16,8 +16,9 @@ Section FreeListSpec.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    (* Initialization rule, which will fill the free list *)
-    Definition initialize ty: ActionT ty Void := Retv.
+    Definition initialize ty: ActionT ty Void :=
+      Write ArrayRegName: Array len Bool <- BuildArray (fun _ => $$false);
+      Retv.
 
     Definition nextToAlloc ty: ActionT ty (Maybe Tag) := 
       Read freeArray: Array len Bool <- ArrayRegName;
@@ -27,10 +28,10 @@ Section FreeListSpec.
                                      "data" ::= #random };
       Ret #res.
   
-    Definition alloc ty (a: ty Tag): ActionT ty Bool := 
+    Definition alloc ty (tag: ty Tag): ActionT ty Bool := 
       Read freeArray: Array len Bool <- ArrayRegName;
-      LET res: Bool <- #freeArray@[#a];
-      Write ArrayRegName: Array len Bool <- #freeArray@[#a <- IF #res then #res else $$true];
+      LET res: Bool <- #freeArray@[#tag];
+      Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$true];
       Ret !#res.
   
     Definition free ty (tag: ty Tag): ActionT ty Void :=
@@ -38,14 +39,12 @@ Section FreeListSpec.
       Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$false];
       Retv.
 
-    Open Scope kami_scope.
-    Open Scope kami_expr_scope.
-    
-    Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array len Bool <- Default ).
+    Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array len Bool <- Default )%kami.
 
     Definition specFreeList: FreeList := 
       {|
         FreeList.Ifc.regs := regs;
+        FreeList.Ifc.regFiles := nil;
         FreeList.Ifc.length := len;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;
@@ -53,5 +52,8 @@ Section FreeListSpec.
         FreeList.Ifc.free := free
       |}.
         
+    Local Close Scope kami_action.
+    Local Close Scope kami_expr.
+
   End withParams.
 End FreeListSpec.

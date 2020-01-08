@@ -8,7 +8,8 @@ Section AsyncFifo.
       EnqPtr: string;
       DeqPtr: string;
       ReadName: string;
-      WriteName: string
+      WriteName: string;
+      DataName: string
     }.
 
   Section withParams.
@@ -29,21 +30,21 @@ Section AsyncFifo.
   
     Definition isFull ty: ActionT ty Bool :=
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
-        Read enq: Bit (FifoSize + 1) <- EnqPtr;
-        Ret ((#deq + $len) == #enq).
+      Read enq: Bit (FifoSize + 1) <- EnqPtr;
+      Ret ((#deq + $len) == #enq).
     
     Definition first ty: ActionT ty (Maybe K) := 
       LETA empty: Bool <- isEmpty ty;
-        Read deq: Bit (FifoSize + 1) <- DeqPtr;
-        LET idx: Bit FifoSize <- (fastModLen #deq);
-        Call dat: K <- ReadName(#idx: Bit FifoSize);
-        Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe K @# ty).
+      Read deq: Bit (FifoSize + 1) <- DeqPtr;
+      LET idx: Bit FifoSize <- (fastModLen #deq);
+      Call dat: K <- ReadName(#idx: Bit FifoSize);
+      Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe K @# ty).
 
     Definition deq ty: ActionT ty (Maybe K) :=
-      LETA dat: Maybe K <- first ty;
-        Read deq: Bit (FifoSize + 1) <- DeqPtr;
-        Write DeqPtr: Bit (FifoSize + 1) <- #deq + (IF #dat @% "valid" then $1 else $0);
-        Ret #dat.
+      LETA data: Maybe K <- first ty;
+      Read deq: Bit (FifoSize + 1) <- DeqPtr;
+      Write DeqPtr: Bit (FifoSize + 1) <- #deq + (IF #data @% "valid" then $1 else $0);
+      Ret #data.
 
     Definition enq ty (new: ty K): ActionT ty Bool :=
       Read enq: Bit (FifoSize + 1) <- EnqPtr;
@@ -62,14 +63,14 @@ Section AsyncFifo.
         Write EnqPtr: Bit (FifoSize + 1) <- $0;
         Retv.
 
-      Open Scope kami_scope.
-      Open Scope kami_expr_scope.
       Definition regs: list RegInitT := makeModule_regs ( Register DeqPtr: Bit (FifoSize + 1) <- Default ++
-                                                          Register EnqPtr: Bit (FifoSize + 1) <- Default ).
-      
+                                                          Register EnqPtr: Bit (FifoSize + 1) <- Default )%kami.
+
+      Definition regFiles: list RegFileBase := [@Build_RegFileBase false 1 DataName (Async [ReadName]) WriteName FifoSize K (@RFNonFile _ _ None)].
       Definition asyncFifo: @Fifo K :=
         {|
           Fifo.Ifc.regs := regs;
+          Fifo.Ifc.regFiles := regFiles;
           Fifo.Ifc.isEmpty := isEmpty;
           Fifo.Ifc.isFull := isFull;
           Fifo.Ifc.first := first;
@@ -79,4 +80,3 @@ Section AsyncFifo.
         |}.
   End withParams.
 End AsyncFifo.
-  

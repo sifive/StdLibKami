@@ -34,7 +34,7 @@ Section Arbiter.
       reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
       respK : Kind;  (* data returned by a memory device - specifically Data. *)
       ImmRes : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
-      transactionTagSz : nat;
+      numTransactions: nat;
       clients : list (ArbiterClient reqK respK)
     }.
 
@@ -52,7 +52,7 @@ Section Arbiter.
     Definition arbiterClientRes (clientId : Fin.t arbiterNumClients)
       := ArbiterClientRes (nth_Fin clients clientId).
 
-    Definition arbiterNumTransactions := pow2 transactionTagSz.
+    Definition transactionTagSz := Nat.log2_up numTransactions.
 
     Definition ArbiterTransactionTag: Kind := Bit transactionTagSz.
 
@@ -79,6 +79,7 @@ Section Arbiter.
     Class Arbiter
       := {
            regs : list RegInitT;
+           regFiles : list RegFileBase;          
 
            sendReq
              (routerSendReq 

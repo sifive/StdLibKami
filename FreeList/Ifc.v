@@ -7,6 +7,7 @@ Section Freelist.
   Record FreeList: Type :=
     {
       regs: list RegInitT;
+      regFiles: list RegFileBase;
       length: nat;
       initialize: forall {ty}, ActionT ty Void;
       nextToAlloc: forall {ty}, ActionT ty (Maybe k);

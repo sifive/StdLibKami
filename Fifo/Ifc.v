@@ -4,6 +4,7 @@ Section FifoInterface.
   Record Fifo: Type :=
     {
       regs: list RegInitT;
+      regFiles: list RegFileBase;
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;
       first: forall {ty}, ActionT ty (Maybe k);

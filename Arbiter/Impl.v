@@ -14,7 +14,7 @@ Section ArbiterImpl.
          tags/IDs *)
       alistRead: string;
       alistWrite: string;
-      freelist: @FreeList arbiterNumTransactions;
+      freelist: @FreeList numTransactions;
     }.
 
   Section withParams.
@@ -51,32 +51,6 @@ Section ArbiterImpl.
 
       Open Scope kami_expr_scope.
 
-      (*
-        Casts transaction tags stored in the free list into
-        ArbiterTransactionTags.
-      *)
-      Local Definition toTransactionTag
-        (f : nat -> Type)
-        (tag : f (Nat.log2_up arbiterNumTransactions))
-        :  f transactionTagSz
-        := eq_rect
-             (Nat.log2_up arbiterNumTransactions)
-             (fun k => f k)
-             tag
-             transactionTagSz
-             (Nat.log2_up_pow2
-               transactionTagSz
-               (Nat.le_0_l transactionTagSz)).
-
-      Local Definition fromTransactionTag
-        (f : nat -> Type)
-        (tag : f transactionTagSz)
-        :  f (Nat.log2_up arbiterNumTransactions)
-        := eq_rect_r f tag
-             (Nat.log2_up_pow2
-               transactionTagSz
-               (Nat.le_0_l transactionTagSz)).
-
       Definition sendReq
         (routerSendReq
           : forall {ty},
@@ -89,9 +63,7 @@ Section ArbiterImpl.
         := Read busy : Bool <- arbiter;
            LETA transactionTag
              :  Maybe ArbiterTransactionTag
-             <- toTransactionTag
-                  (fun n => ActionT ty (Maybe (Bit n)))
-                  nextToAlloc;
+             <- nextToAlloc;
            If !#busy && #transactionTag @% "valid"
              then
                Write arbiter : Bool <- $$true;
@@ -122,10 +94,7 @@ Section ArbiterImpl.
                    LET transactionTagData
                      :  ArbiterTransactionTag
                      <- #transactionTag @% "data";
-                   alloc
-                     (fromTransactionTag
-                       (fun n => ty (Bit n))
-                       transactionTagData);
+                   alloc transactionTagData;
                Ret #routerImmRes
              else
                Ret $$(getDefaultConst ArbiterImmRes)
@@ -148,10 +117,7 @@ Section ArbiterImpl.
              :  ClientIdTag
              <- alistRead (#transactionTag: ArbiterTransactionTag);
            LETA _
-             <- free
-                  (fromTransactionTag
-                    (fun n => ty (Bit n))
-                    transactionTag);
+             <- free transactionTag;
            GatherActions
              (map
                (fun (clientId: Fin.t arbiterNumClients)
@@ -188,6 +154,7 @@ Section ArbiterImpl.
       :  Arbiter
       := Build_Arbiter
            regs
+           (FreeList.Ifc.regFiles freelist)
            sendReq
            memCallback
            arbiterRule.
