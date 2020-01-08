@@ -30,7 +30,7 @@ Section ArbiterImpl.
       := fold_left Nat.max
            (map
              (fun client : ArbiterClient _ _
-               => arbiterClientTagSz client)
+               => clientTagSz client)
              clients)
            0.
 
@@ -55,7 +55,7 @@ Section ArbiterImpl.
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
-            ActionT ty ArbiterRouterImmRes)
+            ActionT ty ArbiterImmRes)
         (clientId : Fin.t arbiterNumClients)
         (ty : Kind -> Type)
         (clientReq : ty (arbiterClientReq clientId))
@@ -74,7 +74,7 @@ Section ArbiterImpl.
                       "req" ::= #clientReq @% "req"
                     };
                LETA routerImmRes
-                 :  ArbiterRouterImmRes
+                 :  ArbiterImmRes
                  <- routerSendReq routerReq;
                If #routerImmRes @% "ready"
                  then
@@ -127,12 +127,12 @@ Section ArbiterImpl.
                     If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
                       then
                         LET clientRes
-                          :  ArbiterClientRes client
+                          :  ClientRes client
                           <- STRUCT {
-                               "tag"  ::= ZeroExtendTruncLsb (arbiterClientTagSz client) (#routerRes @% "tag");
+                               "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
-                        arbiterClientHandleRes client clientRes;
+                        clientHandleRes client clientRes;
                     Retv)
                (getFins arbiterNumClients))
              as _;
@@ -150,14 +150,12 @@ Section ArbiterImpl.
 
     Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false  ) ++ (FreeList.Ifc.regs freelist).
 
-    Instance arbiterImpl
+    Definition arbiterImpl
       :  Arbiter
-      := Build_Arbiter
-           regs
-           (FreeList.Ifc.regFiles freelist)
-           sendReq
-           memCallback
-           arbiterRule.
-
+      := {| Arbiter.Ifc.regs := regs ;
+            Arbiter.Ifc.regFiles := FreeList.Ifc.regFiles freelist;
+            Arbiter.Ifc.sendReq := sendReq ;
+            Arbiter.Ifc.memCallback := memCallback ;
+            Arbiter.Ifc.arbiterRule := arbiterRule |}.
   End withParams.
 End ArbiterImpl.

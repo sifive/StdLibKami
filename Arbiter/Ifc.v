@@ -13,20 +13,20 @@ Section Arbiter.
 
   Record ArbiterClient (reqK resK : Kind)
     := {
-         arbiterClientTagSz : nat;
-         ArbiterClientTag := Bit arbiterClientTagSz;
-         ArbiterClientReq
+         clientTagSz : nat;
+         ClientTag := Bit clientTagSz;
+         ClientReq
            := STRUCT_TYPE {
-                "tag" :: ArbiterClientTag;
+                "tag" :: ClientTag;
                 "req" :: reqK
               };
-         ArbiterClientRes
+         ClientRes
            := STRUCT_TYPE {
-                "tag"  :: ArbiterClientTag;
+                "tag"  :: ClientTag;
                 "resp" :: Maybe resK
               };
-         arbiterClientHandleRes
-           :  forall {ty}, ty ArbiterClientRes -> ActionT ty Void
+         clientHandleRes
+           :  forall {ty}, ty ClientRes -> ActionT ty Void
        }.
 
   Class ArbiterParams :=
@@ -44,13 +44,13 @@ Section Arbiter.
     Definition arbiterNumClients := length clients.
 
     Definition arbiterClientTag (clientId : Fin.t arbiterNumClients)
-      := ArbiterClientTag (nth_Fin clients clientId).
+      := ClientTag (nth_Fin clients clientId).
 
     Definition arbiterClientReq (clientId : Fin.t arbiterNumClients)
-      := ArbiterClientReq (nth_Fin clients clientId).
+      := ClientReq (nth_Fin clients clientId).
 
     Definition arbiterClientRes (clientId : Fin.t arbiterNumClients)
-      := ArbiterClientRes (nth_Fin clients clientId).
+      := ClientRes (nth_Fin clients clientId).
 
     Definition transactionTagSz := Nat.log2_up numTransactions.
 
@@ -68,15 +68,13 @@ Section Arbiter.
            "resp" :: Maybe respK
          }.
 
-    Definition ArbiterRouterImmRes
+    Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
            "info"  :: ImmRes
          }.
 
-    Definition ArbiterImmRes := ArbiterRouterImmRes.
-
-    Class Arbiter
+    Record Arbiter
       := {
            regs : list RegInitT;
            regFiles : list RegFileBase;          
@@ -85,7 +83,7 @@ Section Arbiter.
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->
-                 ActionT ty ArbiterRouterImmRes)
+                 ActionT ty ArbiterImmRes)
              : forall (clientId : Fin.t arbiterNumClients) {ty},
                ty (arbiterClientReq clientId) ->
                ActionT ty ArbiterImmRes;
