@@ -10,27 +10,26 @@ Section arrayFreeList.
 
   Class ArrayFreeListParams
     := {
-         TagSize : nat;
+         Len : nat;
          ArrayRegName : string;
        }.
 
   Section arrayFreeListParams.
     Context `{ArrayFreeListParams}.
     
-    Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
-    Definition CastTagSize := Nat.log2_up len.
-    Definition Tag := Bit CastTagSize.
+    Definition TagSize := Nat.log2_up Len.
+    Definition Tag := Bit TagSize.
 
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
     Definition initialize ty: ActionT ty Void :=
-      Write ArrayRegName: Array len Bool <- BuildArray (fun _ => $$false);
+      Write ArrayRegName: Array Len Bool <- BuildArray (fun _ => $$false);
       Retv.
 
     Definition nextToAlloc ty: ActionT ty (Maybe Tag) := 
-      Read freeArray: Array len Bool <- ArrayRegName;
+      Read freeArray: Array Len Bool <- ArrayRegName;
       Ret (fold_left
              (fun (tag : Maybe Tag @# ty) (index : nat)
               => (IF tag @% "valid"
@@ -39,27 +38,27 @@ Section arrayFreeList.
                            "valid" ::= !(#freeArray@[$index : Tag @# ty]);
                            "data" ::= ($index : Tag @# ty)
                          }))
-                   (seq 0 len)
+                   (seq 0 Len)
              Invalid).
   
     Definition alloc ty (tag: ty Tag): ActionT ty Bool := 
-      Read freeArray: Array len Bool <- ArrayRegName;
+      Read freeArray: Array Len Bool <- ArrayRegName;
       LET res: Bool <- #freeArray@[#tag];
-      Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$true];
+      Write ArrayRegName: Array Len Bool <- #freeArray@[#tag <- $$true];
       Ret !#res.
   
     Definition free ty (tag: ty Tag): ActionT ty Void :=
-      Read freeArray: Array len Bool <- ArrayRegName;                                                        
-      Write ArrayRegName: Array len Bool <- #freeArray@[#tag <- $$false];
+      Read freeArray: Array Len Bool <- ArrayRegName;                                                        
+      Write ArrayRegName: Array Len Bool <- #freeArray@[#tag <- $$false];
       Retv.
 
-    Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array len Bool <- Default )%kami.
+    Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array Len Bool <- Default )%kami.
 
     Definition arrayFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := nil;
-        FreeList.Ifc.length := len;
+        FreeList.Ifc.length := Len;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;
         FreeList.Ifc.alloc := alloc;

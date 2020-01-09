@@ -68,13 +68,14 @@ Section Arbiter.
            "resp" :: Maybe respK
          }.
 
+    (* Immediate response from the Device Router *)
     Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
            "info"  :: ImmRes
          }.
 
-    Record Arbiter
+    Class Arbiter
       := {
            regs : list RegInitT;
            regFiles : list RegFileBase;          
