@@ -32,7 +32,7 @@ Section ImplTagFreeList.
         LETA initNotDone: Maybe Tag <- InitNotDone;
         LET initNotDoneData <- #initNotDone @% "data";
         If ((#initNotDone @% "valid")) then (
-            LETA _ <- (Ifc.enq BackingFifo) initNotDoneData;
+            LETA _ <- (@Ifc.enq _ BackingFifo ty) initNotDoneData;
             Write InitName: Tag <- #initNotDoneData + $1;
             Retv
           );
@@ -40,17 +40,17 @@ Section ImplTagFreeList.
 
       Definition nextToAlloc: ActionT ty (Maybe Tag) := (
         LETA initNotDone: Maybe Tag <- InitNotDone;
-        LETA first: Maybe Tag <- (Ifc.first BackingFifo);
+        LETA first: Maybe Tag <- (@Ifc.first _ BackingFifo ty);
         LET res: Maybe Tag <- STRUCT { "valid" ::= (!(#initNotDone @% "valid") && (#first @% "valid")) ;
                                        "data" ::= #first @% "data" };
         Ret #res).
   
       Definition alloc (tag: ty Tag): ActionT ty Bool := (
         LETA initNotDone: Maybe Tag <- InitNotDone;
-        LETA first: Maybe Tag <- (Ifc.first BackingFifo);
+        LETA first: Maybe Tag <- (@Ifc.first _ BackingFifo ty);
         LET doDequeue: Bool <- !(#initNotDone @% "valid") && #first @% "valid" && (#tag == #first @% "data");
         If #doDequeue then (
-            LETA _: Maybe Tag <- (Ifc.deq BackingFifo);
+            LETA _: Maybe Tag <- (@Ifc.deq _ BackingFifo ty);
             Retv
           );
         Ret #doDequeue).
@@ -58,19 +58,19 @@ Section ImplTagFreeList.
       Definition free (tag: ty Tag): ActionT ty Void := (
         LETA initNotDone: Maybe Tag <- InitNotDone;
         If !(#initNotDone @% "valid") then (
-            LETA _ <- (Ifc.enq BackingFifo) tag;
+            LETA _ <- (@Ifc.enq _ BackingFifo ty) tag;
             Retv
         );
         Retv).
 
     End withTy.
     
-    Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 )%kami ++ (Fifo.Ifc.regs BackingFifo).
+    Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 )%kami ++ (@Fifo.Ifc.regs _ BackingFifo).
     
     Instance implFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
-        FreeList.Ifc.regFiles := Fifo.Ifc.regFiles BackingFifo;
+        FreeList.Ifc.regFiles := @Fifo.Ifc.regFiles _ BackingFifo;
         FreeList.Ifc.length := len;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;
