@@ -39,11 +39,11 @@ Section AsyncFifoTop.
   
     Definition isEmpty: ActionT ty Bool :=
       LETA topEmpty: Bool <- TopIsEmpty;
-      LETA fifoEmpty: Bool <- (Fifo.Ifc.isEmpty backingFifo);
+      LETA fifoEmpty: Bool <- (@Fifo.Ifc.isEmpty _ backingFifo ty);
       Ret (#topEmpty && #fifoEmpty).
 
     Definition isFull: ActionT ty Bool :=
-      LETA fifoFull: Bool <- (Fifo.Ifc.isFull backingFifo);
+      LETA fifoFull: Bool <- (@Fifo.Ifc.isFull _ backingFifo ty);
       Ret #fifoFull.
   
     (*
@@ -172,7 +172,7 @@ Section AsyncFifoTop.
 *)
 
     Definition flush: ActionT ty Void :=
-      LETA _ <- (Fifo.Ifc.flush backingFifo);
+      LETA _ <- (@Fifo.Ifc.flush _ backingFifo ty);
       Write topReg
         :  TopEntry
         <- STRUCT {
@@ -189,9 +189,9 @@ Section AsyncFifoTop.
 
     Definition regs: list RegInitT := makeModule_regs ( Register topReg: TopEntry <- Default ++
                                                         Register isCompleting: Maybe VAddr <- Default )
-                                      ++ Fifo.Ifc.regs backingFifo.
+                                      ++ (@Fifo.Ifc.regs _ backingFifo).
     
-    Definition asyncFifoTop: FifoTop.Ifc.FifoTop := 
+    Instance asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
         FifoTop.Ifc.regs := regs;
         FifoTop.Ifc.getIsCompleting := GetIsCompleting;

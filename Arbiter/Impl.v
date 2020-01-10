@@ -23,7 +23,7 @@ Section ArbiterImpl.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    Definition clientIdSz := Nat.log2_up arbiterNumClients.
+    Definition clientIdSz := Nat.log2_up numClients.
     Definition ClientId := Bit clientIdSz.
 
     Definition GenericClientTagSz
@@ -56,13 +56,13 @@ Section ArbiterImpl.
           : forall {ty},
             ty ArbiterRouterReq ->
             ActionT ty ArbiterImmRes)
-        (clientId : Fin.t arbiterNumClients)
+        (clientId : Fin.t numClients)
         (ty : Kind -> Type)
-        (clientReq : ty (arbiterClientReq clientId))
+        (clientReq : ty (clientReq clientId))
         :  ActionT ty ArbiterImmRes
         := Read busy : Bool <- arbiter;
            LETA transactionTag
-             :  Maybe ArbiterTransactionTag
+             :  Maybe TransactionTag
              <- nextToAlloc;
            If !#busy && #transactionTag @% "valid"
              then
@@ -92,7 +92,7 @@ Section ArbiterImpl.
                         };
                    Call alistWrite (#transaction : WriteRq transactionTagSz ClientIdTag);
                    LET transactionTagData
-                     :  ArbiterTransactionTag
+                     :  TransactionTag
                      <- #transactionTag @% "data";
                    alloc transactionTagData;
                Ret #routerImmRes
@@ -111,16 +111,16 @@ Section ArbiterImpl.
         (routerRes: ty ArbiterRouterRes)
         :  ActionT ty Void
         := LET transactionTag
-             :  ArbiterTransactionTag
+             :  TransactionTag
              <- #routerRes @% "tag";
            Call clientIdTag
              :  ClientIdTag
-             <- alistRead (#transactionTag: ArbiterTransactionTag);
+             <- alistRead (#transactionTag: TransactionTag);
            LETA _
              <- free transactionTag;
            GatherActions
              (map
-               (fun (clientId: Fin.t arbiterNumClients)
+               (fun (clientId: Fin.t numClients)
                  => let client
                       :  ArbiterClient _ _
                       := nth_Fin clients clientId in 
@@ -134,7 +134,7 @@ Section ArbiterImpl.
                              };
                         clientHandleRes client clientRes;
                     Retv)
-               (getFins arbiterNumClients))
+               (getFins numClients))
              as _;
            Retv.
 
@@ -148,12 +148,15 @@ Section ArbiterImpl.
     Open Scope kami_scope.
     Open Scope kami_expr_scope.
 
-    Definition regs: list RegInitT := makeModule_regs ( Register arbiter: Bool <- false  ) ++ (FreeList.Ifc.regs freelist).
+    Definition regs: list RegInitT
+      := makeModule_regs
+           (Register arbiter: Bool <- false) ++
+           (@FreeList.Ifc.regs numTransactions freelist).
 
     Definition arbiterImpl
       :  Arbiter
       := {| Arbiter.Ifc.regs := regs ;
-            Arbiter.Ifc.regFiles := FreeList.Ifc.regFiles freelist;
+            Arbiter.Ifc.regFiles := @FreeList.Ifc.regFiles numTransactions freelist;
             Arbiter.Ifc.sendReq := sendReq ;
             Arbiter.Ifc.memCallback := memCallback ;
             Arbiter.Ifc.arbiterRule := arbiterRule |}.

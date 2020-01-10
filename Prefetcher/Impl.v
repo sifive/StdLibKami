@@ -25,13 +25,13 @@ Section Prefetch.
 
     Definition flush ty: ActionT ty Void :=
       LET inv: Maybe PAddr <- Invalid;
-      LETA _ <- FifoTop.Ifc.flush instFifoTop;
+      LETA _ <- @FifoTop.Ifc.flush _ instFifoTop ty;
       (* TODO: shouldn't setIsCompleting be called flush if its needed here? *)
       (* LETA _ <- FifoTop.Ifc.setIsCompleting instFifoTop inv; *)
       Retv.
     
    Definition getIsCompleting ty: ActionT ty (Maybe VAddr) :=
-     LETA completing: Maybe VAddr <- FifoTop.Ifc.getIsCompleting instFifoTop;
+     LETA completing: Maybe VAddr <- @FifoTop.Ifc.getIsCompleting _ instFifoTop ty;
      Ret #completing.
 
     Definition memCallback (ty : Kind -> Type) (reordererRes: ty (PrefetcherReordererRes PAddrSz))
@@ -48,7 +48,7 @@ Section Prefetch.
                 "valid" ::= #reordererRes @% "resp" @% "valid";
                 "data"  ::= #entryData
               };
-         LETA _ : Bool <- FifoTop.Ifc.enq instFifoTop entry;
+         LETA _ : Bool <- @FifoTop.Ifc.enq _ instFifoTop ty entry;
          Retv.
 
     Definition doPrefetch
@@ -70,15 +70,16 @@ Section Prefetch.
          Ret (#reordererImmRes @% "ready").
 
     Definition fetchInstruction ty : ActionT ty DeqRes
-      := LETA res : DeqRes <- FifoTop.Ifc.deq instFifoTop;
+      := LETA res : DeqRes <- @FifoTop.Ifc.deq _ instFifoTop ty;
          Ret #res.
 
     Open Scope kami_scope.
     Open Scope kami_expr_scope.
 
-    Definition regs: list RegInitT := FifoTop.Ifc.regs instFifoTop.
+    Definition regs: list RegInitT := @FifoTop.Ifc.regs _ instFifoTop.
     
-    Definition prefetcher
+    Instance prefetcher
+      :  Prefetcher PAddrSz
       := Build_Prefetcher
            regs
            flush

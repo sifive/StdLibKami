@@ -101,7 +101,7 @@ Section Reorderer.
     Definition regs: list RegInitT := makeModule_regs ( Register handlingName: ReordererReqId <- $ 0 ++
                                                         Register givingName: ReordererReqId <- $ 0 ).
     
-   Definition implReorderer: Reorderer :=
+   Instance implReorderer: Reorderer :=
      {|
        Reorderer.Ifc.regs := regs;
        Reorderer.Ifc.handle := handle;

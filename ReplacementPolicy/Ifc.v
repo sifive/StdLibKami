@@ -7,7 +7,7 @@ Section interface.
   Variable size : nat.
   Definition Index := Bit (Nat.log2_up size).
 
-  Record ReplacementPolicy
+  Class ReplacementPolicy
     := {
          getVictim : forall ty, ActionT ty Index;
          access : forall ty, Index @# ty -> ActionT ty Void

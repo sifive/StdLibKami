@@ -18,7 +18,7 @@ Section cam.
   Section interface.
     Variable camParams : CamParams.
   
-    Record Cam
+    Class Cam
       := {
            read: forall ty, Key @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data);
            write: forall ty, Key @# ty -> Data @# ty -> ActionT ty Void;

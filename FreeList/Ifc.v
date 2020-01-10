@@ -4,7 +4,7 @@ Section Freelist.
   Context {len: nat}.
 
   Let k := Bit (Nat.log2_up len).
-  Record FreeList: Type :=
+  Class FreeList: Type :=
     {
       regs: list RegInitT;
       regFiles: list RegFileBase;

@@ -41,30 +41,27 @@ Section Arbiter.
   Section withParams.
     Context `{ArbiterParams}.
 
-    Definition arbiterNumClients := length clients.
+    Definition numClients := length clients.
 
-    Definition arbiterClientTag (clientId : Fin.t arbiterNumClients)
+    Definition clientTag (clientId : Fin.t numClients)
       := ClientTag (nth_Fin clients clientId).
 
-    Definition arbiterClientReq (clientId : Fin.t arbiterNumClients)
+    Definition clientReq (clientId : Fin.t numClients)
       := ClientReq (nth_Fin clients clientId).
-
-    Definition arbiterClientRes (clientId : Fin.t arbiterNumClients)
-      := ClientRes (nth_Fin clients clientId).
 
     Definition transactionTagSz := Nat.log2_up numTransactions.
 
-    Definition ArbiterTransactionTag: Kind := Bit transactionTagSz.
+    Definition TransactionTag: Kind := Bit transactionTagSz.
 
     Definition ArbiterRouterReq
       := STRUCT_TYPE {
-           "tag" :: ArbiterTransactionTag;
+           "tag" :: TransactionTag;
            "req" :: reqK
          }.
 
     Definition ArbiterRouterRes
       := STRUCT_TYPE {
-           "tag" :: ArbiterTransactionTag;
+           "tag" :: TransactionTag;
            "resp" :: Maybe respK
          }.
 
@@ -85,8 +82,8 @@ Section Arbiter.
                : forall {ty},
                  ty ArbiterRouterReq ->
                  ActionT ty ArbiterImmRes)
-             : forall (clientId : Fin.t arbiterNumClients) {ty},
-               ty (arbiterClientReq clientId) ->
+             : forall (clientId : Fin.t numClients) {ty},
+               ty (clientReq clientId) ->
                ActionT ty ArbiterImmRes;
 
            memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;

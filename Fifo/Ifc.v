@@ -1,7 +1,7 @@
 Require Import Kami.AllNotations.
 Section FifoInterface.
   Context (k: Kind).
-  Record Fifo: Type :=
+  Class Fifo: Type :=
     {
       regs: list RegInitT;
       regFiles: list RegFileBase;

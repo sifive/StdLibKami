@@ -20,7 +20,7 @@ Section cam.
 
     Local Definition Index : Kind := Bit (Nat.log2_up size).
 
-    Definition SimpleCam : Cam CamParamsInst
+    Instance SimpleCam : Cam CamParamsInst
       := {| 
            read
              := fun ty tag ctxt
@@ -44,7 +44,7 @@ Section cam.
 
            write
              := fun ty tag data
-                  => LETA index : Index <- getVictim policy ty;
+                  => LETA index : Index <- @getVictim _ policy ty;
                      Read xs
                        :  Array size (Maybe (Pair Key Data))
                        <- regName;

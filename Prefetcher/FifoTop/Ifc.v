@@ -59,7 +59,7 @@ Section FifoTopInterface.
          "inst"  :: Inst
        }.
 
-  Record FifoTop: Type :=
+  Class FifoTop: Type :=
     {
       regs: list RegInitT;
       getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);

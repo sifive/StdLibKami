@@ -41,7 +41,7 @@ Section FreeListSpec.
 
     Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array len Bool <- Default )%kami.
 
-    Definition specFreeList: FreeList := 
+    Instance specFreeList: FreeList := 
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := nil;

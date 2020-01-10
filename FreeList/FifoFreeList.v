@@ -67,7 +67,7 @@ Section ImplTagFreeList.
     
     Definition regs: list RegInitT := makeModule_regs ( Register InitName: Tag <- $ 0 )%kami ++ (Fifo.Ifc.regs BackingFifo).
     
-    Definition implFreeList: FreeList :=
+    Instance implFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := Fifo.Ifc.regFiles BackingFifo;

@@ -54,7 +54,7 @@ Section arrayFreeList.
 
     Definition regs: list RegInitT := makeModule_regs ( Register ArrayRegName: Array Len Bool <- Default )%kami.
 
-    Definition arrayFreeList: FreeList :=
+    Instance arrayFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := nil;

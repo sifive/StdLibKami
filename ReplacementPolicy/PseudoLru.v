@@ -84,7 +84,7 @@ Section lru.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
   
-  Definition PseudoLru
+  Instance PseudoLru
     :  ReplacementPolicy num
     := {|
         getVictim := (fun ty =>
