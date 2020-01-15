@@ -3,17 +3,15 @@ Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.FreeList.Ifc.
 Section ImplTagFreeList.
   Class ImplTagFreeListParams := {
-                                TagSize: nat;
+                                Len: nat;
                                 InitName: string;
-                                BackingFifo: @Fifo (Bit (Nat.log2_up (Nat.pow 2 TagSize)));
+                                BackingFifo: @Fifo (Bit (Nat.log2_up Len));
                               }.
 
   Section withParams.
     Context (implTagFreeListParams: ImplTagFreeListParams).
     
-    Definition len := Nat.pow 2 TagSize. (* length of the freelist *)
-    Definition CastTagSize := Nat.log2_up len.
-    Definition Tag := Bit CastTagSize.
+    Definition Tag := Bit (Nat.log2_up Len).
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
@@ -71,7 +69,7 @@ Section ImplTagFreeList.
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := @Fifo.Ifc.regFiles _ BackingFifo;
-        FreeList.Ifc.length := len;
+        FreeList.Ifc.length := Len;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;
         FreeList.Ifc.alloc := alloc;
