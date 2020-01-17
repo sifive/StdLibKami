@@ -12,6 +12,7 @@ Section Reorderer.
     Context `{ReordererParams}.
 
     Definition ReordererReqId := Bit reqIdSz.
+    Definition ReordererPtr := Bit (reqIdSz + 1).
 
     Definition ReordererReq
       := STRUCT_TYPE {
@@ -25,13 +26,11 @@ Section Reorderer.
            "req" :: PAddr
          }.
 
-    Definition ReordererArbiterImmRes
+    Definition ReordererImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
            "info"  :: ImmRes
          }.
-
-    Definition ReordererImmRes := ReordererArbiterImmRes.
 
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
@@ -49,13 +48,13 @@ Section Reorderer.
       {
         regs: list RegInitT;
         regFiles: list RegFileBase;
-        handle (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
-        reordererCallback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
+        responseToPrefetcher (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
+        callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
           ty
           (memReq
             : ty ReordererArbiterReq ->
-              ActionT ty ReordererArbiterImmRes)
+              ActionT ty ReordererImmRes)
           (p: ty ReordererReq)
           : ActionT ty ReordererImmRes
       }.
