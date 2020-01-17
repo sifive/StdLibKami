@@ -75,7 +75,7 @@ Section Arbiter.
     Class Arbiter
       := {
            regs : list RegInitT;
-           regFiles : list RegFileBase;          
+           regFiles : list RegFileBase;
 
            sendReq
              (routerSendReq 

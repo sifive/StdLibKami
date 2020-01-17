@@ -30,12 +30,13 @@ Section Reorderer.
      ty
      : ActionT ty Void
      := Read handling: ReordererReqId <- handlingName;
-        Call MRes: Maybe respK <- rfRead(#handling: ReordererReqId);
-        Call req: ReordererReq <- arfRead(#handling: ReordererReqId);
+        Call MRes: Maybe MInst <- rfRead(#handling: ReordererReqId);
+        (* Call req: ReordererReq <- arfRead(#handling: ReordererReqId); *)
+        Call vaddr: VAddr <- arfRead(#handling: ReordererReqId);
         LET resp
           :  ReordererRes
           <- STRUCT {
-               "vaddr" ::= #req @% "data";
+               "vaddr" ::= #vaddr;
                "inst"  ::= #MRes @% "data"
              };
         If #MRes @% "valid"
@@ -49,9 +50,9 @@ Section Reorderer.
       response to a prior request *)
    Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
     LET idx: ReordererReqId <- #resp @% "tag";
-    LET res: respK <- #resp @% "resp";
+    LET res: MInst <- #resp @% "resp";
     Call rfWrite(STRUCT { "addr" ::= #idx;
-                          "data" ::= Valid #res } : WriteRq reqIdSz (Maybe respK));
+                          "data" ::= Valid #res } : WriteRq reqIdSz (Maybe MInst));
     Retv.
 
    (* TODO: Completely broken. *)
@@ -61,7 +62,7 @@ Section Reorderer.
      (memReq
        : ty ReordererArbiterReq ->
          ActionT ty ReordererArbiterImmRes)
-      (p: ty ReordererReq)
+      (req: ty ReordererReq)
      :  ActionT ty ReordererImmRes
      := Read giving: ReordererReqId <- givingName;
         Read handling: ReordererReqId <- handlingName;
@@ -69,7 +70,7 @@ Section Reorderer.
           :  ReordererArbiterReq
           <- STRUCT {
                "tag" ::= #giving;
-               "req" ::= #p @% "req"
+               "req" ::= #req @% "paddr"
              };
         If (#giving + $1) != #handling
           then (* we can give a new reqid without forgetting the next one to service *)
@@ -78,12 +79,12 @@ Section Reorderer.
               then
                 Write givingName: ReordererReqId <- #giving + $1;
                 Call rfWrite(STRUCT { "addr" ::= #giving;
-                                      "data" ::= Invalid } : WriteRq reqIdSz (Maybe respK));
+                                      "data" ::= Invalid } : WriteRq reqIdSz (Maybe MInst));
                 Call arfWrite
                   (STRUCT {
                      "addr" ::= #giving;
-                     "data" ::= #p
-                   } : WriteRq reqIdSz ReordererReq);
+                     "data" ::= #req @% "vaddr"
+                   } : WriteRq reqIdSz VAddr);
                 Retv;
            Ret #res
          else

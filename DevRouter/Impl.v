@@ -34,6 +34,7 @@ Section SimpleDevRouter.
       Write routed: Bool <- $$false;
       Retv.
 
+    (* TODO: NOTE: LLEE: calls to memDeviceReq etc will be actual method calls in synth ver. *)
     Definition devRouterReq
       (req: ty DevRouterReq)
       : ActionT ty Bool :=

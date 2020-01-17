@@ -63,8 +63,8 @@ Section Prefetch.
       := LET reordererReq
            :  PrefetcherReordererReq PAddrSz
            <- STRUCT {
-                "req"  ::= #prefetcherReq @% "paddr";
-                "data" ::= #prefetcherReq @% "vaddr"
+                "paddr"  ::= #prefetcherReq @% "paddr";
+                "vaddr" ::= #prefetcherReq @% "vaddr"
               };
          LETA reordererImmRes
            :  @PrefetcherReordererImmRes ImmRes

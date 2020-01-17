@@ -1,9 +1,9 @@
 Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {
-      reqK: Kind;
-      reqDataK: Kind; (* additional data to track for the request. Specifically the physical address assocated with the request. *)
-      respK: Kind;
+      PAddr: Kind;
+      VAddr: Kind; (* additional data to track for the request. Specifically the physical address assocated with the request. *)
+      MInst: Kind;
       ImmRes: Kind;
       (* = log2 of how many requests the reorderer can have open at once *)
       reqIdSz: nat;
@@ -15,14 +15,14 @@ Section Reorderer.
 
     Definition ReordererReq
       := STRUCT_TYPE {
-           "req"  :: reqK;    (* paddr *)
-           "data" :: reqDataK (* vaddr *)
+           "paddr" :: PAddr;
+           "vaddr" :: VAddr
          }.
 
     Definition ReordererArbiterReq
       := STRUCT_TYPE {
            "tag" :: ReordererReqId;
-           "req" :: reqK
+           "req" :: PAddr
          }.
 
     Definition ReordererArbiterImmRes
@@ -36,7 +36,7 @@ Section Reorderer.
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
            "tag"  :: ReordererReqId;
-           "resp" :: respK
+           "resp" :: MInst
          }.
 
     (*
@@ -51,8 +51,8 @@ Section Reorderer.
     *)
     Definition ReordererRes
       := STRUCT_TYPE {
-           "vaddr" :: reqDataK;
-           "inst"  :: respK (* Maybe Inst *)
+           "vaddr" :: VAddr;
+           "inst"  :: MInst
          }.
 
     Class Reorderer: Type :=

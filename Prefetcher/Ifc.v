@@ -23,8 +23,8 @@ Section prefetcher.
   *)
   Definition PrefetcherReordererReq
     := STRUCT_TYPE {
-         "req"  :: PAddr;
-         "data" :: VAddr
+         "paddr"  :: PAddr;
+         "vaddr" :: VAddr
        }.
 
   (*
