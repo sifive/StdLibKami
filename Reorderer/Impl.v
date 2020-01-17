@@ -18,6 +18,8 @@ Section Reorderer.
       enqPtr: string;
       deqPtr: string;
 
+      validArray: string;
+
       logNumReqId: nat;
       lenIsPow2: Nat.pow 2 logNumReqId = numReqId;
     }.
@@ -47,18 +49,19 @@ Section Reorderer.
       : ActionT ty Void
         := Read deqPFull: ReordererPtr <- deqPtr;
            Read enqPFull: ReordererPtr <- enqPtr;
+           Read valids: Array numReqId Bool <- validArray;
            LET deqP: ReordererReqId
                        <- UniBit (TruncLsb _ 1)
                        (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
-           Call inst: Maybe MInst <- rfRead(#deqP: ReordererReqId);
+           Call inst: MInst <- rfRead(#deqP: ReordererReqId);
            Call vaddr: VAddr <- arfRead(#deqP: ReordererReqId);
            LET resp
            :  ReordererRes
                 <- STRUCT {
                   "vaddr" ::= #vaddr;
-                  "inst"  ::= #inst @% "data"
+                  "inst"  ::= #inst
                 };
-           If (#deqPFull != #enqPFull) && #inst @% "valid"
+           If (#deqPFull != #enqPFull) && (#valids@[#deqP])
            then
              LETA _ <- prefetcherCallback (resp : ty ReordererRes);
              Write deqPtr <- #deqPFull + $1;
@@ -70,8 +73,10 @@ Section Reorderer.
       Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
         LET idx: ReordererReqId <- #resp @% "tag";
         LET res: MInst <- #resp @% "resp";
+        Read valids: Array numReqId Bool <- validArray;
+        Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
         Call rfWrite(STRUCT { "addr" ::= #idx;
-                              "data" ::= Valid #res } : WriteRq reqIdSz (Maybe MInst));
+                              "data" ::= #res } : WriteRq reqIdSz MInst);
         Retv.
 
       Definition sendReq
@@ -83,6 +88,7 @@ Section Reorderer.
         :  ActionT ty ReordererImmRes
         := Read enqPFull: ReordererPtr <- enqPtr;
            Read deqPFull: ReordererPtr <- deqPtr;
+           Read valids: Array numReqId Bool <- validArray;
            LET enqP: ReordererReqId <- UniBit (TruncLsb _ 1)
                                     (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #enqPFull);
            LET deqP: ReordererReqId <- UniBit (TruncLsb _ 1)
@@ -99,8 +105,7 @@ Section Reorderer.
              If #res @% "ready"
              then
                Write enqPtr <- #enqPFull + $1;
-               Call rfWrite(STRUCT { "addr" ::= #enqP;
-                                     "data" ::= Invalid } : WriteRq reqIdSz (Maybe MInst));
+               Write validArray: Array numReqId Bool <- #valids@[#enqP <- $$false];
                Call arfWrite
                  (STRUCT {
                     "addr" ::= #enqP;
@@ -121,12 +126,13 @@ Section Reorderer.
     Open Scope kami_expr_scope.
     
     Definition regs: list RegInitT := makeModule_regs ( Register enqPtr: ReordererPtr <- $ 0 ++
-                                                        Register deqPtr: ReordererPtr <- $ 0 ).
+                                                        Register deqPtr: ReordererPtr <- $ 0 ++
+                                                        RegisterU validArray: Array numReqId Bool                                                                  ).
 
     Definition regFiles: list RegFileBase :=
       [ 
         @Build_RegFileBase false 1 rfName
-                           (Async [rfRead]) rfWrite reqIdSz (Maybe MInst) (@RFNonFile _ _ None);
+                           (Async [rfRead]) rfWrite reqIdSz MInst (@RFNonFile _ _ None);
           
         @Build_RegFileBase false 1 arfName
                            (Async [arfRead]) arfWrite reqIdSz VAddr (@RFNonFile _ _ None)
