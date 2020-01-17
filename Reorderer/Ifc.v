@@ -6,13 +6,13 @@ Section Reorderer.
       MInst: Kind;
       ImmRes: Kind;
       (* = log2 of how many requests the reorderer can have open at once *)
-      reqIdSz: nat;
+      numReqId: nat;
     }.
   Section withParams.
     Context `{ReordererParams}.
 
+    Definition reqIdSz := Nat.log2_up numReqId.
     Definition ReordererReqId := Bit reqIdSz.
-    Definition ReordererPtr := Bit (reqIdSz + 1).
 
     Definition ReordererReq
       := STRUCT_TYPE {
