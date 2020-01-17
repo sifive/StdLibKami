@@ -17,6 +17,9 @@ Section Reorderer.
 
       enqPtr: string;
       deqPtr: string;
+
+      logNumReqId: nat;
+      lenIsPow2: Nat.pow 2 logNumReqId = numReqId;
     }.
 
   Section withParams.
@@ -24,8 +27,17 @@ Section Reorderer.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    Definition reqIdLen := Nat.pow 2 reqIdSz.
+    Lemma logNumReqId_reqIdSz: logNumReqId = reqIdSz.
+    Proof.
+      unfold reqIdSz.
+      rewrite <- lenIsPow2.
+      rewrite Nat.log2_up_pow2; auto; try Omega.omega.
+    Qed.
+
+    Definition castToReqIdSz (t: nat -> Type) (val: t logNumReqId): t reqIdSz :=
+      eq_rect logNumReqId t val reqIdSz logNumReqId_reqIdSz.
     
+    Definition ReordererPtr := Bit (logNumReqId + 1).
     Section withTy.
 
       (* Conceptual rule *)
@@ -35,7 +47,9 @@ Section Reorderer.
       : ActionT ty Void
         := Read deqPFull: ReordererPtr <- deqPtr;
            Read enqPFull: ReordererPtr <- enqPtr;
-           LET deqP: ReordererReqId <- UniBit (TruncLsb _ 1) #deqPFull;
+           LET deqP: ReordererReqId
+                       <- UniBit (TruncLsb _ 1)
+                       (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
            Call inst: Maybe MInst <- rfRead(#deqP: ReordererReqId);
            Call vaddr: VAddr <- arfRead(#deqP: ReordererReqId);
            LET resp
@@ -69,8 +83,10 @@ Section Reorderer.
         :  ActionT ty ReordererImmRes
         := Read enqPFull: ReordererPtr <- enqPtr;
            Read deqPFull: ReordererPtr <- deqPtr;
-           LET enqP: ReordererReqId <- UniBit (TruncLsb _ 1) #enqPFull;
-           LET deqP: ReordererReqId <- UniBit (TruncLsb _ 1) #deqPFull;
+           LET enqP: ReordererReqId <- UniBit (TruncLsb _ 1)
+                                    (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #enqPFull);
+           LET deqP: ReordererReqId <- UniBit (TruncLsb _ 1)
+                                    (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
            LET arbiterReq
            :  ReordererArbiterReq
                 <- STRUCT {
