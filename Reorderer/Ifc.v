@@ -2,7 +2,7 @@ Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {
       PAddr: Kind;
-      VAddr: Kind; (* additional data to track for the request. Specifically the physical address assocated with the request. *)
+      VAddr: Kind;
       MInst: Kind;
       ImmRes: Kind;
       (* = log2 of how many requests the reorderer can have open at once *)
@@ -39,16 +39,6 @@ Section Reorderer.
            "resp" :: MInst
          }.
 
-    (*
-      TODO: return the context data stored sent in ReordererReq.data
-      with the request. This is needed because the prefetcher does
-      not save the virtual address associated with the request before
-      sending the request. Consequently, the Reorderer must return
-      the virtual address associated with the request response so
-      that the prefetcher can save it in its cache.
-
-      TODO: LLEE change req to just VAddr. (Not done see above comment)
-    *)
     Definition ReordererRes
       := STRUCT_TYPE {
            "vaddr" :: VAddr;
