@@ -6,12 +6,14 @@ Require Import StdLibKami.Prefetcher.FifoTop.Impl.
 Section prefetcher.
   Context `{fifoTopParams : FifoTopParams}.
   Context `{ImmRes : Kind}.
+  Variable PrivMode : Kind.
   Variable PAddrSz : nat.
 
   Local Definition PAddr := Bit PAddrSz.
 
   Definition PrefetcherReq
     := STRUCT_TYPE {
+         "mode"  :: PrivMode;
          "vaddr" :: VAddr;
          "paddr" :: PAddr
        }.
@@ -43,13 +45,14 @@ Section prefetcher.
   *)
   Definition PrefetcherReordererRes
     := STRUCT_TYPE {
-         "req"  :: PrefetcherReordererReq;
-         "resp" :: Maybe Inst
+         "vaddr" :: VAddr;
+         "inst"  :: Maybe Inst
        }.
 
   Class Prefetcher: Type :=
     {
       regs: list RegInitT;
+      regFiles : list RegFileBase;
       
       flush: forall {ty}, ActionT ty Void;
       (*
@@ -76,12 +79,14 @@ Section prefetcher.
         address associated with the virtual address, loads the
         data referenced by the virtual address, caches the data,
         and returns true iff the device accepted the load request.
+
+        TODO: LLEE: same ty.
       *)
       doPrefetch
+        ty
         (memReq
-          : forall {ty},
-              ty PrefetcherReordererReq ->
+          : ty PrefetcherReordererReq ->
               ActionT ty PrefetcherReordererImmRes)
-        : forall {ty}, ty PrefetcherReq -> ActionT ty Bool;
+        : ty PrefetcherReq -> ActionT ty Bool;
     }.
 End prefetcher.

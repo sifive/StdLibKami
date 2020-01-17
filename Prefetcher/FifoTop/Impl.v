@@ -194,6 +194,7 @@ Section AsyncFifoTop.
     Instance asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
         FifoTop.Ifc.regs := regs;
+        FifoTop.Ifc.regFiles := @Fifo.Ifc.regFiles _ backingFifo;
         FifoTop.Ifc.getIsCompleting := GetIsCompleting;
         FifoTop.Ifc.isEmpty := isEmpty;
         FifoTop.Ifc.isFull := isFull;

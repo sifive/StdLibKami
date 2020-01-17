@@ -35,8 +35,8 @@ Section Reorderer.
         LET resp
           :  ReordererRes
           <- STRUCT {
-               "req"  ::= #req;
-               "resp" ::= #MRes @% "data"
+               "vaddr" ::= #req @% "data";
+               "inst"  ::= #MRes @% "data"
              };
         If #MRes @% "valid"
           then
@@ -57,11 +57,11 @@ Section Reorderer.
    (* TODO: Completely broken. *)
    (* Action the prefetcher will ultimately use to make an order-preserving request for instructions at some address *)
    Definition sendReq
+     ty
      (memReq
-       : forall {ty}, 
-         ty ReordererArbiterReq ->
+       : ty ReordererArbiterReq ->
          ActionT ty ReordererArbiterImmRes)
-     {ty} (p: ty ReordererReq)
+      (p: ty ReordererReq)
      :  ActionT ty ReordererImmRes
      := Read giving: ReordererReqId <- givingName;
         Read handling: ReordererReqId <- handlingName;
@@ -104,6 +104,7 @@ Section Reorderer.
    Instance implReorderer: Reorderer :=
      {|
        Reorderer.Ifc.regs := regs;
+       Reorderer.Ifc.regFiles := []; (* TODO: LLEE *)
        Reorderer.Ifc.handle := handle;
        Reorderer.Ifc.reordererCallback := reordererCallback;
        Reorderer.Ifc.sendReq := sendReq

@@ -51,21 +51,21 @@ Section Reorderer.
     *)
     Definition ReordererRes
       := STRUCT_TYPE {
-           "req"  :: ReordererReq;
-           "resp" :: respK
+           "vaddr" :: reqDataK;
+           "inst"  :: respK (* Maybe Inst *)
          }.
 
     Class Reorderer: Type :=
       {
         regs: list RegInitT;
+        regFiles: list RegFileBase;
         handle (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
         reordererCallback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
+          ty
           (memReq
-            : forall {ty}, 
-              ty ReordererArbiterReq ->
+            : ty ReordererArbiterReq ->
               ActionT ty ReordererArbiterImmRes)
-          {ty} 
           (p: ty ReordererReq)
           : ActionT ty ReordererImmRes
       }.

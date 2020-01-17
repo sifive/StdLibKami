@@ -66,7 +66,12 @@ Section AsyncFifo.
       Definition regs: list RegInitT := makeModule_regs ( Register DeqPtr: Bit (FifoSize + 1) <- Default ++
                                                           Register EnqPtr: Bit (FifoSize + 1) <- Default )%kami.
 
-      Definition regFiles: list RegFileBase := [@Build_RegFileBase false 1 DataName (Async [ReadName]) WriteName FifoSize K (@RFNonFile _ _ None)].
+      Definition regFiles: list RegFileBase
+        := [
+             @Build_RegFileBase false 1 DataName
+               (Async [ReadName]) WriteName FifoSize K (@RFNonFile _ _ None)
+           ].
+
       Instance asyncFifo: @Fifo K :=
         {|
           Fifo.Ifc.regs := regs;

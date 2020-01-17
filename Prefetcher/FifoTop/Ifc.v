@@ -62,6 +62,7 @@ Section FifoTopInterface.
   Class FifoTop: Type :=
     {
       regs: list RegInitT;
+      regFiles: list RegFileBase;
       getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;

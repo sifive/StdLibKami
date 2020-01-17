@@ -8,6 +8,7 @@ Section Prefetch.
 
   Context `{fifoTopParams : FifoTopParams}.
   Context `{ImmRes: Kind}.
+  Variable PrivMode : Kind.
 
   Class PrefetcherImplParams
     := {
@@ -23,6 +24,7 @@ Section Prefetch.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
+    (* TODO: LLEE: update this *)
     Definition flush ty: ActionT ty Void :=
       LET inv: Maybe PAddr <- Invalid;
       LETA _ <- @FifoTop.Ifc.flush _ instFifoTop ty;
@@ -34,29 +36,29 @@ Section Prefetch.
      LETA completing: Maybe VAddr <- @FifoTop.Ifc.getIsCompleting _ instFifoTop ty;
      Ret #completing.
 
-    Definition memCallback (ty : Kind -> Type) (reordererRes: ty (PrefetcherReordererRes PAddrSz))
+    Definition memCallback (ty : Kind -> Type) (reordererRes: ty (PrefetcherReordererRes))
       :  ActionT ty Void
       := LET entryData
            :  PrefetcherFifoEntry
            <- STRUCT {
-                "vaddr" ::= (#reordererRes @% "req" @% "data" : VAddr @# ty);
-                "data"  ::= (#reordererRes @% "resp" @% "data" : Inst @# ty)
+                "vaddr" ::= (#reordererRes @% "vaddr" : VAddr @# ty);
+                "data"  ::= (#reordererRes @% "inst" @% "data" : Inst @# ty)
               };
          LET entry
            :  Maybe PrefetcherFifoEntry
            <- STRUCT {
-                "valid" ::= #reordererRes @% "resp" @% "valid";
+                "valid" ::= #reordererRes @% "inst" @% "valid";
                 "data"  ::= #entryData
               };
          LETA _ : Bool <- @FifoTop.Ifc.enq _ instFifoTop ty entry;
          Retv.
 
     Definition doPrefetch
+        ty
         (memReq
-          : forall {ty},
-            ty (PrefetcherReordererReq PAddrSz) ->
+          : ty (PrefetcherReordererReq PAddrSz) ->
             ActionT ty (@PrefetcherReordererImmRes ImmRes))
-        {ty} (prefetcherReq: ty (PrefetcherReq PAddrSz))
+         (prefetcherReq: ty (PrefetcherReq PrivMode PAddrSz))
       :  ActionT ty Bool
       := LET reordererReq
            :  PrefetcherReordererReq PAddrSz
@@ -77,11 +79,12 @@ Section Prefetch.
     Open Scope kami_expr_scope.
 
     Definition regs: list RegInitT := @FifoTop.Ifc.regs _ instFifoTop.
-    
+
     Instance prefetcher
-      :  Prefetcher PAddrSz
+      :  Prefetcher PrivMode PAddrSz
       := Build_Prefetcher
            regs
+           (@FifoTop.Ifc.regFiles fifoTopParams instFifoTop)
            flush
            getIsCompleting
            memCallback
