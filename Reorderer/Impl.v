@@ -81,16 +81,16 @@ Section Reorderer.
            then (* we can give a new reqid without forgetting the next one to service *)
              LETA res <- memReq arbiterReq;
              If #res @% "ready"
-               then
-                 Write enqPtr <- #enqPFull + $1;
-                 Call rfWrite(STRUCT { "addr" ::= #enqP;
-                                       "data" ::= Invalid } : WriteRq reqIdSz (Maybe MInst));
-                 Call arfWrite
-                   (STRUCT {
-                      "addr" ::= #enqP;
-                      "data" ::= #req @% "vaddr"
-                    } : WriteRq reqIdSz VAddr);
-                 Retv;
+             then
+               Write enqPtr <- #enqPFull + $1;
+               Call rfWrite(STRUCT { "addr" ::= #enqP;
+                                     "data" ::= Invalid } : WriteRq reqIdSz (Maybe MInst));
+               Call arfWrite
+                 (STRUCT {
+                    "addr" ::= #enqP;
+                    "data" ::= #req @% "vaddr"
+                  } : WriteRq reqIdSz VAddr);
+               Retv;
              Ret #res
            else
              Ret (STRUCT {
