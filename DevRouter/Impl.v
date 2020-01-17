@@ -54,7 +54,10 @@ Section SimpleDevRouter.
     
     Instance simpleDevRouter
       :  DevRouter
-      := Build_DevRouter regs pollRules devRouterReq.
+      := {| DevRouter.Ifc.regs := regs ;
+            DevRouter.Ifc.regFiles := nil ;
+            DevRouter.Ifc.pollRules := pollRules ;
+            DevRouter.Ifc.devRouterReq := devRouterReq |}.
 
   End withParams.
 End SimpleDevRouter.
