@@ -78,7 +78,7 @@ Section Reorderer.
                   "req" ::= #req @% "paddr"
                 };
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
-           then (* we can give a new reqid without forgetting the next one to service *)
+           then
              LETA res <- memReq arbiterReq;
              If #res @% "ready"
              then
