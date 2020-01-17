@@ -12,6 +12,7 @@ Section ArbiterImpl.
       (* Names of read/write names for the reg-file backing the
          associative array with which we will map server tags to client
          tags/IDs *)
+      alistName: string;
       alistRead: string;
       alistWrite: string;
       freelist: @FreeList numTransactions;
@@ -153,10 +154,29 @@ Section ArbiterImpl.
            (Register arbiter: Bool <- false) ++
            (@FreeList.Ifc.regs numTransactions freelist).
 
+    (* TODO: LLEE: check *)
+    Definition regFiles
+      := [
+           {|
+             rfIsWrMask  := false;
+             rfNum       := numTransactions;
+             rfDataArray := alistName;
+             rfRead      := (Async [alistRead]);
+             rfWrite     := alistWrite;
+             rfIdxNum    := numTransactions; (* TODO: LLEE: what does rfIdxNum represent? *)
+             rfData      := ClientIdTag;
+             rfInit
+               := RFNonFile
+                    numTransactions
+                    (Some (getDefaultConst ClientIdTag))
+           |}
+         ] ++
+         (@FreeList.Ifc.regFiles numTransactions freelist).
+
     Definition arbiterImpl
       :  Arbiter
       := {| Arbiter.Ifc.regs := regs ;
-            Arbiter.Ifc.regFiles := @FreeList.Ifc.regFiles numTransactions freelist;
+            Arbiter.Ifc.regFiles := regFiles ;
             Arbiter.Ifc.sendReq := sendReq ;
             Arbiter.Ifc.memCallback := memCallback ;
             Arbiter.Ifc.arbiterRule := arbiterRule |}.

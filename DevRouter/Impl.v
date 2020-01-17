@@ -52,6 +52,9 @@ Section SimpleDevRouter.
     Open Scope kami_expr_scope.
     Definition regs: list RegInitT := makeModule_regs ( Register routed: Bool <- false ).
     
-    Instance simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
+    Instance simpleDevRouter
+      :  DevRouter
+      := Build_DevRouter regs pollRules devRouterReq.
+
   End withParams.
 End SimpleDevRouter.
