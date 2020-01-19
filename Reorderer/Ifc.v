@@ -1,12 +1,11 @@
 Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {
+      numReqId: nat;
       PAddr: Kind;
       VAddr: Kind;
       MInst: Kind;
       ImmRes: Kind;
-      (* = log2 of how many requests the reorderer can have open at once *)
-      numReqId: nat;
     }.
   Section withParams.
     Context `{ReordererParams}.
