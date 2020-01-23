@@ -4,7 +4,10 @@ Require Import StdLibKami.Fifo.Ifc.
 Class FifoTopParams :=
   {
     VAddrSz : nat;
-    CompInstSz: nat
+    CompInstSz: nat;
+    ImmRes: Kind;
+    isCompressed: forall ty, Bit CompInstSz @# ty -> Bool @# ty;
+    isErr: forall ty, ImmRes @# ty -> Bool @# ty
   }.
 
 Section FifoTopInterface.
@@ -22,15 +25,22 @@ Section FifoTopInterface.
 
   Definition ShortVAddr := Bit ShortVAddrSz.
 
+  Definition toFullVAddr {ty} (short: ShortVAddr @# ty): VAddr @# ty := ZeroExtendTruncLsb _ ({< short, $$(natToWord 2 0) >})%kami_expr.
+  
+  Definition toShortVAddr {ty} (long: VAddr @# ty): ShortVAddr @# ty := ZeroExtendTruncMsb _ (long)%kami_expr.
+    
   Definition PrefetcherFifoEntry
     := STRUCT_TYPE {
-         "vaddr" :: VAddr;
-         "data"  :: Inst
+         "vaddr" :: ShortVAddr;
+         "info"  :: ImmRes;  
+         "inst"  :: Maybe Inst
        }.
 
   Definition TopEntry: Kind
     := STRUCT_TYPE {
-         "vaddr" :: Maybe ShortVAddr;
+         "vaddr" :: ShortVAddr;
+         "info"  :: ImmRes;
+         "noErr" :: Bool;
          "upper" :: Maybe CompInst;
          "lower" :: Maybe CompInst
        }.
@@ -42,20 +52,20 @@ Section FifoTopInterface.
                         and need 16 bits at the address contiguous to "addr" to complete it;
                         caller must prefetch addr returned.
      EmptyError |-> The Fifo + Top is empty.
-     DevError |-> There was a device access exception for the address;
-                  the client should handle an access exception for that address in this case
-  *)
-  Definition DeqErrorSz: nat := Nat.log2_up 4.
-  Definition DeqError: Kind := Bit DeqErrorSz.
+   *)
+  
   Definition NoError: nat := 0.
   Definition IncompleteError: nat := 1.
   Definition EmptyError: nat := 2.
-  Definition DevError: nat := 3.
+  Definition DeqErrorSz: nat := Nat.log2_up 3.
+  Definition DeqError: Kind := Bit DeqErrorSz.
 
   Definition DeqRes
     := STRUCT_TYPE {
          "error" :: DeqError;
          "vaddr" :: VAddr;
+         "info"  :: ImmRes;
+         "noErr" :: Bool;
          "inst"  :: Inst
        }.
 
@@ -64,10 +74,13 @@ Section FifoTopInterface.
       regs: list RegInitT;
       regFiles: list RegFileBase;
       getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);
+      resetCompleting: forall {ty}, ActionT ty Void;
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;
       deq: forall {ty}, ActionT ty DeqRes;
-      enq: forall {ty}, ty (Maybe PrefetcherFifoEntry) -> ActionT ty Bool;
+      enq: forall {ty}, ty PrefetcherFifoEntry -> ActionT ty Bool;
+      enqOutstanding: forall {ty}, ActionT ty Bool;
+      isFullOutstanding: forall {ty}, ActionT ty Bool;
       flush: forall {ty}, ActionT ty Void
     }.
 End FifoTopInterface.

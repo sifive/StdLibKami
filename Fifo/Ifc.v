@@ -3,6 +3,7 @@ Section FifoInterface.
   Context (k: Kind).
   Class Fifo: Type :=
     {
+      getLen: nat;
       regs: list RegInitT;
       regFiles: list RegFileBase;
       isEmpty: forall {ty}, ActionT ty Bool;

@@ -3,203 +3,232 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.Fifo.Async.
 Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
+
 Section AsyncFifoTop.
-  Context `{FifoTopParams}.
+  Context `{fifoTopParams: FifoTopParams}.
   Class AsyncFifoTopParams :=
     {
       backingFifo: @Fifo PrefetcherFifoEntry;
+      outstandingFifo: @Fifo Void;
       topReg: string;
       isCompleting: string;
+      sameLen: @Fifo.Ifc.getLen _ backingFifo = @Fifo.Ifc.getLen _ outstandingFifo;
     }.
+  
   Section withParams.
     Context `{AsyncFifoTopParams}.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
     
-    Definition toFullVAddr {ty} (short: ty ShortVAddr): VAddr @# ty := ZeroExtendTruncLsb _ ({< #short, $$(natToWord 2 0) >}).
-  
-    Definition toShortVAddr {ty} (long: ty VAddr): ShortVAddr @# ty := ZeroExtendTruncMsb _ #long.
-    
     Section withTy.
-    Context (ty: Kind -> Type).
-    
-    Definition GetIsCompleting: ActionT ty (Maybe VAddr) :=
-      Read completing: Maybe VAddr <- isCompleting;
-      Ret #completing.
+      Context (ty: Kind -> Type).
 
-    Definition SetIsCompleting (p: ty (Maybe VAddr)): ActionT ty Void :=
-      Write isCompleting: Maybe VAddr <- #p;
-      Retv.
-
-    Local Definition TopIsEmpty: ActionT ty Bool :=
-      Read top: TopEntry <- topReg;
-      (* COQBUG: typeclass instance resolution fails *)
-      LET upper: Maybe (@CompInst H) <- #top @% "upper";
-      Ret !(#upper @% "valid"). (* we maintain the invariant that the upper portion of the top register is valid for any non-empty Fifo *)
+      (* Completing => Not empty *)
+      Definition GetIsCompleting: ActionT ty (Maybe VAddr) :=
+        Read completing: Bool <- isCompleting;
+        Read top: TopEntry <- topReg;          
+        Ret (STRUCT { "valid" ::= #completing;
+                      "data" ::= toFullVAddr (#top @% "vaddr" + $1)}: Maybe VAddr @# ty).
   
-    Definition isEmpty: ActionT ty Bool :=
-      LETA topEmpty: Bool <- TopIsEmpty;
-      LETA fifoEmpty: Bool <- (@Fifo.Ifc.isEmpty _ backingFifo ty);
-      Ret (#topEmpty && #fifoEmpty).
-
-    Definition isFull: ActionT ty Bool :=
-      LETA fifoFull: Bool <- (@Fifo.Ifc.isFull _ backingFifo ty);
-      Ret #fifoFull.
+      Definition ResetCompleting: ActionT ty Void :=
+        Write isCompleting: Bool <- $$false;
+        Retv.
   
-    (*
-      NOTE: this is RISC-V specific and shouldn't be in
-      StdLibKami. If the following definitions depend on this,
-      then the Prefetcher needs to be moved to ProcKami.
-    *)
-    Local Definition isCompressed (inst : CompInst @# ty)
-      := (ZeroExtendTruncLsb 2 inst != $$(('b"11") : word 2)).
-
-    Definition deq : ActionT ty DeqRes
-      := Ret $$(getDefaultConst (DeqRes)).
-(*
--    Definition deq: ActionT ty DeqRes := 
--      Read top: TopEntry <- topReg;
--      Read completing: Maybe PAddr <- isCompleting;
--      LETA FifoEmpty: Bool <- (Fifo.Ifc.isEmpty backingFifo);
--      LETA ftop: Maybe AddrInst <- (Ifc.first backingFifo);
--      
--      LET topAddr: Maybe ShortPAddr <- #top @% "addr";
--      LET lower: Maybe CompInst <- #top @% "lower";
--      LET lowerValid: Bool <- #lower @% "valid";
--      LET lowerInst: CompInst <- #lower @% "data";
--      LET lowerCompressed: Bool <- isCompressed #lowerInst;
--      LET upper: Maybe CompInst <- #top @% "upper";
--      LET upperValid: Bool <- #upper @% "valid";
--      LET upperInst: CompInst <- #upper @% "data";
--      LET upperCompressed: Bool <- isCompressed #upperInst;
--      LET ftopAddrInst: AddrInst <- #ftop @% "data";
--      LET ftopAddr: Maybe ShortPAddr <- #ftopAddrInst @% "addr";
--      LET ftopInst: Inst <- #ftopAddrInst @% "inst";
--      LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;
--      LET ftopLowerInst: CompInst <- ZeroExtendTruncLsb _ #ftopInst;
--      LET lowerFull: Inst <- (ZeroExtend _ #lowerInst: Inst @# ty);
--      LET upperFull: Inst <- (ZeroExtend _ #upperInst: Inst @# ty);
--      LET full: Inst <- {< #upperInst, #lowerInst >};
--      LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
--      LET topAddrDat: ShortPAddr <- (#topAddr @% "data");
--      LET retAddr: Maybe PAddr <- STRUCT { "valid" ::= #upperValid && (#topAddr @% "valid");
--                                           "data" ::= (IF #lowerValid
--                                                       then toFullPAddr topAddrDat
--                                                       else (IF #upperCompressed || (!#FifoEmpty && ((#ftopAddr @% "data") == (#topAddrDat + $1)))
--                                                             then toFullPAddr topAddrDat + $2
--                                                             else toFullPAddr topAddrDat + $4)) };
--      LET retInst: Maybe Inst <- STRUCT { "valid" ::= (IF !#upperValid
--                                                       then $$false
--                                                       else (IF #lowerValid
--                                                             then $$true
--                                                             else (IF #upperCompressed
--                                                                   then $$true
--                                                                   else (!#FifoEmpty && ((#ftopAddr @% "data") == (#topAddrDat + $1))))));
--                                          "data" ::= (IF #lowerValid
--                                                      then (IF #lowerCompressed
--                                                            then #lowerFull
--                                                            else #full)
--                                                      else (IF #upperCompressed
--                                                            then #upperFull
--                                                            else #completedInst)) };
--      LET retError: DeqError <- IF (#retAddr @% "valid") then (IF #retInst @% "valid" then $NoError else $IncompleteError) else (IF #retInst @% "valid" then $DevError else $EmptyError);
--      LET newIsCompleting: Maybe PAddr <- (IF (#retAddr @% "valid") && !(#retInst @% "valid")
--                                           then Valid (toFullPAddr topAddrDat + $4)
--                                           else #completing);
--      LET ret: DeqRes <- STRUCT { "error" ::= #retError;
--                                  "addr" ::= #retAddr @% "data"; 
--                                  "inst" ::= #retInst @% "data"};
--      LET doDequeue: Bool <- (#retAddr @% "valid") && (#retInst @% "valid");
--      (* Flush when we will return valid, invalid *)
--      LET doFlush: Bool <- (#retAddr @% "valid") && !(#retInst @% "valid");
--      LET newTopAddr: Maybe ShortPAddr <- (STRUCT { "valid" ::= IF #doDequeue then (#ftopAddr @% "valid") else #topAddr @% "valid"; (* TODO: is this right? *)
--                                                    "data" ::= IF #doDequeue then (#ftopAddr @% "data") else #topAddrDat});
--      LET newTopUpperInst: Maybe CompInst <- STRUCT { "valid" ::= IF #doDequeue then !#FifoEmpty else #upperValid;
--                                                      "data" ::= IF #doDequeue then #ftopUpperInst else #upperInst };
--      LET newTopLowerInst: Maybe CompInst <- 
--                                 (IF !#upperValid 
--                                  then #lower
--                                  else
--                                    (IF #lowerValid
--                                     then (IF #lowerCompressed
--                                           then Invalid
--                                           else (IF !#FifoEmpty
--                                                 then Valid #ftopLowerInst
--                                                 else Invalid))
--                                     else (IF #upperCompressed
--                                           then (IF !#FifoEmpty
--                                                 then Valid #ftopLowerInst
--                                                 else Invalid)
--                                           else Invalid)));
--      LET newTop: TopEntry <- STRUCT { "addr" ::= #newTopAddr;
--                                       "upper" ::= #newTopUpperInst;
--                                       "lower" ::= #newTopLowerInst };
- 
--      If #doDequeue then ( LETA _ <- (Fifo.Ifc.deq backingFifo); Retv );
--      If #doFlush then ( LETA _ <- (Fifo.Ifc.flush backingFifo); Retv );
--      Write isCompleting: Maybe PAddr <- #newIsCompleting;
--      Write topReg: TopEntry <- #newTop;
--      Ret #ret.
-*)
-
-    Definition enq (new: ty (Maybe PrefetcherFifoEntry)) : ActionT ty Bool
-      := Ret $$true.
-(*
--    Definition enq (new: ty AddrInst): ActionT ty Bool := 
--      Read top: TopEntry <- topReg;
--      Read completing: Maybe PAddr <- isCompleting;
--      LETA isFull: Bool <- (Fifo.Ifc.isFull backingFifo);
--      LETA isEmpty: Bool <- isEmpty;
--      
--      LET inst: Inst <- #new @% "inst";
--      LET addr <- #new @% "addr";
--      LET addrDat <- #addr @% "data";
--      LET addrValid <- #addr @% "valid";
--      LET completingAddr: PAddr <- #completing @% "data";
--      LET newCompleting: Maybe PAddr <- (IF (toFullPAddr addrDat) == #completingAddr && #addrValid
--                                         then Invalid
--                                         else #completing);
--      (* if the Fifo + top are both entirely empty, we should put the new entry into the top register*)
--      (* otherwise, just fall through to the Fifo enqueue *)
--      If !#isEmpty
--      then (LETA _ <- (Fifo.Ifc.enq backingFifo) new; Retv)
--      else (Write topReg: TopEntry <- (STRUCT { "addr" ::= #addr;
--                                                "upper" ::= Valid (ZeroExtendTruncMsb CompInstSz #inst);
--                                                "lower" ::= Valid (ZeroExtendTruncLsb CompInstSz #inst) });
--            Retv);
--      Write isCompleting: Maybe PAddr <- #newCompleting;
--      Ret !#isFull.
-*)
-
-    Definition flush: ActionT ty Void :=
-      LETA _ <- (@Fifo.Ifc.flush _ backingFifo ty);
-      Write topReg
-        :  TopEntry
-        <- STRUCT {
-             "vaddr"  ::= $$(getDefaultConst (Maybe ShortVAddr));
-             "upper" ::= Invalid;
-             "lower" ::= Invalid
-           };
-      Retv.
+      Local Definition TopIsEmpty: ActionT ty Bool :=
+        Read top: TopEntry <- topReg;
+        LET upper: Maybe (@CompInst fifoTopParams) <- #top @% "upper";
+        Ret !(#upper @% "valid"). (* we maintain the invariant that the upper portion of the top register is valid for any non-empty Fifo *)
     
+      Definition isEmpty: ActionT ty Bool :=
+        LETA topEmpty: Bool <- TopIsEmpty;
+        LETA fifoEmpty: Bool <- (@Fifo.Ifc.isEmpty _ backingFifo ty);
+        Ret (#topEmpty && #fifoEmpty).
+  
+      Definition isFull: ActionT ty Bool :=
+        @Fifo.Ifc.isFull _ backingFifo ty.
+
+      Definition isFullOutstanding: ActionT ty Bool :=
+        @Fifo.Ifc.isFull _ outstandingFifo ty.
+
+      Definition enqOutstanding: ActionT ty Bool :=
+        LET dummy: Void <- $0;
+        @Fifo.Ifc.enq _ outstandingFifo ty dummy.
+
+      Definition deqOutstanding: ActionT ty Void :=
+        LETA _ <- @Fifo.Ifc.deq _ outstandingFifo ty;
+        Retv.
+      
+      Definition flush: ActionT ty Void :=
+        LETA _ <- (@Fifo.Ifc.flush _ backingFifo ty);
+        Write topReg
+          :  TopEntry
+          <- STRUCT {
+               "vaddr" ::= $$(getDefaultConst ShortVAddr);
+               "info"  ::= $$(getDefaultConst ImmRes);
+               "noErr" ::= $$(getDefaultConst Bool);
+               "upper" ::= Invalid;
+               "lower" ::= Invalid
+             };
+        ResetCompleting.
+      
+      Definition enq (new: ty PrefetcherFifoEntry): ActionT ty Bool := 
+        Read top: TopEntry <- topReg;
+        Read completing: Maybe VAddr <- isCompleting;
+        LETA isFull: Bool <- (@Fifo.Ifc.isFull _ backingFifo _);
+        LETA isEmp: Bool <- isEmpty;
+        
+        LET minst: Maybe Inst <- #new @% "inst";
+        LET inst: Inst <- #minst @% "data";
+        LET noErr: Bool <- #minst @% "valid";
+        LET vaddr <- #new @% "vaddr";
+        LET completingAddr: (@VAddr fifoTopParams) <- #completing @% "data";
+        LET newCompleting: Maybe VAddr <- (IF  (#completing @% "valid") && toFullVAddr #vaddr == #completingAddr
+                                           then Invalid
+                                           else #completing);
+        LET drop: Bool <- #completing @% "valid" && toFullVAddr #vaddr != #completingAddr;
+        If !#drop
+        then (
+          If !#isEmp
+          then (LETA _ <- (@Fifo.Ifc.enq _ backingFifo _) new; Retv)
+          else (Write topReg: TopEntry <- (STRUCT { "vaddr" ::= (#vaddr: ShortVAddr @# ty);
+                                                    "info"  ::= #new @% "info";
+                                                    "noErr" ::= #noErr;
+                                                    "upper" ::= (Valid (ZeroExtendTruncMsb CompInstSz #inst): Maybe CompInst @# ty);
+                                                    "lower" ::= (Valid (ZeroExtendTruncLsb CompInstSz #inst): Maybe CompInst @# ty) });
+                LETA _ <- @Fifo.Ifc.deq _ outstandingFifo _;
+                Retv);
+          Retv);
+        Write isCompleting: Maybe VAddr <- #newCompleting;
+        Ret !#isFull.
+  
+      Definition deq: ActionT ty DeqRes := 
+        Read top: TopEntry <- topReg;
+        Read completing: Bool <- isCompleting;
+        LETA fifoEmpty: Bool <- (@Fifo.Ifc.isEmpty _ backingFifo _);
+        LETA ftop: Maybe PrefetcherFifoEntry <- (@Ifc.first _ backingFifo _);
+
+        LET topInfo: ImmRes <- #top @% "info";
+        LET topNoErr: Bool <- #top @% "noErr";
+        LET topShortAddr: ShortVAddr <- #top @% "vaddr";
+        LET lower: Maybe CompInst <- #top @% "lower";
+        LET lowerValid: Bool <- #lower @% "valid";
+        LET lowerInst: CompInst <- #lower @% "data";
+        LET lowerCompressed: Bool <- isCompressed #lowerInst;
+        LET upper: Maybe CompInst <- #top @% "upper";
+        LET upperValid: Bool <- #upper @% "valid";
+        LET upperInst: CompInst <- #upper @% "data";
+        LET upperCompressed: Bool <- isCompressed #upperInst;
+        LET lowerFull: Inst <- (ZeroExtend _ #lowerInst: Inst @# ty);
+        LET upperFull: Inst <- (ZeroExtend _ #upperInst: Inst @# ty);
+        LET topFull: Inst <- {< #upperInst, #lowerInst >};
+        
+        LET ftopAddrInst: PrefetcherFifoEntry <- #ftop @% "data";
+        LET ftopShortAddr: ShortVAddr <- #ftopAddrInst @% "vaddr";
+        
+        LET ftopMInst: Maybe Inst <- #ftopAddrInst @% "inst";
+        LET ftopInfo: ImmRes <- #ftopAddrInst @% "info";
+        LET ftopNoErr: Bool <- #ftopMInst @% "valid";
+        LET ftopInst : Inst <- #ftopMInst @% "data";
+        LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;
+        LET ftopLowerInst: CompInst <- ZeroExtendTruncLsb _ #ftopInst;
+
+        LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
+
+        LET retAddr: VAddr <-
+          (IF isErr #topInfo || !#topNoErr
+           then toFullVAddr #topShortAddr
+           else (IF #lowerValid
+                 then toFullVAddr #topShortAddr
+                 else (IF #upperCompressed
+                       then (toFullVAddr #topShortAddr) + $2
+                       else (IF #fifoEmpty || #ftopShortAddr != (#topShortAddr + $1)
+                             then toFullVAddr (#topShortAddr + $1)
+                             else (toFullVAddr #topShortAddr) + $2))));
+
+        LET doComplete <- !#lowerValid && !#upperCompressed && (#fifoEmpty || #ftopShortAddr != (#topShortAddr + $1));
+
+        LET retInst: Inst <-
+          (IF #lowerValid
+           then #topFull
+           else (IF #upperCompressed
+                 then #upperFull
+                 else #completedInst));
+
+        LET doDeq: Bool <-
+          (isErr #topInfo || !#topNoErr) ||
+          (#lowerValid && !#lowerCompressed) ||
+          (!#lowerValid && !#doComplete);
+
+        If #doDeq
+        then (LETA _ <- @Fifo.Ifc.deq _ outstandingFifo _;
+              @Fifo.Ifc.deq _ backingFifo _);
+
+        If #doComplete
+        then @Fifo.Ifc.flush _ backingFifo _;
+
+        Write isCompleting: Bool <- #doComplete;
+
+        LET newTopEntry: TopEntry <- (IF #doDeq
+                                      then STRUCT { "vaddr" ::= #ftopShortAddr ;
+                                                    "info"  ::= #ftopInfo ;
+                                                    "noErr" ::= #ftopNoErr ;
+                                                    "upper" ::= STRUCT { "valid" ::= !#fifoEmpty;
+                                                                         "data"  ::= #ftopUpperInst } ;
+                                                    "lower" ::= STRUCT { "valid" ::= (IF #lowerValid
+                                                                                      then $$true
+                                                                                      else (IF #upperCompressed
+                                                                                            then $$true
+                                                                                            else $$false));
+                                                                         "data"  ::= #ftopLowerInst } }
+                                      else STRUCT { "vaddr" ::= #topShortAddr ;
+                                                    "info"  ::= #topInfo ;
+                                                    "noErr" ::= #topNoErr ;
+                                                    "upper" ::= STRUCT { "valid" ::= #upperValid ;
+                                                                         "data"  ::= #upperInst } ;
+                                                    "lower" ::= STRUCT { "valid" ::= $$false ;
+                                                                         "data"  ::= #lowerInst } });
+                                                    
+        Write topReg: TopEntry <- #newTopEntry;
+
+        LETA isEmp: Bool <- isEmpty;
+        LET retError: DeqError <- (IF #isEmp
+                                   then $EmptyError
+                                   else (IF #doComplete
+                                         then $IncompleteError
+                                         else $NoError));
+          
+        LET ret: DeqRes <- STRUCT { "error" ::= #retError;
+                                    "vaddr" ::= #retAddr;
+                                    "info"  ::= #topInfo;
+                                    "noErr" ::= #topNoErr;
+                                    "inst"  ::= #retInst};
+        Ret #ret.
+  
     End withTy.
 
     Open Scope kami_scope.
     Open Scope kami_expr_scope.
 
     Definition regs: list RegInitT := makeModule_regs ( Register topReg: TopEntry <- Default ++
-                                                        Register isCompleting: Maybe VAddr <- Default )
-                                      ++ (@Fifo.Ifc.regs _ backingFifo).
+                                                        Register isCompleting: Bool <- Default )
+                                      ++ (@Fifo.Ifc.regs _ backingFifo)
+                                      ++ (@Fifo.Ifc.regs _ outstandingFifo).
+
+    Definition regFiles := (@Fifo.Ifc.regFiles _ backingFifo)
+                           ++ (@Fifo.Ifc.regFiles _ outstandingFifo).
     
     Instance asyncFifoTop: FifoTop.Ifc.FifoTop := 
       {|
         FifoTop.Ifc.regs := regs;
-        FifoTop.Ifc.regFiles := @Fifo.Ifc.regFiles _ backingFifo;
+        FifoTop.Ifc.regFiles := regFiles;
         FifoTop.Ifc.getIsCompleting := GetIsCompleting;
+        FifoTop.Ifc.resetCompleting := ResetCompleting;
         FifoTop.Ifc.isEmpty := isEmpty;
         FifoTop.Ifc.isFull := isFull;
         FifoTop.Ifc.deq := deq;
         FifoTop.Ifc.enq := enq;
+        FifoTop.Ifc.enqOutstanding := enqOutstanding;
+        FifoTop.Ifc.isFullOutstanding := isFullOutstanding;
         FifoTop.Ifc.flush := flush;
       |}.
   End withParams.

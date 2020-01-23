@@ -41,51 +41,13 @@ Section Reorderer.
     
     Definition ReordererPtr := Bit (logNumReqId + 1).
     Section withTy.
-
-      (* Conceptual rule *)
-      Definition responseToPrefetcher
-                 (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
-                 ty
-      : ActionT ty Void
-        := Read deqPFull: ReordererPtr <- deqPtr;
-           Read enqPFull: ReordererPtr <- enqPtr;
-           Read valids: Array numReqId Bool <- validArray;
-           LET deqP: ReordererReqId
-                       <- UniBit (TruncLsb _ 1)
-                       (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
-           Call inst: MInst <- rfRead(#deqP: ReordererReqId);
-           Call vaddr: VAddr <- arfRead(#deqP: ReordererReqId);
-           LET resp
-           :  ReordererRes
-                <- STRUCT {
-                  "vaddr" ::= #vaddr;
-                  "inst"  ::= #inst
-                };
-           If (#deqPFull != #enqPFull) && (#valids@[#deqP])
-           then
-             LETA _ <- prefetcherCallback (resp : ty ReordererRes);
-             Write deqPtr <- #deqPFull + $1;
-             Retv;
-           Retv.
-
-      (* Action the arbiter will call when giving us (the reorderer) the
-         response to a prior request *)
-      Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
-        LET idx: ReordererReqId <- #resp @% "tag";
-        LET res: MInst <- #resp @% "resp";
-        Read valids: Array numReqId Bool <- validArray;
-        Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
-        Call rfWrite(STRUCT { "addr" ::= #idx;
-                              "data" ::= #res } : WriteRq reqIdSz MInst);
-        Retv.
-
       Definition sendReq
                  ty
                  (memReq
                   : ty ReordererArbiterReq ->
                     ActionT ty ReordererImmRes)
                  (req: ty ReordererReq)
-        :  ActionT ty ReordererImmRes
+        :  ActionT ty Bool
         := Read enqPFull: ReordererPtr <- enqPtr;
            Read deqPFull: ReordererPtr <- deqPtr;
            Read valids: Array numReqId Bool <- validArray;
@@ -106,20 +68,57 @@ Section Reorderer.
              then
                Write enqPtr <- #enqPFull + $1;
                Write validArray: Array numReqId Bool <- #valids@[#enqP <- $$false];
+               LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
+                                                          "info" ::= #res @% "info" };
                Call arfWrite
                  (STRUCT {
                     "addr" ::= #enqP;
-                    "data" ::= #req @% "vaddr"
-                  } : WriteRq reqIdSz VAddr);
+                    "data" ::= #dataVal
+                  } : WriteRq reqIdSz ReordererStorage);
                Retv;
-             Ret #res
-           else
-             Ret (STRUCT {
-               "ready" ::= $$false;
-               "info"  ::= $$(getDefaultConst ImmRes)
-             } : ReordererImmRes @# ty)
+             Ret (#res @% "ready")
+           else Ret $$false
            as ret;
            Ret #ret.
+
+      (* Action the arbiter will call when giving us (the reorderer) the
+         response to a prior request *)
+      Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
+        LET idx: ReordererReqId <- #resp @% "tag";
+        LET res: MInst <- #resp @% "resp";
+        Read valids: Array numReqId Bool <- validArray;
+        Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
+        Call rfWrite(STRUCT { "addr" ::= #idx;
+                              "data" ::= #res } : WriteRq reqIdSz MInst);
+        Retv.
+
+      (* Conceptual rule *)
+      Definition responseToPrefetcher
+                 (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
+                 ty
+      : ActionT ty Void
+        := Read deqPFull: ReordererPtr <- deqPtr;
+           Read enqPFull: ReordererPtr <- enqPtr;
+           Read valids: Array numReqId Bool <- validArray;
+           LET deqP: ReordererReqId
+                       <- UniBit (TruncLsb _ 1)
+                       (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
+           Call inst: MInst <- rfRead(#deqP: ReordererReqId);
+           Call vaddrInfo: ReordererStorage <- arfRead(#deqP: ReordererReqId);
+           LET resp
+           :  ReordererRes
+                <- STRUCT {
+                  "vaddr" ::= #vaddrInfo @% "vaddr";
+                  "info"  ::= #vaddrInfo @% "info";
+                  "inst"  ::= #inst
+                };
+           If (#deqPFull != #enqPFull) && (#valids@[#deqP])
+           then
+             LETA _ <- prefetcherCallback (resp : ty ReordererRes);
+             Write deqPtr <- #deqPFull + $1;
+             Retv;
+           Retv.
+
     End withTy.
 
     Open Scope kami_scope.
@@ -135,7 +134,7 @@ Section Reorderer.
                            (Async [rfRead]) rfWrite reqIdSz MInst (@RFNonFile _ _ None);
           
         @Build_RegFileBase false 1 arfName
-                           (Async [arfRead]) arfWrite reqIdSz VAddr (@RFNonFile _ _ None)
+                           (Async [arfRead]) arfWrite reqIdSz ReordererStorage (@RFNonFile _ _ None)
       ].
     
 

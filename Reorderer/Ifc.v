@@ -1,7 +1,8 @@
 Require Import Kami.All.
 Section Reorderer.
-  Class ReordererParams := {
+  Class ReordererParams := {                            
       numReqId: nat;
+      PrivMode: Kind;                      
       PAddr: Kind;
       VAddr: Kind;
       MInst: Kind;
@@ -15,6 +16,7 @@ Section Reorderer.
 
     Definition ReordererReq
       := STRUCT_TYPE {
+           "mode"  :: PrivMode;
            "paddr" :: PAddr;
            "vaddr" :: VAddr
          }.
@@ -40,8 +42,15 @@ Section Reorderer.
     Definition ReordererRes
       := STRUCT_TYPE {
            "vaddr" :: VAddr;
+           "info"  :: ImmRes;
            "inst"  :: MInst
-         }.
+           }.
+
+    Definition ReordererStorage
+      := STRUCT_TYPE {
+           "vaddr" :: VAddr;
+           "info"  :: ImmRes
+           }.
 
     Class Reorderer: Type :=
       {
@@ -55,7 +64,7 @@ Section Reorderer.
             : ty ReordererArbiterReq ->
               ActionT ty ReordererImmRes)
           (p: ty ReordererReq)
-          : ActionT ty ReordererImmRes
+          : ActionT ty Bool
       }.
   End withParams.
 End Reorderer.

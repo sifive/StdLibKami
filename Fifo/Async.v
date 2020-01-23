@@ -74,6 +74,7 @@ Section AsyncFifo.
 
       Instance asyncFifo: @Fifo K :=
         {|
+          Fifo.Ifc.getLen := len;
           Fifo.Ifc.regs := regs;
           Fifo.Ifc.regFiles := regFiles;
           Fifo.Ifc.isEmpty := isEmpty;
