@@ -60,13 +60,14 @@ Section FifoTopInterface.
   Definition DeqErrorSz: nat := Nat.log2_up 3.
   Definition DeqError: Kind := Bit DeqErrorSz.
 
+  (* if inst contains a compressed instruction the upper 16 bit contain arbitrary data. *)
   Definition DeqRes
     := STRUCT_TYPE {
          "error" :: DeqError;
          "vaddr" :: VAddr;
          "info"  :: ImmRes;
          "noErr" :: Bool;
-         "inst"  :: Inst
+         "inst"  :: Inst 
        }.
 
   Class FifoTop: Type :=

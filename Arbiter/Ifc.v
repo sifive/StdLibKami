@@ -59,6 +59,7 @@ Section Arbiter.
            "req" :: reqK
          }.
 
+    (* TODO: LLEE: for later - remove the Maybe from respK in all stdlibkami components. *)
     Definition ArbiterRouterRes
       := STRUCT_TYPE {
            "tag" :: TransactionTag;

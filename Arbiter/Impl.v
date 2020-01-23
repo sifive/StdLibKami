@@ -77,6 +77,7 @@ Section ArbiterImpl.
                LETA routerImmRes
                  :  ArbiterImmRes
                  <- routerSendReq routerReq;
+               (* TODO: LLEE: accept an additional parameter that accepts an immres and returns true iff the immres signals an error. If error do not allocate resource (i.e. transaction tag. Note: this is a general error. Check other components as well. *) 
                If #routerImmRes @% "ready"
                  then
                    LET clientIdTag

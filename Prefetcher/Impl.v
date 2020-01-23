@@ -14,6 +14,7 @@ Section Prefetch.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
+  (* TODO: Murali: decrement counter for outstanding fifo. *)
   Definition flush ty: ActionT ty Void :=
     @FifoTop.Ifc.flush _ fifoTop ty.
   
@@ -43,7 +44,6 @@ Section Prefetch.
       (prefetcherReq: ty PrefetcherReq)
     :  ActionT ty Bool
     := LETA retval <- memReq prefetcherReq;
-       LET dummy: Void <- $0;
        LETA _ <- @FifoTop.Ifc.enqOutstanding _ fifoTop _;
        Ret #retval.
 
