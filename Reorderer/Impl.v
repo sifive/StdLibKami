@@ -43,6 +43,7 @@ Section Reorderer.
     Section withTy.
       Definition sendReq
                  ty
+                 (isError : ImmRes @# ty -> Bool @# ty)
                  (memReq
                   : ty ReordererArbiterReq ->
                     ActionT ty ReordererImmRes)
@@ -64,7 +65,7 @@ Section Reorderer.
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
            then
              LETA res <- memReq arbiterReq;
-             If #res @% "ready"
+             If #res @% "ready" && (!isError (#res @% "info"))
              then
                Write enqPtr <- #enqPFull + $1;
                Write validArray: Array numReqId Bool <- #valids@[#enqP <- $$false];

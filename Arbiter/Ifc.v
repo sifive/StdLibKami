@@ -79,7 +79,7 @@ Section Arbiter.
            regFiles : list RegFileBase;
 
            sendReq
-             (isError : forall {ty}, ArbiterImmRes @# ty -> Bool @# ty)
+             (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->

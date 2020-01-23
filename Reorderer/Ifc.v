@@ -60,6 +60,7 @@ Section Reorderer.
         callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
           ty
+          (isError : ImmRes @# ty -> Bool @# ty)
           (memReq
             : ty ReordererArbiterReq ->
               ActionT ty ReordererImmRes)
