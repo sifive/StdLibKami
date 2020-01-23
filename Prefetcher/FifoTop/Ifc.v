@@ -81,7 +81,6 @@ Section FifoTopInterface.
       deq: forall {ty}, ActionT ty DeqRes;
       enq: forall {ty}, ty PrefetcherFifoEntry -> ActionT ty Bool;
       enqOutstanding: forall {ty}, ActionT ty Bool;
-      isFullOutstanding: forall {ty}, ActionT ty Bool;
-      flush: forall {ty}, ActionT ty Void
+      isFullOutstanding: forall {ty}, ActionT ty Bool
     }.
 End FifoTopInterface.

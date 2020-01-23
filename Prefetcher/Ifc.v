@@ -31,28 +31,16 @@ Section prefetcher.
     {
       regs: list RegInitT;
       regFiles : list RegFileBase;
-      
-      flush: forall {ty}, ActionT ty Void;
 
       (*
         Returns the address that needs to be fetched to retrieve the
         upper 16 bits of the current instruction's 32 bit word.
       *)
       getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);
-
       resetCompleting: forall {ty}, ActionT ty Void;
-
       isFull: forall {ty}, ActionT ty Bool;
-      
       memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
-
       fetchInstruction: forall {ty}, ActionT ty DeqRes;
-
-      doPrefetch
-        ty
-        (memReq
-          : ty PrefetcherReq ->
-              ActionT ty Bool)
-        : ty PrefetcherReq -> ActionT ty Bool;
+      doPrefetch ty (memReq: ty PrefetcherReq -> ActionT ty Bool): ty PrefetcherReq -> ActionT ty Bool;
     }.
 End prefetcher.

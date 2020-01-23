@@ -13,10 +13,6 @@ Section Prefetch.
 
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
-
-  (* TODO: Murali: decrement counter for outstanding fifo. *)
-  Definition flush ty: ActionT ty Void :=
-    @FifoTop.Ifc.flush _ fifoTop ty.
   
   Definition getIsCompleting ty: ActionT ty (Maybe VAddr) :=
     @FifoTop.Ifc.getIsCompleting _ fifoTop ty.
@@ -62,7 +58,6 @@ Section Prefetch.
 
   Instance prefetcher: Prefetcher := {| Prefetcher.Ifc.regs := regs;
                                         Prefetcher.Ifc.regFiles := regFiles;
-                                        Prefetcher.Ifc.flush := flush;
                                         Prefetcher.Ifc.getIsCompleting := getIsCompleting;
                                         Prefetcher.Ifc.resetCompleting := resetCompleting;
                                         Prefetcher.Ifc.isFull := isFull;
