@@ -58,19 +58,6 @@ Section AsyncFifoTop.
         LETA _ <- @Fifo.Ifc.deq _ outstandingFifo ty;
         Retv.
       
-      Definition flush: ActionT ty Void :=
-        LETA _ <- (@Fifo.Ifc.flush _ backingFifo ty);
-        Write topReg
-          :  TopEntry
-          <- STRUCT {
-               "vaddr" ::= $$(getDefaultConst ShortVAddr);
-               "info"  ::= $$(getDefaultConst ImmRes);
-               "noErr" ::= $$(getDefaultConst Bool);
-               "upper" ::= Invalid;
-               "lower" ::= Invalid
-             };
-        ResetCompleting.
-      
       Definition enq (new: ty PrefetcherFifoEntry): ActionT ty Bool := 
         Read top: TopEntry <- topReg;
         Read completing: Maybe VAddr <- isCompleting;
@@ -159,12 +146,9 @@ Section AsyncFifoTop.
           (#lowerValid && !#lowerCompressed) ||
           (!#lowerValid && !#doComplete);
 
-        If #doDeq
+        If #doDeq || #doComplete
         then (LETA _ <- @Fifo.Ifc.deq _ outstandingFifo _;
               @Fifo.Ifc.deq _ backingFifo _);
-
-        If #doComplete
-        then @Fifo.Ifc.flush _ backingFifo _;
 
         Write isCompleting: Bool <- #doComplete;
 
@@ -229,7 +213,6 @@ Section AsyncFifoTop.
         FifoTop.Ifc.enq := enq;
         FifoTop.Ifc.enqOutstanding := enqOutstanding;
         FifoTop.Ifc.isFullOutstanding := isFullOutstanding;
-        FifoTop.Ifc.flush := flush;
       |}.
   End withParams.
 End AsyncFifoTop.
