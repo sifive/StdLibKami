@@ -183,7 +183,16 @@ Section Prefetch.
            "data"  ::=  #ret }: Maybe DeqRes @# ty).
 
     
-  Definition regs := @Fifo.Ifc.regs _ fifo ++ @Fifo.Ifc.regs _ outstanding.
+  Open Scope kami_scope.
+
+  Definition regs
+    := (makeModule_regs
+         (Register topReg : TopEntry <- getDefaultConst TopEntry)) ++
+       (@Fifo.Ifc.regs _ fifo ++
+        @Fifo.Ifc.regs _ outstanding).
+
+  Close Scope kami_scope.
+
   Definition regFiles := @Fifo.Ifc.regFiles _ fifo ++ @Fifo.Ifc.regFiles _ outstanding.
 
   Instance prefetcher: Prefetcher := {| Prefetcher.Ifc.regs := regs;

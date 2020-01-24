@@ -53,7 +53,7 @@ Section ArbiterImpl.
       Open Scope kami_expr_scope.
 
       Definition sendReq
-        (isError : forall {ty}, ArbiterImmRes @# ty -> Bool @# ty)
+        (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
@@ -79,7 +79,7 @@ Section ArbiterImpl.
                  :  ArbiterImmRes
                  <- routerSendReq routerReq;
                (* TODO: LLEE: accept an additional parameter that accepts an immres and returns true iff the immres signals an error. If error do not allocate resource (i.e. transaction tag. Note: this is a general error. Check other components as well. *) 
-               If #routerImmRes @% "ready" && !(isError #routerImmRes)
+               If #routerImmRes @% "ready" && !(isError (#routerImmRes @% "info"))
                  then
                    LET clientIdTag
                      :  ClientIdTag
