@@ -71,11 +71,7 @@ Section Reorderer.
                Write validArray: Array numReqId Bool <- #valids@[#enqP <- $$false];
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
                                                           "info" ::= #res @% "info" };
-               Call arfWrite
-                 (STRUCT {
-                    "addr" ::= #enqP;
-                    "data" ::= #dataVal
-                  } : WriteRq reqIdSz ReordererStorage);
+               WriteRf arfWrite(#enqP : reqIdSz ; #dataVal : ReordererStorage);
                Retv;
              Ret (#res @% "ready")
            else Ret $$false
@@ -89,8 +85,7 @@ Section Reorderer.
         LET res: MInst <- #resp @% "resp";
         Read valids: Array numReqId Bool <- validArray;
         Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
-        Call rfWrite(STRUCT { "addr" ::= #idx;
-                              "data" ::= #res } : WriteRq reqIdSz MInst);
+        WriteRf rfWrite(#idx: reqIdSz ; #res: MInst);
         Retv.
 
       (* Conceptual rule *)
@@ -104,8 +99,8 @@ Section Reorderer.
            LET deqP: ReordererReqId
                        <- UniBit (TruncLsb _ 1)
                        (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
-           Call inst: MInst <- rfRead(#deqP: ReordererReqId);
-           Call vaddrInfo: ReordererStorage <- arfRead(#deqP: ReordererReqId);
+           ReadRf inst: MInst <- rfRead(#deqP: ReordererReqId);
+           ReadRf vaddrInfo: ReordererStorage <- arfRead(#deqP: ReordererReqId);
            LET resp
            :  ReordererRes
                 <- STRUCT {

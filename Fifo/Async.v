@@ -37,7 +37,7 @@ Section AsyncFifo.
       LETA empty: Bool <- isEmpty ty;
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
       LET idx: Bit FifoSize <- (fastModLen #deq);
-      Call dat: K <- ReadName(#idx: Bit FifoSize);
+      ReadRf dat: K <- ReadName(#idx: Bit FifoSize);
       Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe K @# ty).
 
     Definition deq ty: ActionT ty (Maybe K) :=
@@ -51,8 +51,7 @@ Section AsyncFifo.
       LET idx: Bit FifoSize <- (fastModLen #enq);
       LETA full: Bool <- isFull ty;
       If !#full then (
-        Call WriteName(STRUCT { "addr" ::= #idx;
-                                "data" ::= #new } : WriteRq FifoSize K );
+        WriteRf WriteName(#idx : FifoSize ; #new : K);
         Write EnqPtr: Bit (FifoSize + 1) <- #enq + $1;
         Retv
         );

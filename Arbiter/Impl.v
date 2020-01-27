@@ -87,13 +87,7 @@ Section ArbiterImpl.
                           "id"  ::= $(proj1_sig (Fin.to_nat clientId));
                           "tag" ::= ZeroExtendTruncLsb GenericClientTagSz (#clientReq @% "tag")
                         };
-                   LET transaction
-                     :  WriteRq transactionTagSz ClientIdTag
-                     <- STRUCT {
-                          "addr" ::= #transactionTag @% "data";
-                          "data" ::= #clientIdTag
-                        };
-                   Call alistWrite (#transaction : WriteRq transactionTagSz ClientIdTag);
+                   WriteRf alistWrite (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
                    LET transactionTagData
                      :  TransactionTag
                      <- #transactionTag @% "data";
@@ -116,7 +110,7 @@ Section ArbiterImpl.
         := LET transactionTag
              :  TransactionTag
              <- #routerRes @% "tag";
-           Call clientIdTag
+           ReadRf clientIdTag
              :  ClientIdTag
              <- alistRead (#transactionTag: TransactionTag);
            LETA _
