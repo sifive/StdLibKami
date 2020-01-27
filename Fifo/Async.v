@@ -24,29 +24,74 @@ Section AsyncFifo.
       UniBit (TruncLsb FifoSize 1) w.
 
     Definition isEmpty ty: ActionT ty Bool :=
+      System [
+        DispString _ "[Fifo.isEmpty]\n"
+      ];
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
       Read enq: Bit (FifoSize + 1) <- EnqPtr;
       Ret (#deq == #enq).
   
     Definition isFull ty: ActionT ty Bool :=
+      System [
+        DispString _ "[Fifo.isFull]\n"
+      ];
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
       Read enq: Bit (FifoSize + 1) <- EnqPtr;
       Ret ((#deq + $len) == #enq).
     
     Definition first ty: ActionT ty (Maybe K) := 
+      System [
+        DispString _ "[Fifo.first]\n"
+      ];
       LETA empty: Bool <- isEmpty ty;
+      System [
+        DispString _ "[Fifo.first] empty\n";
+        DispHex #empty;
+        DispString _ "\n"
+      ];
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
+      System [
+        DispString _ "[Fifo.first] deq\n";
+        DispHex #deq;
+        DispString _ "\n"
+      ];
       LET idx: Bit FifoSize <- (fastModLen #deq);
-      Call dat: K <- ReadName(#idx: Bit FifoSize);
-      Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe K @# ty).
+      System [
+        DispString _ "[Fifo.first] idx\n";
+        DispHex #idx;
+        DispString _ "\n"
+      ];
+      Call dat: Array 1 K <- ReadName(#idx: Bit FifoSize);
+      System [
+(*
+        DispString _ "[Fifo.first] fifo len:\n";
+        DispHex ($len : Bit 32 @# ty);
+        DispString _ "\n";
+        DispString _ ("[Fifo.first] enq ptr named: " ++ EnqPtr ++ "\n");
+        DispString _ ("[Fifo.first] deq ptr named: " ++ DeqPtr ++ "\n");
+        DispString _ ("[Fifo.first] write function named: " ++ WriteName ++ "\n");
+        DispString _ ("[Fifo.first] data name: " ++ DataName ++ "\n");
+*)
+        DispString _ ("[Fifo.first] calling the read function named: " ++ ReadName ++ "\n");
+        DispString _ "[Fifo.first] dat\n";
+        DispHex #dat;
+        DispString _ "\n"
+      ];
+      Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat@[$0 : Bit 1 @# ty]} : Maybe K @# ty).
 
     Definition deq ty: ActionT ty (Maybe K) :=
+      System [
+        DispString _ "[Fifo.deq]\n"
+      ];
       LETA data: Maybe K <- first ty;
       Read deq: Bit (FifoSize + 1) <- DeqPtr;
       Write DeqPtr: Bit (FifoSize + 1) <- #deq + (IF #data @% "valid" then $1 else $0);
       Ret #data.
 
     Definition enq ty (new: ty K): ActionT ty Bool :=
+      System [
+        DispString _ "[Fifo.enq]\n"
+      ];
       Read enq: Bit (FifoSize + 1) <- EnqPtr;
       LET idx: Bit FifoSize <- (fastModLen #enq);
       LETA full: Bool <- isFull ty;
@@ -59,6 +104,9 @@ Section AsyncFifo.
       Ret !#full.
       
       Definition flush ty: ActionT ty Void :=
+        System [
+          DispString _ "[Fifo.flush]\n"
+        ];
         Write DeqPtr: Bit (FifoSize + 1) <- $0;
         Write EnqPtr: Bit (FifoSize + 1) <- $0;
         Retv.

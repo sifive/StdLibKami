@@ -18,6 +18,9 @@ Section SimpleDevRouter.
     Section withTy.
       Context (ty: Kind -> Type).
       Definition pollRuleGenerator (clientCallback: forall {ty}, ty respK -> ActionT ty Void) (dev: Fin.t numDevices): ActionT ty Void :=
+      System [
+        DispString _ "[DevRouter.pullRuleGenerator]\n"
+      ];
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
         LETA resp: Maybe respK <- (nth_Fin devices dev).(memDevicePoll);
@@ -31,6 +34,9 @@ Section SimpleDevRouter.
       );
       Retv.
     Definition pollingDone: ActionT ty Void :=
+      System [
+        DispString _ "[DevRouter.pollingDone]\n"
+      ];
       Write routed: Bool <- $$false;
       Retv.
 
@@ -38,6 +44,9 @@ Section SimpleDevRouter.
     Definition devRouterReq
       (req: ty DevRouterReq)
       : ActionT ty Bool :=
+      System [
+        DispString _ "[DevRouter.devRouterReq]\n"
+      ];
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
                             If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")

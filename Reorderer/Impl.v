@@ -49,7 +49,10 @@ Section Reorderer.
                     ActionT ty ReordererImmRes)
                  (req: ty ReordererReq)
         :  ActionT ty Bool
-        := Read enqPFull: ReordererPtr <- enqPtr;
+        := System [
+             DispString _ "[Reorderer.sendReq]\n"
+           ];
+           Read enqPFull: ReordererPtr <- enqPtr;
            Read deqPFull: ReordererPtr <- deqPtr;
            Read valids: Array numReqId Bool <- validArray;
            LET enqP: ReordererReqId <- UniBit (TruncLsb _ 1)
@@ -85,6 +88,9 @@ Section Reorderer.
       (* Action the arbiter will call when giving us (the reorderer) the
          response to a prior request *)
       Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
+        System [
+          DispString _ "[Reorderer.reordererCallback]\n"
+        ];
         LET idx: ReordererReqId <- #resp @% "tag";
         LET res: MInst <- #resp @% "resp";
         Read valids: Array numReqId Bool <- validArray;
@@ -98,20 +104,23 @@ Section Reorderer.
                  (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
                  ty
       : ActionT ty Void
-        := Read deqPFull: ReordererPtr <- deqPtr;
+        := System [
+             DispString _ "[Reorderer.reordererCallback]\n"
+           ];
+           Read deqPFull: ReordererPtr <- deqPtr;
            Read enqPFull: ReordererPtr <- enqPtr;
            Read valids: Array numReqId Bool <- validArray;
            LET deqP: ReordererReqId
                        <- UniBit (TruncLsb _ 1)
                        (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
-           Call inst: MInst <- rfRead(#deqP: ReordererReqId);
-           Call vaddrInfo: ReordererStorage <- arfRead(#deqP: ReordererReqId);
+           Call inst: Array 1 MInst <- rfRead(#deqP: ReordererReqId);
+           Call vaddrInfo: Array 1 ReordererStorage <- arfRead(#deqP: ReordererReqId);
            LET resp
            :  ReordererRes
                 <- STRUCT {
-                  "vaddr" ::= #vaddrInfo @% "vaddr";
-                  "info"  ::= #vaddrInfo @% "info";
-                  "inst"  ::= #inst
+                  "vaddr" ::= #vaddrInfo @[$0 : Bit 1 @# ty] @% "vaddr";
+                  "info"  ::= #vaddrInfo @[$0 : Bit 1 @# ty] @% "info";
+                  "inst"  ::= #inst@[$0 : Bit 1 @# ty]
                 };
            If (#deqPFull != #enqPFull) && (#valids@[#deqP])
            then

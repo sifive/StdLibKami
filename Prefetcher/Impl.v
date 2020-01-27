@@ -23,9 +23,15 @@ Section Prefetch.
   Local Open Scope kami_action.
 
   Definition isFull ty: ActionT ty Bool :=
+    System [
+      DispString _ "[Prefetcher.isFull]\n"
+    ];
     @Fifo.Ifc.isFull _ outstanding _.
 
   Definition clearTop ty: ActionT ty Void :=
+    System [
+      DispString _ "[Prefetcher.clearTop]\n"
+    ];
     Write topReg: TopEntry <-
       STRUCT {
         "vaddr" ::= $0;
@@ -36,14 +42,26 @@ Section Prefetch.
       Retv.
 
   Definition isNotComplete ty: ActionT ty Bool :=
+    System [
+      DispString _ "[Prefetcher.isNotComplete]\n"
+    ];
     Read top: TopEntry <- topReg;
+    System [
+      DispString _ "[Prefetcher.isNotComplete] read top\n"
+    ];
     LETA ftop: Maybe PrefetcherFifoEntry <- @Fifo.Ifc.first _ fifo _;
+    System [
+      DispString _ "[Prefetcher.isNotComplete] read fifo first\n"
+    ];
     Ret ((#top @% "upper" @% "valid")
            && !(#top @% "lower" @% "valid")
            && !(isCompressed (#top @% "upper" @% "data"))
            && (!(#ftop @%"valid") || ((#top @% "vaddr" + $1) != #ftop @% "data" @% "vaddr"))).
 
   Definition notCompleteDeq ty: ActionT ty Void :=
+    System [
+      DispString _ "[Prefetcher.notCompleteDeq]\n"
+    ];
     LETA notComplete <- isNotComplete _;
     Read top: TopEntry <- topReg;
     LETA ftop: Maybe PrefetcherFifoEntry <- @Fifo.Ifc.first _ fifo _;
@@ -55,6 +73,9 @@ Section Prefetch.
     Retv.       
 
   Definition transfer ty: ActionT ty Void :=
+    System [
+      DispString _ "[Prefetcher.transfer]\n"
+    ];
     Read top: TopEntry <- topReg;
     LETA isEmp: Bool <- @Fifo.Ifc.isEmpty _ fifo _;
     If !(#top @% "upper" @% "valid") && !#isEmp
@@ -74,7 +95,10 @@ Section Prefetch.
 
   Definition memCallback ty (reordererRes: ty PrefetcherRes)
     :  ActionT ty Void
-    := LET entryData
+    := System [
+         DispString _ "[Prefetcher.memCallback]\n"
+       ];
+       LET entryData
          :  PrefetcherFifoEntry
          <- STRUCT {
               "vaddr" ::= (toShortVAddr (#reordererRes @% "vaddr" : VAddr @# ty));
@@ -86,14 +110,30 @@ Section Prefetch.
 
   Definition doPrefetch ty (memReq : ty PrefetcherReq -> ActionT ty Bool) (prefetcherReq: ty PrefetcherReq)
     : ActionT ty Bool
-    := LETA retval <- memReq prefetcherReq;
+    := System [
+         DispString _ "[Prefetcher.doPrefetch]\n"
+       ];
+       LETA retval <- memReq prefetcherReq;
        LET dummy: Void <- $$(getDefaultConst Void);
        LETA _ <- @Fifo.Ifc.enq _ outstanding _ dummy;
        Ret #retval.
 
   Definition fetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+    System [
+      DispString _ "[Prefetcher.fetchInstruction]\n"
+    ];
     Read top: TopEntry <- topReg;
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] read top\n";
+      DispHex #top;
+      DispString _ "\n"
+    ];
     LETA ftop: Maybe PrefetcherFifoEntry <- (@Fifo.Ifc.first _ fifo _);
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] read fifo first\n";
+      DispHex #ftop;
+      DispString _ "\n"
+    ];
 
     LET topInfo: ImmRes <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
@@ -122,6 +162,7 @@ Section Prefetch.
 
     LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
 
+     
     LETA notComplete : Bool <- isNotComplete _;
 
     LET retAddr: VAddr <-

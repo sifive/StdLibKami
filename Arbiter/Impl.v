@@ -68,6 +68,9 @@ Section ArbiterImpl.
              <- nextToAlloc;
            If !#busy && #transactionTag @% "valid"
              then
+               System [
+                 DispString _ "[Arbiter.sendReq]\n"
+               ];
                Write arbiter : Bool <- $$true;
                LET routerReq
                  :  ArbiterRouterReq
@@ -113,21 +116,37 @@ Section ArbiterImpl.
         (ty: Kind -> Type)
         (routerRes: ty ArbiterRouterRes)
         :  ActionT ty Void
-        := LET transactionTag
+        := System [
+             DispString _ "[Arbiter.memCallback]\n"
+           ];
+           LET transactionTag
              :  TransactionTag
              <- #routerRes @% "tag";
+           System [
+             DispString _ "[Arbiter.memCallback] transactionTag:\n";
+             DispHex #transactionTag;
+             DispString _ "\n"
+           ];
            Call clientIdTag
-             :  ClientIdTag
+             :  Array 1 ClientIdTag
              <- alistRead (#transactionTag: TransactionTag);
+           System [
+             DispString _ "[Arbiter.memCallback] clientIdTag:\n";
+             DispHex #clientIdTag;
+             DispString _ "\n"
+           ];
            LETA _
              <- free transactionTag;
+           System [
+             DispString _ "[Arbiter.memCallback] freed transaction tag:\n"
+           ];
            GatherActions
              (map
                (fun (clientId: Fin.t numClients)
                  => let client
                       :  ArbiterClient _ _
                       := nth_Fin clients clientId in 
-                    If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
+                    If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @[$0: Bit 1 @# ty] @% "id")
                       then
                         LET clientRes
                           :  ClientRes client
@@ -135,6 +154,11 @@ Section ArbiterImpl.
                                "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
+                        System [
+                          DispString _ "[Arbiter.memCallback] clientRes:\n";
+                          DispHex #clientRes;
+                          DispString _ "\n"
+                        ];
                         clientHandleRes client clientRes;
                     Retv)
                (getFins numClients))
@@ -143,7 +167,10 @@ Section ArbiterImpl.
 
       (* TODO: LLEE does this make sense? *)
       Definition arbiterRule ty : ActionT ty Void
-        := Write arbiter : Bool <- $$false;
+        := System [
+             DispString _ "[Arbiter.arbiterRule]\n"
+           ];
+           Write arbiter : Bool <- $$false;
            Retv.
 
     End withTy.
@@ -158,8 +185,16 @@ Section ArbiterImpl.
 
     (* TODO: LLEE: check *)
     Definition regFiles :=
-      @Build_RegFileBase false 1 alistName (Async [alistRead]) alistWrite numTransactions ClientIdTag (@RFNonFile _ _ None) ::
-                         (@FreeList.Ifc.regFiles numTransactions freelist).
+      @Build_RegFileBase
+        false
+        1
+        alistName
+        (Async [alistRead])
+        alistWrite
+        numTransactions
+        ClientIdTag
+        (@RFNonFile _ _ None) ::
+      (@FreeList.Ifc.regFiles numTransactions freelist).
 
     Definition arbiterImpl
       :  Arbiter
