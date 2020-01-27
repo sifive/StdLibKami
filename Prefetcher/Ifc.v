@@ -61,6 +61,7 @@ Section Prefetcher.
   (* if inst contains a compressed instruction the upper 16 bit contain arbitrary data. *)
   Definition DeqRes
     := STRUCT_TYPE {
+         "notComplete" :: Bool;
          "vaddr" :: VAddr;
          "info"  :: ImmRes;
          "noErr" :: Bool;
@@ -76,7 +77,6 @@ Section Prefetcher.
       doPrefetch ty (memReq: ty PrefetcherReq -> ActionT ty Bool): ty PrefetcherReq -> ActionT ty Bool;
       memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
-      isNotComplete: forall {ty}, ActionT ty Bool;
       clearTop: forall {ty}, ActionT ty Void;
       notCompleteDeq: forall {ty}, ActionT ty Void;
       transfer: forall {ty}, ActionT ty Void;

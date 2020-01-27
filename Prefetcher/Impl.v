@@ -174,7 +174,8 @@ Section Prefetch.
 
     Write topReg: TopEntry <- #newTopEntry;
 
-    LET ret: DeqRes <- STRUCT { "vaddr" ::= #retAddr;
+    LET ret: DeqRes <- STRUCT { "notComplete" ::= #notComplete;
+                                "vaddr" ::= #retAddr;
                                 "info"  ::= #topInfo;
                                 "noErr" ::= #topNoErr;
                                 "inst"  ::= #retInst};
@@ -201,7 +202,6 @@ Section Prefetch.
                                         Prefetcher.Ifc.doPrefetch := doPrefetch;
                                         Prefetcher.Ifc.memCallback := memCallback;
                                         Prefetcher.Ifc.fetchInstruction := fetchInstruction;
-                                        Prefetcher.Ifc.isNotComplete := isNotComplete;
                                         Prefetcher.Ifc.clearTop := clearTop;
                                         Prefetcher.Ifc.notCompleteDeq := notCompleteDeq;
                                         Prefetcher.Ifc.transfer := transfer; |}.
