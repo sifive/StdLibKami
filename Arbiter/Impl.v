@@ -69,8 +69,16 @@ Section ArbiterImpl.
            LETA transactionTag
              :  Maybe TransactionTag
              <- nextToAlloc;
+           System [
+             DispString _ "[Arbiter.sendReq] next available transaction tag:\n";
+             DispHex #transactionTag;
+             DispString _ "\n"
+           ];
            If !#busy && #transactionTag @% "valid"
              then
+               System [
+                 DispString _ "[Arbiter.sendReq] sending request.\n"
+               ];
                Write arbiter : Bool <- $$true;
                LET routerReq
                  :  ArbiterRouterReq
@@ -90,15 +98,39 @@ Section ArbiterImpl.
                           "id"  ::= $(proj1_sig (Fin.to_nat clientId));
                           "tag" ::= ZeroExtendTruncLsb GenericClientTagSz (#clientReq @% "tag")
                         };
+                   System [
+                     DispString _ "[Arbiter.sendReq] saving transaction and client id tag:\n";
+                     DispHex #clientIdTag;
+                     DispString _ "\n"
+                   ];
                    WriteRf alistWrite (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
+                   System [
+                     DispString _ "[Arbiter.sendReq] saved transaction and client id tag:\n"
+                   ];
                    LET transactionTagData
                      :  TransactionTag
                      <- #transactionTag @% "data";
+                   System [
+                     DispString _ "[Arbiter.sendReq] allocating transaction tag:\n";
+                     DispHex #transactionTagData;
+                     DispString _ "\n"
+                   ];
                    alloc transactionTagData;
+                   System [
+                     DispString _ "[Arbiter.sendReq] allocated transaction tag:\n"
+                   ];
                Ret #routerImmRes
              else
+               System [
+                 DispString _ "[Arbiter.sendReq] not sending request - busy.\n"
+               ];
                Ret $$(getDefaultConst ArbiterImmRes)
              as result;
+           System [
+             DispString _ "[Arbiter.sendReq] result:";
+             DispHex #result;
+             DispString _ "\n"
+           ];
            Ret #result.
 
       (*

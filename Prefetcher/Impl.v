@@ -114,6 +114,9 @@ Section Prefetch.
        LETA retval <- memReq prefetcherReq;
        LET dummy: Void <- $$(getDefaultConst Void);
        LETA _ <- @Fifo.Ifc.enq _ outstanding _ dummy;
+       System [
+         DispString _ "[Prefetcher.doPrefetch] done\n"
+       ];
        Ret #retval.
 
   Definition fetchInstruction ty : ActionT ty (Maybe DeqRes) :=

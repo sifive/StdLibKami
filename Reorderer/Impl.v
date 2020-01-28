@@ -49,7 +49,10 @@ Section Reorderer.
                     ActionT ty ReordererImmRes)
                  (req: ty ReordererReq)
         :  ActionT ty Bool
-        := Read enqPFull: ReordererPtr <- enqPtr;
+        := System [
+             DispString _ "[Reorderer.sendReq]\n"
+           ];
+           Read enqPFull: ReordererPtr <- enqPtr;
            Read deqPFull: ReordererPtr <- deqPtr;
            Read valids: Array numReqId Bool <- validArray;
            LET enqP: ReordererReqId <- UniBit (TruncLsb _ 1)
@@ -65,13 +68,13 @@ Section Reorderer.
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
            then
              LETA res <- memReq arbiterReq;
-             If #res @% "ready" && (!isError (#res @% "info"))
+             If #res @% "ready"
              then
                Write enqPtr <- #enqPFull + $1;
-               Write validArray: Array numReqId Bool <- #valids@[#enqP <- $$false];
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
                                                           "info" ::= #res @% "info" };
                WriteRf arfWrite(#enqP : reqIdSz ; #dataVal : ReordererStorage);
+               Write validArray: Array numReqId Bool <- #valids@[#enqP <- isError (#res @% "info")];
                Retv;
              Ret (#res @% "ready")
            else Ret $$false
@@ -81,6 +84,9 @@ Section Reorderer.
       (* Action the arbiter will call when giving us (the reorderer) the
          response to a prior request *)
       Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
+        System [
+          DispString _ "[Reorderer.reordererCallback]\n"
+        ];
         LET idx: ReordererReqId <- #resp @% "tag";
         LET res: MInst <- #resp @% "resp";
         Read valids: Array numReqId Bool <- validArray;
@@ -93,7 +99,10 @@ Section Reorderer.
                  (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
                  ty
       : ActionT ty Void
-        := Read deqPFull: ReordererPtr <- deqPtr;
+        := System [
+             DispString _ "[Reorderer.responseToPrefetcher]\n"
+           ];
+           Read deqPFull: ReordererPtr <- deqPtr;
            Read enqPFull: ReordererPtr <- enqPtr;
            Read valids: Array numReqId Bool <- validArray;
            LET deqP: ReordererReqId
