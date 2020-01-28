@@ -62,7 +62,10 @@ Section ArbiterImpl.
         (ty : Kind -> Type)
         (clientReq : ty (clientReq clientId))
         :  ActionT ty ArbiterImmRes
-        := Read busy : Bool <- arbiter;
+        := System [
+             DispString _ "[Arbiter.sendReq]\n"
+           ];
+           Read busy : Bool <- arbiter;
            LETA transactionTag
              :  Maybe TransactionTag
              <- nextToAlloc;
@@ -107,7 +110,10 @@ Section ArbiterImpl.
         (ty: Kind -> Type)
         (routerRes: ty ArbiterRouterRes)
         :  ActionT ty Void
-        := LET transactionTag
+        := System [
+             DispString _ "[Arbiter.memCallback]\n"
+           ];
+           LET transactionTag
              :  TransactionTag
              <- #routerRes @% "tag";
            ReadRf clientIdTag
@@ -137,7 +143,10 @@ Section ArbiterImpl.
 
       (* TODO: LLEE does this make sense? *)
       Definition arbiterRule ty : ActionT ty Void
-        := Write arbiter : Bool <- $$false;
+        := System [
+             DispString _ "[Arbiter.arbiterRule]\n"
+           ];
+           Write arbiter : Bool <- $$false;
            Retv.
 
     End withTy.
