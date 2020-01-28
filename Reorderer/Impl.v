@@ -92,6 +92,9 @@ Section Reorderer.
         Read valids: Array numReqId Bool <- validArray;
         Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
         WriteRf rfWrite(#idx: reqIdSz ; #res: MInst);
+        System [
+          DispString _ "[Reorderer.reordererCallback] stored response.\n"
+        ];
         Retv.
 
       (* Conceptual rule *)
@@ -136,10 +139,10 @@ Section Reorderer.
     Definition regFiles: list RegFileBase :=
       [ 
         @Build_RegFileBase false 1 rfName
-                           (Async [rfRead]) rfWrite reqIdSz MInst (@RFNonFile _ _ None);
+                           (Async [rfRead]) rfWrite (Nat.pow 2 reqIdSz) MInst (@RFNonFile _ _ None);
           
         @Build_RegFileBase false 1 arfName
-                           (Async [arfRead]) arfWrite reqIdSz ReordererStorage (@RFNonFile _ _ None)
+                           (Async [arfRead]) arfWrite (Nat.pow 2 reqIdSz) ReordererStorage (@RFNonFile _ _ None)
       ].
     
 
