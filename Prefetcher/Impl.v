@@ -235,5 +235,5 @@ Section Prefetch.
                                         Prefetcher.Ifc.fetchInstruction := fetchInstruction;
                                         Prefetcher.Ifc.clearTop := clearTop;
                                         Prefetcher.Ifc.notCompleteDeqRule := notCompleteDeqRule;
-                                        Prefetcher.Ifc.transferRul := transferRule; |}.
+                                        Prefetcher.Ifc.transferRule := transferRule; |}.
 End Prefetch.
