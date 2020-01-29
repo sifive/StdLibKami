@@ -98,7 +98,7 @@ Section Reorderer.
         Retv.
 
       (* Conceptual rule *)
-      Definition responseToPrefetcher
+      Definition responseToPrefetcherRule
                  (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
                  ty
       : ActionT ty Void
@@ -150,7 +150,7 @@ Section Reorderer.
       {|
         Reorderer.Ifc.regs := regs;
         Reorderer.Ifc.regFiles := regFiles;
-        Reorderer.Ifc.responseToPrefetcher := responseToPrefetcher;
+        Reorderer.Ifc.responseToPrefetcherRule := responseToPrefetcherRule;
         Reorderer.Ifc.callback := reordererCallback;
         Reorderer.Ifc.sendReq := sendReq
       |}.

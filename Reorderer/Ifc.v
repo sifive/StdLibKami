@@ -56,7 +56,7 @@ Section Reorderer.
       {
         regs: list RegInitT;
         regFiles: list RegFileBase;
-        responseToPrefetcher (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
+        responseToPrefetcherRule (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
         callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
           ty
