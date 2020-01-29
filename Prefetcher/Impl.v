@@ -56,7 +56,7 @@ Section Prefetch.
            && !(isCompressed (top @% "upper" @% "data"))
            && (!(ftop @%"valid") || ((top @% "vaddr" + $1) != ftop @% "data" @% "vaddr"))).
 
-  Definition notCompleteDeq ty: ActionT ty Void :=
+  Definition notCompleteDeqRule ty: ActionT ty Void :=
     System [
       DispString _ "[Prefetcher.notCompleteDeq]\n"
     ];
@@ -70,7 +70,7 @@ Section Prefetch.
     );
     Retv.       
 
-  Definition transfer ty: ActionT ty Void :=
+  Definition transferRule ty: ActionT ty Void :=
     System [
       DispString _ "[Prefetcher.transfer]\n"
     ];
@@ -267,6 +267,6 @@ Section Prefetch.
                                         Prefetcher.Ifc.memCallback := memCallback;
                                         Prefetcher.Ifc.fetchInstruction := fetchInstruction;
                                         Prefetcher.Ifc.clearTop := clearTop;
-                                        Prefetcher.Ifc.notCompleteDeq := notCompleteDeq;
-                                        Prefetcher.Ifc.transfer := transfer; |}.
+                                        Prefetcher.Ifc.notCompleteDeqRule := notCompleteDeqRule;
+                                        Prefetcher.Ifc.transferRule := transferRule; |}.
 End Prefetch.

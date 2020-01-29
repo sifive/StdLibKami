@@ -7,12 +7,12 @@ Section cam.
 
   Class CamParams
     := {
-         Key : Kind;
-         Data : Kind;
-         ReadCtxt : Kind;
-         ClearCtxt : Kind;
-         MatchRead : forall ty, Key @# ty -> ReadCtxt @# ty -> Key @# ty -> Data @# ty -> Bool @# ty;
-         MatchClear: forall ty, Key @# ty -> ClearCtxt @# ty -> Key @# ty -> Data @# ty -> Bool @# ty
+         key : Kind;
+         data : Kind;
+         readCtxt : Kind;
+         clearCtxt : Kind;
+         matchRead : forall ty, key @# ty -> readCtxt @# ty -> key @# ty -> data @# ty -> Bool @# ty;
+         matchClear: forall ty, key @# ty -> clearCtxt @# ty -> key @# ty -> data @# ty -> Bool @# ty
     }.
 
   Section interface.
@@ -20,10 +20,10 @@ Section cam.
   
     Class Cam
       := {
-           read: forall ty, Key @# ty -> ReadCtxt @# ty -> ActionT ty (Maybe Data);
-           write: forall ty, Key @# ty -> Data @# ty -> ActionT ty Void;
+           read: forall ty, key @# ty -> readCtxt @# ty -> ActionT ty (Maybe data);
+           write: forall ty, key @# ty -> data @# ty -> ActionT ty Void;
            flush: forall ty, ActionT ty Void;
-           clear: forall ty, Key @# ty -> ClearCtxt @# ty -> ActionT ty Void
+           clear: forall ty, key @# ty -> clearCtxt @# ty -> ActionT ty Void
       }.
 
   End interface.

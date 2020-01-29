@@ -14,19 +14,19 @@ Section Arbiter.
   Record ArbiterClient (reqK resK : Kind)
     := {
          clientTagSz : nat;
-         ClientTag := Bit clientTagSz;
-         ClientReq
+         clientTag := Bit clientTagSz;
+         clientReq
            := STRUCT_TYPE {
-                "tag" :: ClientTag;
+                "tag" :: clientTag;
                 "req" :: reqK
               };
-         ClientRes
+         clientRes
            := STRUCT_TYPE {
-                "tag"  :: ClientTag;
+                "tag"  :: clientTag;
                 "resp" :: Maybe resK
               };
          clientHandleRes
-           :  forall {ty}, ty ClientRes -> ActionT ty Void
+           :  forall {ty}, ty clientRes -> ActionT ty Void
        }.
 
   Class ArbiterParams :=
@@ -42,12 +42,6 @@ Section Arbiter.
     Context `{ArbiterParams}.
 
     Definition numClients := length clients.
-
-    Definition clientTag (clientId : Fin.t numClients)
-      := ClientTag (nth_Fin clients clientId).
-
-    Definition clientReq (clientId : Fin.t numClients)
-      := ClientReq (nth_Fin clients clientId).
 
     Definition transactionTagSz := Nat.log2_up numTransactions.
 
@@ -66,7 +60,6 @@ Section Arbiter.
            "resp" :: Maybe respK
          }.
 
-    (* Immediate response from the Device Router *)
     Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
@@ -85,7 +78,7 @@ Section Arbiter.
                  ty ArbiterRouterReq ->
                  ActionT ty ArbiterImmRes)
              : forall (clientId : Fin.t numClients) {ty},
-               ty (clientReq clientId) ->
+               ty (clientReq (nth_Fin clients clientId)) ->
                ActionT ty ArbiterImmRes;
 
            memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;

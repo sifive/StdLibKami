@@ -74,8 +74,8 @@ Section SimpleDevRouter.
       :  DevRouter
       := {| DevRouter.Ifc.regs := regs ;
             DevRouter.Ifc.regFiles := nil ;
-            DevRouter.Ifc.pollRules := pollRules ;
-            DevRouter.Ifc.devRouterReq := devRouterReq |}.
+            DevRouter.Ifc.devRouterReq := devRouterReq;
+            DevRouter.Ifc.pollRules := pollRules |}.
 
   End withParams.
 End SimpleDevRouter.
