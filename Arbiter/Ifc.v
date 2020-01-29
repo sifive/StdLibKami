@@ -14,26 +14,26 @@ Section Arbiter.
   Record ArbiterClient (reqK resK : Kind)
     := {
          clientTagSz : nat;
-         clientTag := Bit clientTagSz;
-         clientReq
+         clientTagK := Bit clientTagSz;
+         clientReqK
            := STRUCT_TYPE {
-                "tag" :: clientTag;
+                "tag" :: clientTagK;
                 "req" :: reqK
               };
-         clientRes
+         clientResK
            := STRUCT_TYPE {
-                "tag"  :: clientTag;
+                "tag"  :: clientTagK;
                 "resp" :: Maybe resK
               };
          clientHandleRes
-           :  forall {ty}, ty clientRes -> ActionT ty Void
+           :  forall {ty}, ty clientResK -> ActionT ty Void
        }.
 
   Class ArbiterParams :=
     {
       reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
       respK : Kind;  (* data returned by a memory device - specifically Data. *)
-      immRes : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
+      immResK : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
       numTransactions: nat;
       clients : list (ArbiterClient reqK respK)
     }.
@@ -63,7 +63,7 @@ Section Arbiter.
     Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
-           "info"  :: immRes
+           "info"  :: immResK
          }.
 
     Class Arbiter
@@ -72,13 +72,13 @@ Section Arbiter.
            regFiles : list RegFileBase;
 
            sendReq
-             (isError : forall {ty}, immRes @# ty -> Bool @# ty)
+             (isError : forall {ty}, immResK @# ty -> Bool @# ty)
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->
                  ActionT ty ArbiterImmRes)
              : forall (clientId : Fin.t numClients) {ty},
-               ty (clientReq (nth_Fin clients clientId)) ->
+               ty (clientReqK (nth_Fin clients clientId)) ->
                ActionT ty ArbiterImmRes;
 
            memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;

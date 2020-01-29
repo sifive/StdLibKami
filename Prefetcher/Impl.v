@@ -35,7 +35,7 @@ Section Prefetch.
     Write topReg: TopEntry <-
       STRUCT {
         "vaddr" ::= $0;
-        "info"  ::= $$(getDefaultConst immRes);
+        "info"  ::= $$(getDefaultConst immResK);
         "noErr" ::= $$false;
         "upper" ::= (Invalid: Maybe CompInst @# ty);
         "lower" ::= (Invalid: Maybe CompInst @# ty)};
@@ -138,7 +138,7 @@ Section Prefetch.
       DispString _ "\n"
     ];
 
-    LET topInfo: immRes <- #top @% "info";
+    LET topInfo: immResK <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
     LET topShortAddr: ShortVAddr <- #top @% "vaddr";
     LET lower: Maybe CompInst <- #top @% "lower";
@@ -157,7 +157,7 @@ Section Prefetch.
     LET ftopShortAddr: ShortVAddr <- #ftopAddrInst @% "vaddr";
 
     LET ftopMInst: Maybe Inst <- #ftopAddrInst @% "inst";
-    LET ftopInfo: immRes <- #ftopAddrInst @% "info";
+    LET ftopInfo: immResK <- #ftopAddrInst @% "info";
     LET ftopNoErr: Bool <- #ftopMInst @% "valid";
     LET ftopInst : Inst <- #ftopMInst @% "data";
     LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;

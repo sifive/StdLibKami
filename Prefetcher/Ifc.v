@@ -2,13 +2,13 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
 
 Class PrefetcherParams :=
-  { privMode : Kind;
+  { privModeK : Kind;
     pAddrSz : nat;
     vAddrSz : nat;
     compInstSz : nat;
-    immRes : Kind;
+    immResK : Kind;
     isCompressed: forall ty, Bit compInstSz @# ty -> Bool @# ty;
-    isErr: forall ty, immRes @# ty -> Bool @# ty
+    isErr: forall ty, immResK @# ty -> Bool @# ty
   }.
 
 Section Prefetcher.
@@ -31,14 +31,14 @@ Section Prefetcher.
   Definition PrefetcherFifoEntry
     := STRUCT_TYPE {
          "vaddr" :: ShortVAddr;
-         "info"  :: immRes;  
+         "info"  :: immResK;  
          "inst"  :: Maybe Inst
        }.
 
   Definition TopEntry: Kind
     := STRUCT_TYPE {
          "vaddr" :: ShortVAddr;
-         "info"  :: immRes;
+         "info"  :: immResK;
          "noErr" :: Bool;
          "upper" :: Maybe CompInst;
          "lower" :: Maybe CompInst
@@ -46,7 +46,7 @@ Section Prefetcher.
   
   Definition PrefetcherReq
     := STRUCT_TYPE {
-         "mode"  :: privMode;
+         "mode"  :: privModeK;
          "paddr" :: PAddr;
          "vaddr" :: VAddr
        }.
@@ -54,7 +54,7 @@ Section Prefetcher.
   Definition PrefetcherRes
     := STRUCT_TYPE {
          "vaddr" :: VAddr;
-         "info"  :: immRes;
+         "info"  :: immResK;
          "inst"  :: Maybe Inst
        }.
 
@@ -63,7 +63,7 @@ Section Prefetcher.
     := STRUCT_TYPE {
          "notComplete" :: Bool;
          "vaddr" :: VAddr;
-         "info"  :: immRes;
+         "info"  :: immResK;
          "noErr" :: Bool;
          "inst"  :: Inst 
        }.

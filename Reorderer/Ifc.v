@@ -2,11 +2,11 @@ Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {                            
       numReqId: nat;
-      privModeT: Kind;                      
-      pAddrT: Kind;
-      vAddrT: Kind;
-      mInstT: Kind;
-      immResT: Kind;
+      privModeK: Kind;                      
+      pAddrK: Kind;
+      vAddrK: Kind;
+      mInstK: Kind;
+      immResK: Kind;
     }.
   Section withParams.
     Context `{ReordererParams}.
@@ -16,40 +16,40 @@ Section Reorderer.
 
     Definition ReordererReq
       := STRUCT_TYPE {
-           "mode"  :: privModeT;
-           "paddr" :: pAddrT;
-           "vaddr" :: vAddrT
+           "mode"  :: privModeK;
+           "paddr" :: pAddrK;
+           "vaddr" :: vAddrK
          }.
 
     Definition ReordererArbiterReq
       := STRUCT_TYPE {
            "tag" :: ReordererReqId;
-           "req" :: pAddrT
+           "req" :: pAddrK
          }.
 
     Definition ReordererImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
-           "info"  :: immResT
+           "info"  :: immResK
          }.
 
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
            "tag"  :: ReordererReqId;
-           "resp" :: mInstT
+           "resp" :: mInstK
          }.
 
     Definition ReordererRes
       := STRUCT_TYPE {
-           "vaddr" :: vAddrT;
-           "info"  :: immResT;
-           "inst"  :: mInstT
+           "vaddr" :: vAddrK;
+           "info"  :: immResK;
+           "inst"  :: mInstK
            }.
 
     Definition ReordererStorage
       := STRUCT_TYPE {
-           "vaddr" :: vAddrT;
-           "info"  :: immResT
+           "vaddr" :: vAddrK;
+           "info"  :: immResK
            }.
 
     Class Reorderer: Type :=
@@ -60,7 +60,7 @@ Section Reorderer.
         callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
           ty
-          (isError : immResT @# ty -> Bool @# ty)
+          (isError : immResK @# ty -> Bool @# ty)
           (memReq
             : ty ReordererArbiterReq ->
               ActionT ty ReordererImmRes)

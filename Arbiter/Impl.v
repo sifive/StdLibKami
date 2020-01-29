@@ -53,14 +53,14 @@ Section ArbiterImpl.
       Open Scope kami_expr_scope.
 
       Definition sendReq
-        (isError : forall {ty}, immRes @# ty -> Bool @# ty)
+        (isError : forall {ty}, immResK @# ty -> Bool @# ty)
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
             ActionT ty ArbiterImmRes)
         (clientId : Fin.t numClients)
         (ty : Kind -> Type)
-        (clientReq : ty (clientReq (nth_Fin clients clientId)))
+        (clientReq : ty (clientReqK (nth_Fin clients clientId)))
         :  ActionT ty ArbiterImmRes
         := System [
              DispString _ "[Arbiter.sendReq]\n"
@@ -152,18 +152,18 @@ Section ArbiterImpl.
                       := nth_Fin clients clientId in 
                     If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
                       then
-                        LET clientResVal
-                          :  clientRes client
+                        LET clientRes
+                          :  clientResK client
                           <- STRUCT {
                                "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
                         System [
                           DispString _ "[Arbiter.memCallback] client res: ";
-                          DispHex #clientResVal;
+                          DispHex #clientRes;
                           DispString _ "\n"
                         ];
-                        clientHandleRes client clientResVal;
+                        clientHandleRes client clientRes;
                     Retv)
                (getFins numClients))
              as _;
