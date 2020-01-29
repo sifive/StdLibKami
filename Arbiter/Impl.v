@@ -196,7 +196,7 @@ Section ArbiterImpl.
       @Build_RegFileBase false 1 alistName (Async [alistRead]) alistWrite numTransactions ClientIdTag (@RFNonFile _ _ None) ::
                          (@FreeList.Ifc.regFiles numTransactions freelist).
 
-    Definition arbiterImpl
+    Instance arbiterImpl
       :  Arbiter
       := {| Arbiter.Ifc.regs := regs ;
             Arbiter.Ifc.regFiles := regFiles ;
