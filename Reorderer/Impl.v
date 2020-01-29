@@ -93,7 +93,9 @@ Section Reorderer.
         Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
         WriteRf rfWrite(#idx: reqIdSz ; #res: MInst);
         System [
-          DispString _ "[Reorderer.reordererCallback] stored response.\n"
+          DispString _ "[Reorderer.reordererCallback] stored response:\n";
+          DispHex #res;
+          DispString _ "\n"
         ];
         Retv.
 
@@ -122,6 +124,11 @@ Section Reorderer.
                 };
            If (#deqPFull != #enqPFull) && (#valids@[#deqP])
            then
+             System [
+               DispString _ "[Reorderer.responseToPrefetcher] sending response to prefetcher:";
+               DispHex #resp;
+               DispString _ "\n"
+             ];
              LETA _ <- prefetcherCallback (resp : ty ReordererRes);
              Write deqPtr <- #deqPFull + $1;
              Retv;

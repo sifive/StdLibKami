@@ -94,7 +94,9 @@ Section Prefetch.
   Definition memCallback ty (reordererRes: ty PrefetcherRes)
     :  ActionT ty Void
     := System [
-         DispString _ "[Prefetcher.memCallback]\n"
+         DispString _ "[Prefetcher.memCallback] reordererRes: \n";
+         DispHex #reordererRes;
+         DispString _ "\n"
        ];
        LET entryData
          :  PrefetcherFifoEntry
@@ -124,7 +126,17 @@ Section Prefetch.
       DispString _ "[Prefetcher.fetchInstruction]\n"
     ];
     Read top: TopEntry <- topReg;
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] top:\n";
+      DispHex #top;
+      DispString _ "\n"
+    ];
     LETA ftop: Maybe PrefetcherFifoEntry <- (@Fifo.Ifc.first _ fifo _);
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] ftop:\n";
+      DispHex #ftop;
+      DispString _ "\n"
+    ];
 
     LET topInfo: ImmRes <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
@@ -154,6 +166,11 @@ Section Prefetch.
     LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
 
     LETA notComplete : Bool <- isNotComplete #top #ftop;
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] not complete?:\n";
+      DispHex #notComplete;
+      DispString _ "\n"
+    ];
 
     LET retAddr: VAddr <-
       (IF isErr #topInfo || !#topNoErr
@@ -173,12 +190,18 @@ Section Prefetch.
              then #upperFull
              else #completedInst));
 
+    (* TODO: LLEE: how do we dequeue from the fifo into the top register when the top register is initialized to contain all invalid data? *)
     LET doDeq: Bool <-
       #upperValid &&
       ((isErr #topInfo || !#topNoErr) ||
        (#lowerValid && !#lowerCompressed) ||
        (!#lowerValid && !#notComplete));
 
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] doDeq?:\n";
+      DispHex #doDeq;
+      DispString _ "\n"
+    ];
     If #doDeq
     then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
           @Fifo.Ifc.deq _ outstanding _);
@@ -203,6 +226,11 @@ Section Prefetch.
                                                 "lower" ::= STRUCT { "valid" ::= $$false ;
                                                                      "data"  ::= #lowerInst } });
 
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] new top entry:\n";
+      DispHex #newTopEntry;
+      DispString _ "\n"
+    ];
     Write topReg: TopEntry <- #newTopEntry;
 
     LET ret: DeqRes <- STRUCT { "notComplete" ::= #notComplete;
@@ -210,6 +238,11 @@ Section Prefetch.
                                 "info"  ::= #topInfo;
                                 "noErr" ::= #topNoErr;
                                 "inst"  ::= #retInst};
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] deq result:\n";
+      DispHex #ret;
+      DispString _ "\n"
+    ];
     Ret (STRUCT {
            "valid" ::= #upperValid;
            "data"  ::=  #ret }: Maybe DeqRes @# ty).

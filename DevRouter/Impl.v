@@ -26,6 +26,9 @@ Section SimpleDevRouter.
         LETA resp: Maybe respK <- (nth_Fin devices dev).(memDevicePoll);
         LET respDat: respK <- (#resp @% "data");
         If (#resp @% "valid") then (
+            System [
+              DispString _ ("[DevRouter.pollRuleGenerator] forwarding response from device: " ++ nat_decimal_string (proj1_sig (Fin.to_nat dev)) ++ "\n")
+            ];
             LETA _ <- clientCallback respDat;
             Write routed: Bool <- $$true;
             Retv
