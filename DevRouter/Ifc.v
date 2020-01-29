@@ -26,7 +26,7 @@ Section withParams.
       {
         regs: list RegInitT;
         regFiles: list RegFileBase;
-        pollRules (clientCallback: forall {ty}, ty respK -> ActionT ty Void): list (forall {ty}, ActionT ty Void);
         devRouterReq: forall {ty}, ty DevRouterReq -> ActionT ty Bool;
+        pollRules (clientCallback: forall {ty}, ty respK -> ActionT ty Void): list (forall {ty}, ActionT ty Void);
       }.
 End withParams.

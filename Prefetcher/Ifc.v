@@ -78,7 +78,8 @@ Section Prefetcher.
       memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
       fetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
       clearTop: forall {ty}, ActionT ty Void;
-      notCompleteDeq: forall {ty}, ActionT ty Void;
-      transfer: forall {ty}, ActionT ty Void;
+
+      notCompleteDeqRule: forall {ty}, ActionT ty Void;
+      transferRule: forall {ty}, ActionT ty Void;
     }.
 End Prefetcher.
