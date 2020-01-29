@@ -2,27 +2,27 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
 
 Class PrefetcherParams :=
-  { PrivMode : Kind;
-    PAddrSz : nat;
-    VAddrSz : nat;
-    CompInstSz : nat;
-    ImmRes : Kind;
-    isCompressed: forall ty, Bit CompInstSz @# ty -> Bool @# ty;
-    isErr: forall ty, ImmRes @# ty -> Bool @# ty
+  { privMode : Kind;
+    pAddrSz : nat;
+    vAddrSz : nat;
+    compInstSz : nat;
+    immRes : Kind;
+    isCompressed: forall ty, Bit compInstSz @# ty -> Bool @# ty;
+    isErr: forall ty, immRes @# ty -> Bool @# ty
   }.
 
 Section Prefetcher.
   Context `{prefetcherParams: PrefetcherParams}.
 
-  Local Definition PAddr    := Bit PAddrSz.
-  Local Definition VAddr    := Bit VAddrSz.
-  Local Definition CompInst := Bit CompInstSz.
-  Local Definition InstSz   := CompInstSz + CompInstSz.
+  Local Definition PAddr    := Bit pAddrSz.
+  Local Definition VAddr    := Bit vAddrSz.
+  Local Definition CompInst := Bit compInstSz.
+  Local Definition InstSz   := compInstSz + compInstSz.
   Local Definition Inst     := Bit InstSz.
 
-  Definition ShortVAddrSz := (VAddrSz - 2)%nat.
+  Definition ShortvAddrSz := (vAddrSz - 2)%nat.
 
-  Definition ShortVAddr := Bit ShortVAddrSz.
+  Definition ShortVAddr := Bit ShortvAddrSz.
 
   Definition toFullVAddr {ty} (short: ShortVAddr @# ty): VAddr @# ty := ZeroExtendTruncLsb _ ({< short, $$(natToWord 2 0) >})%kami_expr.
   
@@ -31,14 +31,14 @@ Section Prefetcher.
   Definition PrefetcherFifoEntry
     := STRUCT_TYPE {
          "vaddr" :: ShortVAddr;
-         "info"  :: ImmRes;  
+         "info"  :: immRes;  
          "inst"  :: Maybe Inst
        }.
 
   Definition TopEntry: Kind
     := STRUCT_TYPE {
          "vaddr" :: ShortVAddr;
-         "info"  :: ImmRes;
+         "info"  :: immRes;
          "noErr" :: Bool;
          "upper" :: Maybe CompInst;
          "lower" :: Maybe CompInst
@@ -46,7 +46,7 @@ Section Prefetcher.
   
   Definition PrefetcherReq
     := STRUCT_TYPE {
-         "mode"  :: PrivMode;
+         "mode"  :: privMode;
          "paddr" :: PAddr;
          "vaddr" :: VAddr
        }.
@@ -54,7 +54,7 @@ Section Prefetcher.
   Definition PrefetcherRes
     := STRUCT_TYPE {
          "vaddr" :: VAddr;
-         "info"  :: ImmRes;
+         "info"  :: immRes;
          "inst"  :: Maybe Inst
        }.
 
@@ -63,7 +63,7 @@ Section Prefetcher.
     := STRUCT_TYPE {
          "notComplete" :: Bool;
          "vaddr" :: VAddr;
-         "info"  :: ImmRes;
+         "info"  :: immRes;
          "noErr" :: Bool;
          "inst"  :: Inst 
        }.

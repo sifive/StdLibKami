@@ -53,7 +53,7 @@ Section ArbiterImpl.
       Open Scope kami_expr_scope.
 
       Definition sendReq
-        (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
+        (isError : forall {ty}, immRes @# ty -> Bool @# ty)
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->

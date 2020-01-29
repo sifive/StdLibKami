@@ -13,10 +13,10 @@ Section Prefetch.
 
   Context (prefetcherImplParams: PrefetcherImplParams).
 
-  Local Definition PAddr    := Bit PAddrSz.
-  Local Definition VAddr    := Bit VAddrSz.
-  Local Definition CompInst := Bit CompInstSz.
-  Local Definition InstSz   := CompInstSz + CompInstSz.
+  Local Definition PAddr    := Bit pAddrSz.
+  Local Definition VAddr    := Bit vAddrSz.
+  Local Definition CompInst := Bit compInstSz.
+  Local Definition InstSz   := compInstSz + compInstSz.
   Local Definition Inst     := Bit InstSz.
 
   Local Open Scope kami_expr.
@@ -35,7 +35,7 @@ Section Prefetch.
     Write topReg: TopEntry <-
       STRUCT {
         "vaddr" ::= $0;
-        "info"  ::= $$(getDefaultConst ImmRes);
+        "info"  ::= $$(getDefaultConst immRes);
         "noErr" ::= $$false;
         "upper" ::= (Invalid: Maybe CompInst @# ty);
         "lower" ::= (Invalid: Maybe CompInst @# ty)};
@@ -138,7 +138,7 @@ Section Prefetch.
       DispString _ "\n"
     ];
 
-    LET topInfo: ImmRes <- #top @% "info";
+    LET topInfo: immRes <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
     LET topShortAddr: ShortVAddr <- #top @% "vaddr";
     LET lower: Maybe CompInst <- #top @% "lower";
@@ -157,7 +157,7 @@ Section Prefetch.
     LET ftopShortAddr: ShortVAddr <- #ftopAddrInst @% "vaddr";
 
     LET ftopMInst: Maybe Inst <- #ftopAddrInst @% "inst";
-    LET ftopInfo: ImmRes <- #ftopAddrInst @% "info";
+    LET ftopInfo: immRes <- #ftopAddrInst @% "info";
     LET ftopNoErr: Bool <- #ftopMInst @% "valid";
     LET ftopInst : Inst <- #ftopMInst @% "data";
     LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;

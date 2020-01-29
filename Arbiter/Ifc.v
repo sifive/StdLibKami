@@ -33,7 +33,7 @@ Section Arbiter.
     {
       reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
       respK : Kind;  (* data returned by a memory device - specifically Data. *)
-      ImmRes : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
+      immRes : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
       numTransactions: nat;
       clients : list (ArbiterClient reqK respK)
     }.
@@ -63,7 +63,7 @@ Section Arbiter.
     Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
-           "info"  :: ImmRes
+           "info"  :: immRes
          }.
 
     Class Arbiter
@@ -72,7 +72,7 @@ Section Arbiter.
            regFiles : list RegFileBase;
 
            sendReq
-             (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
+             (isError : forall {ty}, immRes @# ty -> Bool @# ty)
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->
