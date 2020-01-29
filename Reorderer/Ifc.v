@@ -1,73 +1,71 @@
 Require Import Kami.All.
 Section Reorderer.
-  Class ReordererParams := {
-      reqK: Kind;
-      reqDataK: Kind; (* additional data to track for the request. Specifically the physical address assocated with the request. *)
-      respK: Kind;
+  Class ReordererParams := {                            
+      numReqId: nat;
+      PrivMode: Kind;                      
+      PAddr: Kind;
+      VAddr: Kind;
+      MInst: Kind;
       ImmRes: Kind;
-      (* = log2 of how many requests the reorderer can have open at once *)
-      reqIdSz: nat;
     }.
   Section withParams.
     Context `{ReordererParams}.
 
+    Definition reqIdSz := Nat.log2_up numReqId.
     Definition ReordererReqId := Bit reqIdSz.
 
     Definition ReordererReq
       := STRUCT_TYPE {
-           "req"  :: reqK;    (* paddr *)
-           "data" :: reqDataK (* vaddr *)
+           "mode"  :: PrivMode;
+           "paddr" :: PAddr;
+           "vaddr" :: VAddr
          }.
 
     Definition ReordererArbiterReq
       := STRUCT_TYPE {
            "tag" :: ReordererReqId;
-           "req" :: reqK
+           "req" :: PAddr
          }.
 
-    Definition ReordererArbiterImmRes
+    Definition ReordererImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
            "info"  :: ImmRes
          }.
 
-    Definition ReordererImmRes := ReordererArbiterImmRes.
-
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
            "tag"  :: ReordererReqId;
-           "resp" :: respK
+           "resp" :: MInst
          }.
 
-    (*
-      TODO: return the context data stored sent in ReordererReq.data
-      with the request. This is needed because the prefetcher does
-      not save the virtual address associated with the request before
-      sending the request. Consequently, the Reorderer must return
-      the virtual address associated with the request response so
-      that the prefetcher can save it in its cache.
-
-      TODO: LLEE change req to just VAddr. (Not done see above comment)
-    *)
     Definition ReordererRes
       := STRUCT_TYPE {
-           "req"  :: ReordererReq;
-           "resp" :: respK
-         }.
+           "vaddr" :: VAddr;
+           "info"  :: ImmRes;
+           "inst"  :: MInst
+           }.
+
+    Definition ReordererStorage
+      := STRUCT_TYPE {
+           "vaddr" :: VAddr;
+           "info"  :: ImmRes
+           }.
 
     Class Reorderer: Type :=
       {
         regs: list RegInitT;
-        handle (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
-        reordererCallback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
+        regFiles: list RegFileBase;
+        responseToPrefetcher (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void): forall {ty}, ActionT ty Void;
+        callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
+          ty
+          (isError : ImmRes @# ty -> Bool @# ty)
           (memReq
-            : forall {ty}, 
-              ty ReordererArbiterReq ->
-              ActionT ty ReordererArbiterImmRes)
-          {ty} 
+            : ty ReordererArbiterReq ->
+              ActionT ty ReordererImmRes)
           (p: ty ReordererReq)
-          : ActionT ty ReordererImmRes
+          : ActionT ty Bool
       }.
   End withParams.
 End Reorderer.

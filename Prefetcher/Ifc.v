@@ -1,87 +1,84 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
-Require Import StdLibKami.Prefetcher.FifoTop.Ifc.
-Require Import StdLibKami.Prefetcher.FifoTop.Impl.
 
-Section prefetcher.
-  Context `{fifoTopParams : FifoTopParams}.
-  Context `{ImmRes : Kind}.
-  Variable PAddrSz : nat.
+Class PrefetcherParams :=
+  { PrivMode : Kind;
+    PAddrSz : nat;
+    VAddrSz : nat;
+    CompInstSz : nat;
+    ImmRes : Kind;
+    isCompressed: forall ty, Bit CompInstSz @# ty -> Bool @# ty;
+    isErr: forall ty, ImmRes @# ty -> Bool @# ty
+  }.
 
-  Local Definition PAddr := Bit PAddrSz.
+Section Prefetcher.
+  Context `{prefetcherParams: PrefetcherParams}.
 
+  Local Definition PAddr    := Bit PAddrSz.
+  Local Definition VAddr    := Bit VAddrSz.
+  Local Definition CompInst := Bit CompInstSz.
+  Local Definition InstSz   := CompInstSz + CompInstSz.
+  Local Definition Inst     := Bit InstSz.
+
+  Definition ShortVAddrSz := (VAddrSz - 2)%nat.
+
+  Definition ShortVAddr := Bit ShortVAddrSz.
+
+  Definition toFullVAddr {ty} (short: ShortVAddr @# ty): VAddr @# ty := ZeroExtendTruncLsb _ ({< short, $$(natToWord 2 0) >})%kami_expr.
+  
+  Definition toShortVAddr {ty} (long: VAddr @# ty): ShortVAddr @# ty := ZeroExtendTruncMsb _ (long)%kami_expr.
+    
+  Definition PrefetcherFifoEntry
+    := STRUCT_TYPE {
+         "vaddr" :: ShortVAddr;
+         "info"  :: ImmRes;  
+         "inst"  :: Maybe Inst
+       }.
+
+  Definition TopEntry: Kind
+    := STRUCT_TYPE {
+         "vaddr" :: ShortVAddr;
+         "info"  :: ImmRes;
+         "noErr" :: Bool;
+         "upper" :: Maybe CompInst;
+         "lower" :: Maybe CompInst
+       }.
+  
   Definition PrefetcherReq
     := STRUCT_TYPE {
+         "mode"  :: PrivMode;
+         "paddr" :: PAddr;
+         "vaddr" :: VAddr
+       }.
+
+  Definition PrefetcherRes
+    := STRUCT_TYPE {
          "vaddr" :: VAddr;
-         "paddr" :: PAddr
+         "info"  :: ImmRes;
+         "inst"  :: Maybe Inst
        }.
 
-  (*
-    Note: isomorphic to ReordererReq.
-  *)
-  Definition PrefetcherReordererReq
+  (* if inst contains a compressed instruction the upper 16 bit contain arbitrary data. *)
+  Definition DeqRes
     := STRUCT_TYPE {
-         "req"  :: PAddr;
-         "data" :: VAddr
-       }.
-
-  (*
-    Note: isomorphic to ReordererImmRes.
-    Note: also isomorphic to ArbiterImmRes.
-  *)
-  Definition PrefetcherReordererImmRes
-    := STRUCT_TYPE {
-         "ready" :: Bool;
-         "info"  :: ImmRes (* Maybe Data *)
-       }.
-
-  (*
-    Note: the entire request is returned by the reorderer so that
-    the prefetcher can store the paddr for latter comparison.
-
-    Note: isomorphic to ReordererRes.
-  *)
-  Definition PrefetcherReordererRes
-    := STRUCT_TYPE {
-         "req"  :: PrefetcherReordererReq;
-         "resp" :: Maybe Inst
+         "notComplete" :: Bool;
+         "vaddr" :: VAddr;
+         "info"  :: ImmRes;
+         "noErr" :: Bool;
+         "inst"  :: Inst 
        }.
 
   Class Prefetcher: Type :=
     {
       regs: list RegInitT;
-      
-      flush: forall {ty}, ActionT ty Void;
-      (*
-        Returns the address that needs to be fetched to retrieve the
-        upper 16 bits of the current instruction's 32 bit word.
-      *)
-      getIsCompleting: forall {ty}, ActionT ty (Maybe VAddr);
+      regFiles : list RegFileBase;
 
-      (* Called by the Reorderer. *)
-      memCallback: forall {ty}, ty PrefetcherReordererRes -> ActionT ty Void;
-
-      (*
-        Returns a 32 bit word that contains the current instruction
-        and/or the virtual address that needs to be fetched to
-        retrieve this instruction.
-      *)
-      fetchInstruction: forall {ty}, ActionT ty DeqRes;
-
-      (*
-        Accepts a function, [memReq], that accepts a physical
-        address, verifies that we can load the given address,
-        loads the address if possible, and returns an error code
-        if appropriate; accepts a virtual address, the physical
-        address associated with the virtual address, loads the
-        data referenced by the virtual address, caches the data,
-        and returns true iff the device accepted the load request.
-      *)
-      doPrefetch
-        (memReq
-          : forall {ty},
-              ty PrefetcherReordererReq ->
-              ActionT ty PrefetcherReordererImmRes)
-        : forall {ty}, ty PrefetcherReq -> ActionT ty Bool;
+      isFull: forall {ty}, ActionT ty Bool;
+      doPrefetch ty (memReq: ty PrefetcherReq -> ActionT ty Bool): ty PrefetcherReq -> ActionT ty Bool;
+      memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
+      fetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
+      clearTop: forall {ty}, ActionT ty Void;
+      notCompleteDeq: forall {ty}, ActionT ty Void;
+      transfer: forall {ty}, ActionT ty Void;
     }.
-End prefetcher.
+End Prefetcher.

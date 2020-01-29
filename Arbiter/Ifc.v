@@ -59,6 +59,7 @@ Section Arbiter.
            "req" :: reqK
          }.
 
+    (* TODO: LLEE: for later - remove the Maybe from respK in all stdlibkami components. *)
     Definition ArbiterRouterRes
       := STRUCT_TYPE {
            "tag" :: TransactionTag;
@@ -75,9 +76,10 @@ Section Arbiter.
     Class Arbiter
       := {
            regs : list RegInitT;
-           regFiles : list RegFileBase;          
+           regFiles : list RegFileBase;
 
            sendReq
+             (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->

@@ -18,6 +18,9 @@ Section SimpleDevRouter.
     Section withTy.
       Context (ty: Kind -> Type).
       Definition pollRuleGenerator (clientCallback: forall {ty}, ty respK -> ActionT ty Void) (dev: Fin.t numDevices): ActionT ty Void :=
+      System [
+        DispString _ "[DevRouter.pollRuleGenerator]\n"
+      ];
       Read alreadyRouted: Bool <- routed;
       If !#alreadyRouted then (
         LETA resp: Maybe respK <- (nth_Fin devices dev).(memDevicePoll);
@@ -31,16 +34,29 @@ Section SimpleDevRouter.
       );
       Retv.
     Definition pollingDone: ActionT ty Void :=
+      System [
+        DispString _ "[DevRouter.pollingDone]\n"
+      ];
       Write routed: Bool <- $$false;
       Retv.
 
+    (* TODO: NOTE: LLEE: calls to memDeviceReq etc will be actual method calls in synth ver. *)
     Definition devRouterReq
       (req: ty DevRouterReq)
       : ActionT ty Bool :=
+      System [
+        DispString _ "[DevRouter.devRouterReq]\n"
+      ];
       GatherActions (map (fun i =>
                             LET req_real: reqK <- #req @% "req";
                             If ($(proj1_sig (Fin.to_nat i)) == #req @% "tag")
-                            then (nth_Fin devices i).(memDeviceReq) req_real
+                            then
+                              System [
+                                DispString _ "[DevRouter.devRouterReq] sending request to device: ";
+                                DispHex (#req @% "tag");
+                                DispString _ "\n"
+                              ];
+                              (nth_Fin devices i).(memDeviceReq) req_real
                             else Ret $$false as ret;
                             Ret #ret
                          ) (getFins numDevices)) as accepted; Ret (CABool Or accepted).
@@ -51,6 +67,12 @@ Section SimpleDevRouter.
     Open Scope kami_expr_scope.
     Definition regs: list RegInitT := makeModule_regs ( Register routed: Bool <- false ).
     
-    Instance simpleDevRouter: DevRouter := Build_DevRouter regs pollRules devRouterReq.
+    Instance simpleDevRouter
+      :  DevRouter
+      := {| DevRouter.Ifc.regs := regs ;
+            DevRouter.Ifc.regFiles := nil ;
+            DevRouter.Ifc.pollRules := pollRules ;
+            DevRouter.Ifc.devRouterReq := devRouterReq |}.
+
   End withParams.
 End SimpleDevRouter.

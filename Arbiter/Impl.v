@@ -12,6 +12,7 @@ Section ArbiterImpl.
       (* Names of read/write names for the reg-file backing the
          associative array with which we will map server tags to client
          tags/IDs *)
+      alistName: string;
       alistRead: string;
       alistWrite: string;
       freelist: @FreeList numTransactions;
@@ -52,6 +53,7 @@ Section ArbiterImpl.
       Open Scope kami_expr_scope.
 
       Definition sendReq
+        (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
@@ -60,12 +62,23 @@ Section ArbiterImpl.
         (ty : Kind -> Type)
         (clientReq : ty (clientReq clientId))
         :  ActionT ty ArbiterImmRes
-        := Read busy : Bool <- arbiter;
+        := System [
+             DispString _ "[Arbiter.sendReq]\n"
+           ];
+           Read busy : Bool <- arbiter;
            LETA transactionTag
              :  Maybe TransactionTag
              <- nextToAlloc;
+           System [
+             DispString _ "[Arbiter.sendReq] next available transaction tag:\n";
+             DispHex #transactionTag;
+             DispString _ "\n"
+           ];
            If !#busy && #transactionTag @% "valid"
              then
+               System [
+                 DispString _ "[Arbiter.sendReq] sending request.\n"
+               ];
                Write arbiter : Bool <- $$true;
                LET routerReq
                  :  ArbiterRouterReq
@@ -76,7 +89,8 @@ Section ArbiterImpl.
                LETA routerImmRes
                  :  ArbiterImmRes
                  <- routerSendReq routerReq;
-               If #routerImmRes @% "ready"
+               (* TODO: LLEE: accept an additional parameter that accepts an immres and returns true iff the immres signals an error. If error do not allocate resource (i.e. transaction tag. Note: this is a general error. Check other components as well. *) 
+               If #routerImmRes @% "ready" && !(isError (#routerImmRes @% "info"))
                  then
                    LET clientIdTag
                      :  ClientIdTag
@@ -84,21 +98,39 @@ Section ArbiterImpl.
                           "id"  ::= $(proj1_sig (Fin.to_nat clientId));
                           "tag" ::= ZeroExtendTruncLsb GenericClientTagSz (#clientReq @% "tag")
                         };
-                   LET transaction
-                     :  WriteRq transactionTagSz ClientIdTag
-                     <- STRUCT {
-                          "addr" ::= #transactionTag @% "data";
-                          "data" ::= #clientIdTag
-                        };
-                   Call alistWrite (#transaction : WriteRq transactionTagSz ClientIdTag);
+                   System [
+                     DispString _ "[Arbiter.sendReq] saving transaction and client id tag:\n";
+                     DispHex #clientIdTag;
+                     DispString _ "\n"
+                   ];
+                   WriteRf alistWrite (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
+                   System [
+                     DispString _ "[Arbiter.sendReq] saved transaction and client id tag:\n"
+                   ];
                    LET transactionTagData
                      :  TransactionTag
                      <- #transactionTag @% "data";
+                   System [
+                     DispString _ "[Arbiter.sendReq] allocating transaction tag:\n";
+                     DispHex #transactionTagData;
+                     DispString _ "\n"
+                   ];
                    alloc transactionTagData;
+                   System [
+                     DispString _ "[Arbiter.sendReq] allocated transaction tag:\n"
+                   ];
                Ret #routerImmRes
              else
+               System [
+                 DispString _ "[Arbiter.sendReq] not sending request - busy.\n"
+               ];
                Ret $$(getDefaultConst ArbiterImmRes)
              as result;
+           System [
+             DispString _ "[Arbiter.sendReq] result:";
+             DispHex #result;
+             DispString _ "\n"
+           ];
            Ret #result.
 
       (*
@@ -110,10 +142,13 @@ Section ArbiterImpl.
         (ty: Kind -> Type)
         (routerRes: ty ArbiterRouterRes)
         :  ActionT ty Void
-        := LET transactionTag
+        := System [
+             DispString _ "[Arbiter.memCallback]\n"
+           ];
+           LET transactionTag
              :  TransactionTag
              <- #routerRes @% "tag";
-           Call clientIdTag
+           ReadRf clientIdTag
              :  ClientIdTag
              <- alistRead (#transactionTag: TransactionTag);
            LETA _
@@ -140,7 +175,10 @@ Section ArbiterImpl.
 
       (* TODO: LLEE does this make sense? *)
       Definition arbiterRule ty : ActionT ty Void
-        := Write arbiter : Bool <- $$false;
+        := System [
+             DispString _ "[Arbiter.arbiterRule]\n"
+           ];
+           Write arbiter : Bool <- $$false;
            Retv.
 
     End withTy.
@@ -153,10 +191,15 @@ Section ArbiterImpl.
            (Register arbiter: Bool <- false) ++
            (@FreeList.Ifc.regs numTransactions freelist).
 
-    Definition arbiterImpl
+    (* TODO: LLEE: check *)
+    Definition regFiles :=
+      @Build_RegFileBase false 1 alistName (Async [alistRead]) alistWrite numTransactions ClientIdTag (@RFNonFile _ _ None) ::
+                         (@FreeList.Ifc.regFiles numTransactions freelist).
+
+    Instance arbiterImpl
       :  Arbiter
       := {| Arbiter.Ifc.regs := regs ;
-            Arbiter.Ifc.regFiles := @FreeList.Ifc.regFiles numTransactions freelist;
+            Arbiter.Ifc.regFiles := regFiles ;
             Arbiter.Ifc.sendReq := sendReq ;
             Arbiter.Ifc.memCallback := memCallback ;
             Arbiter.Ifc.arbiterRule := arbiterRule |}.
