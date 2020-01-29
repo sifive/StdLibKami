@@ -60,7 +60,7 @@ Section ArbiterImpl.
             ActionT ty ArbiterImmRes)
         (clientId : Fin.t numClients)
         (ty : Kind -> Type)
-        (clientReq : ty (clientReq clientId))
+        (clientReq : ty (clientReq (nth_Fin clients clientId)))
         :  ActionT ty ArbiterImmRes
         := System [
              DispString _ "[Arbiter.sendReq]\n"
@@ -161,13 +161,13 @@ Section ArbiterImpl.
                       := nth_Fin clients clientId in 
                     If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
                       then
-                        LET clientRes
-                          :  ClientRes client
+                        LET clientResVal
+                          :  clientRes client
                           <- STRUCT {
                                "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
-                        clientHandleRes client clientRes;
+                        clientHandleRes client clientResVal;
                     Retv)
                (getFins numClients))
              as _;

@@ -2,11 +2,11 @@ Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {                            
       numReqId: nat;
-      PrivMode: Kind;                      
-      PAddr: Kind;
-      VAddr: Kind;
-      MInst: Kind;
-      ImmRes: Kind;
+      privModeT: Kind;                      
+      pAddrT: Kind;
+      vAddrT: Kind;
+      mInstT: Kind;
+      immResT: Kind;
     }.
   Section withParams.
     Context `{ReordererParams}.
@@ -16,40 +16,40 @@ Section Reorderer.
 
     Definition ReordererReq
       := STRUCT_TYPE {
-           "mode"  :: PrivMode;
-           "paddr" :: PAddr;
-           "vaddr" :: VAddr
+           "mode"  :: privModeT;
+           "paddr" :: pAddrT;
+           "vaddr" :: vAddrT
          }.
 
     Definition ReordererArbiterReq
       := STRUCT_TYPE {
            "tag" :: ReordererReqId;
-           "req" :: PAddr
+           "req" :: pAddrT
          }.
 
     Definition ReordererImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
-           "info"  :: ImmRes
+           "info"  :: immResT
          }.
 
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
            "tag"  :: ReordererReqId;
-           "resp" :: MInst
+           "resp" :: mInstT
          }.
 
     Definition ReordererRes
       := STRUCT_TYPE {
-           "vaddr" :: VAddr;
-           "info"  :: ImmRes;
-           "inst"  :: MInst
+           "vaddr" :: vAddrT;
+           "info"  :: immResT;
+           "inst"  :: mInstT
            }.
 
     Definition ReordererStorage
       := STRUCT_TYPE {
-           "vaddr" :: VAddr;
-           "info"  :: ImmRes
+           "vaddr" :: vAddrT;
+           "info"  :: immResT
            }.
 
     Class Reorderer: Type :=
@@ -60,7 +60,7 @@ Section Reorderer.
         callback {ty} (resp: ty ReordererArbiterRes): ActionT ty Void;
         sendReq
           ty
-          (isError : ImmRes @# ty -> Bool @# ty)
+          (isError : immResT @# ty -> Bool @# ty)
           (memReq
             : ty ReordererArbiterReq ->
               ActionT ty ReordererImmRes)
