@@ -19,7 +19,7 @@ Definition EffectlessRelation {k: Kind} (R: RegsT -> RegsT -> Prop) (a_i a_s: Ac
        exists reads_s,
         (SemAction o_s a_s reads_s [] [] retval)).
 
-Definition ActionWb {k} myRegs (actR: RegsT -> RegsT -> Prop) (act: ActionT type k): Prop :=
+Definition ActionWb {k} myRegs (act: ActionT type k): Prop :=
   forall o reads upds calls ret,
     SemAction o act reads upds calls ret ->
     ((exists o', SubList o' o /\ SubList reads o'

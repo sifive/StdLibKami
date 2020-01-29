@@ -8,92 +8,155 @@ Require Import StdLibKami.FreeList.Ifc.
 Require Import Coq.Logic.EqdepFacts.
 Require Import StdLibKami.KamiCorrectness.
 
-(*
+Lemma inversionSemAction'
+      k o a reads news calls retC
+      (evalA: @SemAction o k a reads news calls retC):
+  match a with
+  | MCall m s e c =>
+    exists mret pcalls,
+    SemAction o (c mret) reads news pcalls retC /\
+    calls = (m, (existT _ _ (evalExpr e, mret))) :: pcalls
+  | LetExpr _ e cont =>
+    SemAction o (cont (evalExpr e)) reads news calls retC
+  | LetAction _ a cont =>
+    exists reads1 news1 calls1 reads2 news2 calls2 r1,
+    DisjKey news1 news2 /\
+    SemAction o a reads1 news1 calls1 r1 /\
+    SemAction o (cont r1) reads2 news2 calls2 retC /\
+    reads = reads1 ++ reads2 /\
+    news = news1 ++ news2 /\
+    calls = calls1 ++ calls2
+  | ReadNondet k c =>
+    exists rv,
+    SemAction o (c rv) reads news calls retC
+  | ReadReg r k c =>
+    exists rv reads2,
+    In (r, existT _ k rv) o /\
+    SemAction o (c rv) reads2 news calls retC /\
+    reads = (r, existT _ k rv) :: reads2
+  | WriteReg r k e a =>
+    exists pnews,
+    In (r, k) (getKindAttr o) /\
+    key_not_In r pnews /\
+    SemAction o a reads pnews calls retC /\
+    news = (r, (existT _ _ (evalExpr e))) :: pnews
+  | IfElse p _ aT aF c =>
+    match evalExpr p with
+    | true =>
+      exists r1,
+      r1 = retC /\
+      SemAction o (LetAction aT c) reads news calls r1
+    | false =>
+      exists r1,
+      r1 = retC /\
+      SemAction o (LetAction aF c) reads news calls retC
+    end
+  | Sys _ c =>
+    SemAction o c reads news calls retC
+  | Return e =>
+    retC = evalExpr e /\
+    news = nil /\
+    calls = nil /\
+    reads = nil
+  end.
+Proof.
+  destruct evalA; eauto; repeat eexists; try destruct (evalExpr p); eauto; try discriminate; eexists; split; econstructor; eauto.
+Qed.
+
 Record FreeListCorrect {len} (imp spec: @FreeList len): Type :=
   {
-    FreeListRegs: list (Attribute FullKind);
-    FreeListR: RegsT -> RegsT -> Prop;
-    NextToAllocCorrect: EffectlessRelation FreeListR (imp.(nextToAlloc)) (spec.(nextToAlloc));
-    NextToAllocWb: ActionWb FreeListRegs FreeListR (imp.(nextToAlloc));
-    AllocCorrect: forall allocand, EffectfulRelation FreeListR (imp.(alloc) allocand) (spec.(alloc) allocand);
-    AllocWb: forall allocand, ActionWb FreeListRegs FreeListR (imp.(alloc) allocand);
-    FreeCorrect: forall input, EffectfulRelation FreeListR (imp.(free) input) (spec.(free) input);
-    FreeWb: forall input, ActionWb FreeListRegs FreeListR (imp.(free) input);
+    freeListRegs: list (Attribute FullKind);
+    freeListR: RegsT -> RegsT -> Prop;
+    nextToAllocCorrect: EffectlessRelation freeListR (@nextToAlloc _ imp type) (@nextToAlloc _ spec type);
+    nextToAllocWb: ActionWb freeListRegs (@nextToAlloc _ imp type);
+    allocCorrect: forall allocand, EffectfulRelation freeListR (@alloc _ imp type allocand) (@alloc _ spec type allocand);
+    allocWb: forall allocand, ActionWb freeListRegs (@alloc _ imp type allocand);
+    freeCorrect: forall input, EffectfulRelation freeListR (@free _ imp type input) (@free _ spec type input);
+    freeWb: forall input, ActionWb freeListRegs (@free _ imp type input);
   }.
 
-Record ArbiterCorrect `{ArbiterParams} {k} (imp spec: @Arbiter k): Type :=
+Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
   {
-    ArbiterRegs: list (string * FullKind);
-    ArbiterR: RegsT -> RegsT -> Prop;
-    clientReqGenCorrect: forall id req, EffectfulRelation ArbiterR (imp.(sendReq) id type req) (spec.(sendReq) id type req);
-    clientReqGenWb: forall id req, ActionWb ArbiterRegs ArbiterR (imp.(clientReqGen) id type req);
-    memCallbackCorrect: forall resp, EffectfulRelation ArbiterR (imp.(memCallback) type resp) (spec.(memCallback) type resp);
-    memCallbackWb: forall resp, ActionWb ArbiterRegs ArbiterR (imp.(memCallback) type resp);
-    ruleCorrect: EffectfulRelation ArbiterR (imp.(arbiterRule) type) (spec.(arbiterRule) type);
-    ruleWb: ActionWb ArbiterRegs ArbiterR (imp.(arbiterRule) type);
+    arbiterRegs: list (Attribute FullKind);
+    outerRegs : list (Attribute FullKind);
+    arbiterR: RegsT -> RegsT -> Prop;
+    sendReqCorrect: forall 
+        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty ArbiterImmRes),
+        (forall reqa, ActionWb outerRegs (@req type reqa)) ->
+        forall cid creqa, EffectfulRelation arbiterR (@sendReq _ imp req cid type creqa) (@sendReq _ spec req cid type creqa);
+    sendReqWb: forall req cid creqa, ActionWb arbiterRegs (@sendReq _ imp req cid type creqa);
+    memCallbackCorrect: forall resp, EffectfulRelation arbiterR (@memCallback _ imp type resp) (@memCallback _ spec type resp);
+    memCallbackWb: forall resp, ActionWb arbiterRegs (@memCallback _ imp type resp);
+    ruleCorrect: EffectfulRelation arbiterR (@arbiterRule _ imp type) (@arbiterRule _ spec type);
+    ruleWb: ActionWb arbiterRegs (@arbiterRule _ imp type);
   }.
 
 Section Proofs.
   (** * Common parameters *)
   Context `{A: ArbiterParams}.
+  (*
   Context (memReq: forall ty, ty MemReq -> ActionT ty Bool).
-  
+  *)
   (** * Spec parameters *)
-  Context (ArrayName: string).
-  Definition specFreeListParams: FreeListParams := Build_FreeListParams serverTagSz ArrayName.
-  Context (ArbiterName: string).
-  Context (AlistRead AlistWrite: string).
-  Definition specFreeList := (@specFreeList specFreeListParams).
-  Definition specParams: ArbiterImplParams :=
-    Build_ArbiterImplParams ArbiterName
-                            AlistRead
-                            AlistWrite
-                            specFreeList
-                            memReq.
+  Variable (ArrayName ArbiterName AlistRead AlistWrite : string).
+  
+(*  Definition specFreeListParams: FreeListParams := Build_FreeListParams transactionTagSz ArrayName.
+  Definition specFreeList := (@specFreeList specFreeListParams).*)
+  Variable (specFreeList implFreeList: @FreeList numTransactions).
+  Variable (implFreeListCorrect: FreeListCorrect implFreeList specFreeList).
+  Variable (outerRegs : list (Attribute FullKind)).
+  Definition specParams: ArbiterImplParams := 
+    {| Arbiter.Impl.arbiter := ArbiterName;
+       Arbiter.Impl.alistRead := AlistRead;
+       Arbiter.Impl.alistWrite := AlistWrite;
+       Arbiter.Impl.freelist := specFreeList |}.
   
   (** * Impl parameters *)
-  Context (implFreeList: @FreeList serverTagNum).
-  Context (implFreeListCorrect: FreeListCorrect implFreeList specFreeList).
   Definition implParams: ArbiterImplParams :=
-    Build_ArbiterImplParams ArbiterName
-                            AlistRead
-                            AlistWrite
-                            implFreeList
-                            memReq.
-  
+    {| Arbiter.Impl.arbiter := ArbiterName;
+       Arbiter.Impl.alistRead := AlistRead;
+       Arbiter.Impl.alistWrite := AlistWrite;
+       Arbiter.Impl.freelist := implFreeList |}.
+
   (** * The arbiter pseudo-modules involved in the correctness proof *)
   Definition specArbiter := @arbiterImpl A specParams.
   Definition implArbiter := @arbiterImpl A implParams.
   
 
-  Record myArbiterR (freelistR: RegsT -> RegsT -> Prop) freelistRegs (o_i o_s: RegsT): Prop :=
+  Record myArbiterR (freelistR: RegsT -> RegsT -> Prop) freelistRegs outerRegs (o_i o_s: RegsT): Prop :=
     {
       ArbiterVal: bool;
-      LocalReg: RegT := (ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal);
+      LocalReg: RegT;
+      OuterRegs: RegsT;
+      LocalRegVal : LocalReg = (ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal);
       FreeListImplRegs: RegsT;
       FreeListSpecRegs: RegsT;
       HImplRegs: (getKindAttr FreeListImplRegs) = freelistRegs;
-      Ho_iCorrect: o_i = LocalReg :: FreeListImplRegs;
-      Ho_sCorrect: o_s = LocalReg :: FreeListSpecRegs;
+      HOuterRegs: (getKindAttr OuterRegs) = outerRegs;
+      Ho_iCorrect: o_i = LocalReg :: FreeListImplRegs ++ OuterRegs;
+      Ho_sCorrect: o_s = LocalReg :: FreeListSpecRegs ++ OuterRegs;
       Ho_iNoDup: List.NoDup (map fst o_i);
       Ho_sNoDup: List.NoDup (map fst o_s);
       HFreeList: freelistR FreeListImplRegs FreeListSpecRegs
     }.
 
+
+
+  
   (* A variant of clean_hyp_step that, among other things, avoids
-   applying inversion_sem_action to a few manually specified opaque
-   actions. *)
+     applying inversion_sem_action to a few manually specified opaque
+     actions. *)
   Ltac mychs :=
     (repeat match goal with
             | _ => mySubst
             | _ => (repeat match goal with
-                          | [H: SemAction _ (Impl.alloc type _) _ _ _ _ |- _] => revert H
-                          | [H: SemAction _ (alloc implFreeList type _) _ _ _ _ |- _] => revert H
-                          | [H: SemAction _ (Impl.nextToAlloc type) _ _ _ _ |- _] => revert H
-                          | [H: SemAction _ (nextToAlloc implFreeList type) _ _ _ _ |- _] => revert H
-                          | [H: SemAction _ (Impl.free type _) _ _ _ _ |- _] => revert H
-                          | [H: SemAction _ (memReq type _) _ _ _ _ |- _] => revert H
-                          end); progress clean_hyp_step
+                           | [H: SemAction _ (Impl.alloc _) _ _ _ _ |- _] => revert H
+                           | [H: SemAction _ (alloc implFreeList _) _ _ _ _ |- _] => revert H
+                           | [H: SemAction _ (Impl.nextToAlloc) _ _ _ _ |- _] => revert H
+                           | [H: SemAction _ (nextToAlloc implFreeList) _ _ _ _ |- _] => revert H
+                           | [H: SemAction _ (Impl.free _) _ _ _ _ |- _] => revert H
+                           | [H: SemAction _ (sendReq _) _ _ _ _ |- _] => revert H
+                           end); progress clean_hyp_step
             | [H: match _ with _ => _ end |- _ ] => progress simpl in H
             end); intros.
 
@@ -168,31 +231,1671 @@ Section Proofs.
         end
       end
     end.
+             
 
+  Lemma SemActionExpand o o' {k} {a : ActionT type k} {reads upds calls ret}:
+        forall 
+          (HSubList : SubList o o')
+          (HSemAction : SemAction o a reads upds calls ret),
+          SemAction o' a reads upds calls ret.
+  Proof.
+    revert reads upds calls ret.
+    induction a; intros; try (apply inversionSemAction in HSemAction); dest; subst.
+    7 : { destruct (evalExpr e) eqn:G; dest; [econstructor 7 | econstructor 8]; eauto. }
+    all : econstructor; eauto.
+    rewrite in_map_iff in H; dest.
+    specialize (HSubList _ H2).
+    rewrite in_map_iff.
+    exists x0; split; auto.
+  Qed.
+  
+  Lemma SubList_chain {B C : Type} (l1 : list (B * C)):
+    forall (l2 l3 : list (B * C))
+           (HNoDup : NoDup (map fst l2))
+           (HSubList1 : SubList l1 l2)
+           (HSubList2 : SubList l3 l2)
+           (HKeysMatch : map fst l1 = map fst l3),
+      l1 = l3.
+  Proof.
+    induction l1; intros.
+    - destruct l3; inv HKeysMatch; auto.
+    - destruct a; simpl in *.
+      destruct l3; inversion HKeysMatch.
+      destruct p; simpl in *; subst.
+      rewrite (NoDup_map_fst HNoDup (HSubList1 _ (in_eq _ _)) (HSubList2 _ (in_eq _ _))) in *.
+      erewrite IHl1; eauto; eapply SubList_cons; eauto.
+  Qed.
+
+
+  Lemma app_cons :
+    (forall (A : Type) (a : A) (l : list A),
+        a :: l = [a] ++ l).
+  Proof.
+    auto.
+  Qed.
+  
+  (* Pretty stupid, but it works for now *)
+  Ltac prove_sublist :=
+    match goal with
+    | |- SubList ?l1 ?l2 => clear; repeat intro; repeat (simpl in *; rewrite in_app_iff in *); firstorder fail
+    end.
+
+  (* prototype for dealing with special relational actions *)
+  Ltac resolve_rel :=
+    let o_j := fresh "o_j" in
+    let HSL1 := fresh "HSL1" in
+    let HSL2 := fresh "HSL2" in
+    let HCorrect := fresh "HCorrect" in
+    let HSemAction := fresh "HSemAction" in
+    let HR := fresh "HR" in
+    let TMP := fresh "TMP" in
+    let HSemAction_s := fresh "HSemAction_s" in
+    let HupdsNil := fresh "HupdsNil" in
+    let HcallsNil := fresh "HcallsNil" in
+    let reads_s := fresh "reads_s" in
+    let upds_s := fresh "upds_s" in                                                           
+    match goal with
+    | [HSemAction1 : SemAction ?o_i ?a_i ?reads ?upds ?calls ?retV,
+       HActionWb : ActionWb (getKindAttr ?o_i1) ?a_i,
+       Ho_iNoDup : NoDup (map fst ?o_i) |- exists _ _, (SemAction ?o_s _ _ _ _ _ /\ _)] =>
+      specialize (HActionWb _ _ _ _ _ HSemAction1) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]
+      ; assert (SubList o_i1 o_i) as TMP
+      ; [prove_sublist
+        |rewrite (SubList_chain Ho_iNoDup HSL1 TMP (getKindAttr_fst _ _ HCorrect)) in HSemAction; clear TMP]
+      ; match goal with
+        | [HERelation : EffectlessRelation ?R a_i _,
+                        HoRelation : ?R o_i1 ?o_j1 |- _] =>
+          idtac "hyp1 found"
+          ; specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+          ; assert (SubList o_j1 o_s) as TMP
+        | [HERelation : EffectfulRelation ?R a_i _,
+                        HoRelation : ?R o_i1 ?o_j1 |- _] =>
+          idtac "hyp2 found"
+          ; specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [reads_s [upds_s [HSemAction_s HdoUpdRegsR]]]
+          ; assert (SubList o_j1 o_s) as TMP
+        | _ => idtac "default 1 found"
+               ; rename HSemAction into HSemAction_s
+               ; assert (SubList o_i1 o_s) as TMP
+        end
+      ; [prove_sublist
+        | apply (SemActionExpand TMP) in HSemAction_s; clear TMP]
+    | [HSemAction1 : SemAction ?o_i (?a_i _) ?reads ?upds ?calls ?retV,
+       HActionWb : forall _, ActionWb (getKindAttr ?o_i1) (?a_i _),
+       Ho_iNoDup : NoDup (map fst ?o_i) |- exists _ _, (SemAction ?o_s _ _ _ _ _ /\ _)] =>
+      idtac "Attempt : specialize (" HActionWb " _ _ _ _ _ _ " HSemAction1 ") as [["o_j" ["HSL1" ["HSL2" ["HCorrect" "HSemAction"]]]] "HR"]"
+      ; specialize (HActionWb _ _ _ _ _ _ HSemAction1) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]
+      ; assert (SubList o_i1 o_i) as TMP
+      ; [prove_sublist
+        |rewrite (SubList_chain Ho_iNoDup HSL1 TMP (getKindAttr_fst _ _ HCorrect)) in HSemAction; clear TMP]
+      ; match goal with
+        | [HERelation : forall _, EffectlessRelation ?R (a_i _) _,
+             HoRelation : ?R o_i1 ?o_j1 |- _] =>
+          idtac "hyp1.2 found"     
+          ; specialize (HERelation _ _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+          ; assert (SubList o_j1 o_s) as TMP
+        | [HERelation : forall _, EffectfulRelation ?R (a_i _) _,
+             HoRelation : ?R o_i1 ?o_j1 |- _] =>
+          idtac "hyp2.2 found"
+          ; idtac "Attempt : specialize (" HERelation " _ _ _ " HoRelation " _ _ _ _ " HSemAction ")"
+          ; specialize (HERelation _ _ _ HoRelation _ _ _ _ HSemAction) as [reads_s [upds_s [HSemAction_s HdoUpdRegsR]]]
+          ; assert (SubList o_j1 o_s) as TMP
+        | _ => idtac "default 1.2 found"
+               ; rename HSemAction into HSemAction_s
+               ; assert (SubList o_i1 o_s) as TMP
+        end
+      ; [prove_sublist
+        |apply (SemActionExpand TMP) in HSemAction_s; clear TMP]
+    | _ => idtac "external hyp not matched"                  
+    end.
+
+  Ltac resolve_wb :=
+    match goal with
+    | [HSemAction : SemAction ?o1 ?a_i _ _ _ _,
+       HActionWb : ActionWb (getKindAttr ?o2) ?a_i |- _] =>
+      specialize (HActionWb _ _ _ _ _ HSemAction) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]
+    | [HSemAction : SemAction _ (?a_i _) _ _ _ _,
+       HActionWb : forall _, ActionWb _ (?a_i _) |- _] =>
+      specialize (HActionWb _ _ _ _ _ _ HSemAction) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]
+    end.
+
+  Lemma NoDup_app_Disj_iff {B : Type} (eqDec : forall a1 a2 : B, {a1 = a2} + {a1 <> a2}):
+  forall (l1 l2 : list B),
+    NoDup (l1 ++ l2) <-> NoDup l1 /\ NoDup l2 /\ (forall a : B, ~In a l1 \/ ~In a l2).
+  Proof.
+    red; repeat split; intros; dest.
+    rewrite NoDup_app_iff in H; dest; auto.
+    rewrite NoDup_app_iff in H; dest; auto.
+    apply NoDup_app_Disj; auto.
+    rewrite NoDup_app_iff; repeat split; auto; intros.
+    destruct (in_dec eqDec a l2); eauto.
+    destruct (H1 a); eauto.
+    destruct (in_dec eqDec a l1); eauto.
+    destruct (H1 a); eauto.
+  Qed.
+
+  Corollary NoDup_app_DisjKey {B : Type} :
+    forall (l1 l2 : list (string * B)),
+      NoDup (map fst (l1 ++ l2)) <-> NoDup (map fst l1) /\ NoDup (map fst l2) /\ DisjKey l1 l2.
+  Proof.
+    intros; rewrite map_app, NoDup_app_Disj_iff; unfold DisjKey;[reflexivity|apply string_dec].
+  Qed.
+
+  Lemma DisjKey_app_split_r {B C : Type} :
+    forall (l1 l2 l3 : list (B * C)),
+      DisjKey l1 (l2 ++ l3) <-> DisjKey l1 l2 /\ DisjKey l1 l3.
+  Proof.
+    split; intros.
+    - split; intro k; specialize (H k); rewrite map_app, in_app_iff, DeM1 in H; destruct H; dest; auto.
+    - dest; intro.
+      destruct (H k); destruct (H0 k); rewrite map_app, in_app_iff, DeM1; auto.
+  Qed.
+
+  Corollary DisjKey_app_split_l {B C : Type} :
+    forall (l1 l2 l3 : list (B * C)),
+      DisjKey (l1 ++ l2) l3 <-> DisjKey l1 l3 /\ DisjKey l2 l3.
+  Proof.
+    split; intros.
+    - apply DisjKey_Commutative in H; rewrite DisjKey_app_split_r in H; dest; eauto using DisjKey_Commutative.
+    - apply DisjKey_Commutative; rewrite DisjKey_app_split_r; dest; eauto using DisjKey_Commutative.
+  Qed.
+
+  Lemma NoDup_singleton_map {B C : Type}:
+    forall (a : B) (f : B -> C),
+      NoDup (map f [a]) <-> True.
+  Proof.
+    intros; repeat constructor; auto.
+  Qed.
+
+  Lemma DisjKey_singletons {B : Type} :
+        forall (a b : string * B),
+          DisjKey [a] [b] <-> fst a <> fst b.
+  Proof.
+    unfold DisjKey; split; repeat intro; simpl in *.
+    - rewrite H0 in H; destruct (H (fst b)); auto.
+    - destruct (string_dec k (fst b)); subst.
+      + left; intro G; destruct G; auto.
+      + right; intro G; destruct G; auto.
+  Qed.
+
+  Lemma DisjKey_singleton_l {B : Type} :
+    forall (a : string * B) (l : list (string * B)),
+      DisjKey [a] l <-> key_not_In (fst a) l.
+  Proof.
+    unfold DisjKey, key_not_In; split; simpl; repeat intro.
+    - apply (in_map fst) in H0; simpl in *.
+      specialize (H (fst a)); destruct H; auto.
+    - destruct (string_dec k (fst a)); subst.
+      + right; intro.
+        rewrite in_map_iff in H0; dest; destruct x; simpl in *; subst.
+        specialize (H b); contradiction.
+      + left; intro; destruct H0; auto.
+  Qed.
+
+
+  Corollary DisjKey_singleton_r {B : Type} :
+    forall (a : string * B) (l : list (string * B)),
+      DisjKey l [a] <-> key_not_In (fst a) l.
+  Proof.
+    split; intro.
+    - apply DisjKey_Commutative in H; rewrite DisjKey_singleton_l in H; assumption.
+    - apply DisjKey_Commutative; rewrite DisjKey_singleton_l; assumption.
+  Qed.
+  
+  Lemma key_not_In_cons {B C : Type} :
+    forall (a : B) (b : B * C) (l : list (B * C)),
+      key_not_In a (b :: l) <->  a <> fst b /\ key_not_In a l.
+  Proof.
+    split; intros; rewrite app_cons in *; [rewrite key_not_In_app_iff in H| rewrite key_not_In_app_iff]; dest; split; auto.
+    - intro; destruct b; simpl in *; subst; eapply H; simpl; auto.
+    - repeat intro; destruct b; simpl in *; subst; destruct H1; auto.
+      apply inversionPair in H1; dest; subst; apply H; reflexivity.
+  Qed.
+
+  Lemma DisjKey_cons_l {B C : Type} (Heq_dec : forall (a b : B), {a = b} + {a <> b}):
+    forall (b : B * C) (l1 l2 : list (B * C)),
+      DisjKey (b :: l1) l2 <-> key_not_In (fst b) l2 /\ DisjKey l1 l2.
+  Proof.
+    repeat split; intros; dest.
+    - specialize (H (fst b)); destruct H; rewrite key_not_In_fst; simpl in *; auto.
+    - rewrite app_cons in H.
+      rewrite DisjKey_app_split_l in H; dest; auto.
+    - rewrite app_cons, DisjKey_app_split_l; split; auto.
+      repeat intro.
+      rewrite key_not_In_fst in H.
+      destruct (Heq_dec k (fst b)); subst; simpl; auto.
+      left; intro; destruct H1; auto.
+  Qed.
+
+  Corollary DisjKey_cons_l_str {B : Type} :
+    forall (b : string * B) (l1 l2 : list (string * B)),
+      DisjKey (b :: l1) l2 <-> key_not_In (fst b) l2 /\ DisjKey l1 l2.
+  Proof. intros; apply (DisjKey_cons_l string_dec). Qed.
+
+  Corollary DisjKey_cons_r_str {B : Type} :
+    forall (b : string * B) (l1 l2 : list (string * B)),
+      DisjKey l1 (b :: l2) <-> key_not_In (fst b) l1 /\ DisjKey l1 l2.
+  Proof.
+    split; intros; [ apply DisjKey_Commutative in H; rewrite DisjKey_cons_l_str in H
+                   | apply DisjKey_Commutative; rewrite DisjKey_cons_l_str]
+    ; dest; split; auto; apply DisjKey_Commutative; assumption.
+  Qed.
+  
+  (* Attempts to normalize (NoDup fst _) type goals *)
+  (* NoDup (map fst (a :: l1 ++ l2)) => True /\ (NoDup (map fst l1) /\ NoDup (map fst l2) /\ DisjKey l1 l2) /\ key_not_In (fst a) l1 /\ key_not_In (fst a) l2 *)
+(*
+  Ltac simpl_nodup_map_fst :=
+    match goal with
+    | [ |- context [NoDup (map fst (?a :: nil))]] => rewrite (NoDup_singleton_map a fst)
+    | [ |- context [DisjKey (?a :: nil ) (?b :: nil)]] => rewrite (DisjKey_singletons a b)
+    | [ |- context [NoDup (map fst (_ ++ _))]] => rewrite NoDup_app_DisjKey
+    | [ |- context [NoDup (map fst (_ :: _))]] => rewrite app_cons, NoDup_app_DisjKey
+    | [ |- context [DisjKey (_ ++ _) _]] => rewrite DisjKey_app_split_l
+    | [ |- context [DisjKey _ (_ ++ _)]] => rewrite DisjKey_app_split_r
+    | [ |- context [DisjKey (?a :: nil ) ?l]] => rewrite (DisjKey_singleton_l a l)
+    | [ |- context [DisjKey ?l (?a :: nil )]] => rewrite (DisjKey_singleton_r a l)
+    | [ |- context [DisjKey _ (_ :: _)]] => rewrite app_cons, DisjKey_app_split_r
+    | [ |- context [DisjKey (_ :: _) _]] => rewrite app_cons, DisjKey_app_split_l
+    | [ |- context [key_not_In _ (_ ++ _)]] => rewrite key_not_In_app_iff
+    | [ |- context [key_not_In _ (_ :: nil)]] => rewrite key_not_In_singleton
+    | [ |- context [key_not_In _ (_ :: _)]] => rewrite app_cons, key_not_In_app_iff
+    end.
+*)
+                                         
+  
+  Lemma map_nil {B C : Type} {f : B -> C}:
+    map f nil = nil.
+  Proof. auto. Qed.
+  
+  Ltac reduce_map :=
+    repeat (rewrite map_cons in * || rewrite map_app in * || rewrite map_nil in *).
+            
+  Ltac decompose_NoDup_string :=
+    repeat (rewrite NoDup_cons_iff in * || rewrite (NoDup_app_Disj_iff string_dec) in * || rewrite in_app_iff in * || rewrite DeM1 in *).
+  
+
+
+
+  Lemma doUpdRegs_app_r o :
+    forall u o', 
+      doUpdRegs u (o ++ o') = (doUpdRegs u o) ++ (doUpdRegs u o').
+  Proof.
+    induction o; intros; simpl; auto.
+    case_eq (findReg (fst a) u); intros; subst; f_equal; rewrite IHo; auto.
+  Qed.
+
+  Lemma findReg_Some_app u :
+    forall s u' x,
+      findReg s (u ++ u') = Some x ->
+      findReg s u  = Some x \/ findReg s u' = Some x.
+  Proof.
+    induction u; simpl; intros; auto.
+    destruct String.eqb eqn:G; auto.
+  Qed.
+
+  Lemma findReg_Some_app_ordered u :
+    forall s u' x y,
+      findReg s (u ++ u') = Some x ->
+      findReg s u = Some y ->
+      x = y.
+  Proof.
+    induction u; simpl; intros;[discriminate|].
+    destruct String.eqb.
+    - rewrite H in H0; inv H0; reflexivity.
+    - eapply IHu; eauto.
+  Qed.
+
+  Lemma doUpdRegs_l_reduce o :
+    forall u u',
+      DisjKey u o ->
+      doUpdRegs (u ++ u') o = doUpdRegs u' o.
+  Proof.
+    induction o; simpl; auto; intros.
+    destruct (findReg (fst a) (u ++ u')) eqn:G, (findReg (fst a) u') eqn:G0.
+    - apply findReg_Some_app in G.
+      destruct G.
+      + exfalso.
+        apply findRegs_Some', (in_map fst) in H0.
+        specialize (H (fst a)).
+        destruct H; simpl in *; auto.
+      + rewrite H0 in G0; inv G0; f_equal; apply IHo.
+        intro k; specialize (H k); simpl in H; destruct H; auto.
+    - exfalso.
+      apply findReg_Some_app in G.
+      destruct G;[apply findRegs_Some', (in_map fst) in H0| rewrite H0 in G0; discriminate].
+      specialize (H (fst a)).
+      destruct H; simpl in *; auto.
+    - exfalso.
+      rewrite <- findRegs_None, map_app, in_app_iff, DeM1 in G; dest.
+      apply findRegs_Some', (in_map fst) in G0; auto.
+    - rewrite IHo; auto.
+      intro k; specialize (H k); simpl in *; destruct H; auto.
+  Qed.
+
+  Lemma doUpdRegs_r_reduce o :
+    forall u u',
+      DisjKey u' o ->
+      doUpdRegs (u ++ u') o = doUpdRegs u o.
+  Proof.
+    induction o; simpl; auto; intros.
+    destruct (findReg (fst a) (u ++ u')) eqn:G, (findReg (fst a) u) eqn:G0.
+    - apply findReg_Some_app in G.
+      destruct G.
+      + rewrite H0 in G0; inv G0; f_equal; apply IHo.
+        intro k; specialize (H k); simpl in H; destruct H; auto.
+      + exfalso.
+        apply findRegs_Some', (in_map fst) in H0.
+        specialize (H (fst a)).
+        destruct H; simpl in *; auto.
+    - exfalso.
+      apply findReg_Some_app in G.
+      destruct G;[rewrite H0 in G0; discriminate| apply findRegs_Some', (in_map fst) in H0].
+      specialize (H (fst a)).
+      destruct H; simpl in *; auto.
+    - exfalso.
+      rewrite <- findRegs_None, map_app, in_app_iff, DeM1 in G; dest.
+      apply findRegs_Some', (in_map fst) in G0; auto.
+    - rewrite IHo; auto.
+      intro k; specialize (H k); simpl in *; destruct H; auto.
+  Qed.
+
+  Lemma doUpdRegs_DisjKey o :
+    forall u,
+      DisjKey u o ->
+      doUpdRegs u o = o.
+  Proof.
+    induction o; simpl; auto; intros.
+    destruct (findReg (fst a) u) eqn:G.
+    - exfalso; apply findRegs_Some' in G.
+      apply (in_map fst) in G; destruct (H (fst a)); auto.
+      apply H0; simpl; auto.
+    - rewrite IHo; auto.
+      intro k; destruct (H k); simpl in *; auto.
+  Qed.
+  
+  Lemma doUpdRegs_app_l o :
+    forall u u',
+      doUpdRegs (u ++ u') o = doUpdRegs u (doUpdRegs u' o).
+  Proof.
+    induction o; simpl; auto; intros.
+    destruct (findReg (fst a) (u ++ u')) eqn:G, (findReg (fst a) u') eqn:G0, (findReg (fst a) u) eqn:G1
+    ; simpl; try (rewrite G1).
+    - f_equal; auto.
+      rewrite (findReg_Some_app_ordered _ _ _ G G1); reflexivity.
+    - apply findReg_Some_app in G; destruct G as [G|G]; rewrite G in *;[discriminate|inv G0].
+      f_equal; eauto.
+    - apply findReg_Some_app in G; destruct G as [G|G]; rewrite G in *;[inv G1|discriminate].
+      f_equal; eauto.
+    - apply findReg_Some_app in G; rewrite G0, G1 in G; destruct G; discriminate.
+    - rewrite <- findRegs_None, map_app, in_app_iff, DeM1 in G.
+      apply findRegs_Some', (in_map fst) in G0; dest; contradiction.
+    - rewrite <- findRegs_None, map_app, in_app_iff, DeM1 in G.
+      apply findRegs_Some', (in_map fst) in G0; dest; contradiction.
+    - rewrite <- findRegs_None, map_app, in_app_iff, DeM1 in G.
+      apply findRegs_Some', (in_map fst) in G1; dest; contradiction.
+    - f_equal; eauto.
+  Qed.
+
+  Lemma doUpdRegs_cons_l o :
+    forall r u,
+      doUpdRegs (r::u) o = doUpdRegs [r] (doUpdRegs u o).
+  Proof.
+    intros; rewrite app_cons; apply doUpdRegs_app_l.
+  Qed.
+  
+  Ltac find_if_inside :=
+    match goal with
+    | [H : ?X = _ |- context[if ?X then _ else _] ] => rewrite H
+    end.
+  
+  Lemma doUpdReg_preserves_getKindAttr :
+    forall u o,
+      NoDup (map fst o) ->
+      SubList (getKindAttr u) (getKindAttr o) ->
+      getKindAttr (doUpdRegs u o) = getKindAttr o.
+  Proof.
+    symmetry; erewrite getKindAttr_doUpdRegs; eauto; intros.
+    apply H0; rewrite in_map_iff; eexists; split; eauto.
+    simpl; reflexivity.
+  Qed.
+
+  Lemma doUpdRegs_preserves_keys o :
+    forall u,
+      map fst (doUpdRegs u o) = map fst o.
+  Proof.
+    induction o; simpl; auto; intros.
+    destruct findReg; rewrite IHo; reflexivity.
+  Qed.
+
+  Lemma DisjKey_same {B C : Type} :
+    forall (l1 l2 l3: list (B * C)),
+      map fst l1 = map fst l2 ->
+      DisjKey l1 l3 <-> DisjKey l2 l3.
+  Proof.
+    intros; split; unfold DisjKey; repeat intro; rewrite H in *; auto.
+  Qed.
+
+  Lemma doUpdRegs_key_not_In a l1 :
+    key_not_In (fst a) l1 ->
+    doUpdRegs [a] l1 = l1.
+  Proof.
+    intro.
+    rewrite <- DisjKey_singleton_l in H.
+    apply doUpdRegs_DisjKey; assumption.
+  Qed.
+
+  Lemma doUpdRegs_keys_neq a b :
+    fst a <> fst b ->
+    doUpdRegs [a] [b] = [b].
+  Proof.
+    rewrite <- DisjKey_singletons; intros.
+    apply doUpdRegs_DisjKey; assumption.
+  Qed.
+  
+  Lemma in_cons_iff {B : Type} {a b : B} {l : list B}:
+    In a (b :: l) <-> b = a \/ In a l.
+  Proof.
+    split; intros; simpl in *; auto.
+  Qed.
+  (* Some notes.
+     Try to keep the Arbiter actions in lockstep, unraveling twin SemActions together
+     After a LetAction or LetExpr, check to see if there is a hypothesis/goal pair matching an Effect(full/less) relation pair, and an ActionWb rule.
+     These should be the only places where this is necessary as IfElse statements are transformed into LetActions.
+     
+     mySubst needs to be more robust, we should be solving as many generic goals as possible here.
+     We could probably use some bespoke rules for dealing with each of the generic constructors to make the problem set up more stremlined.
+
+     If you have a SemAction in the goal with a SemAction in the hypothesis that you don't recognize, attempt to unfold them to the same action.
+     If they are not an ActionT constructor type after unfolding, then we have to assume they're a relational type.
+     Try to find the appropriate ActionWb relation associated with the type in the goal, similarly find the Effect(full/less) relation between the
+     goal and one or more actions in the hypothesis.
+     Shrink the current SemAction state registers to fit the ActionWb parameter.
+     Destruct the appropriate ActionWb hypothesis, use as input to Effect(less/full) relation, destruct said relation, collect witnesses.
+     Expand resulting SemAction state registers to fit goal.
+     Apply goal, repeat as needed.
+   *)
+  
+  Lemma nIn_app_iff {B : Type} (Heq_dec : forall (a b : B), {a = b} + {a <> b}) :
+    forall (a : B) (l1 l2 : list B),
+      ~In a (l1 ++ l2) <-> ~In a l1 /\ ~In a l2.
+  Proof. split; intros; rewrite in_app_iff, DeM1 in *; auto. Qed.
+
+  Lemma SubList_nil_r {B : Type} :
+    forall (l : list B),
+      SubList l nil -> l = nil.
+  Proof.
+    repeat intro; induction l; auto.
+    exfalso; specialize (H _ (in_eq _ _)); auto.
+  Qed.
+  
+  Ltac clean_useless_hyp :=
+    match goal with
+    | [ H : ?a = ?a |- _] => clear H
+    | [ H : True |- _] => clear H
+    | [ H : SubList nil _ |- _] => clear H
+    | [ H : key_not_In _ nil |- _] => clear H
+    | [ H : DisjKey _ nil |- _] => clear H
+    | [ H : DisjKey nil _ |- _] => clear H
+    | [ H : NoDup nil |- _] => clear H
+    | [ H : NoDup (_ :: nil) |- _] => clear H
+    | [ H : ~In _ nil |- _] => clear H
+    end.
+
+  Ltac normalize_key_hyps :=
+    match goal with
+    | [ H : key_not_In _ (_ ++ _) |- _] => rewrite key_not_In_app_iff in H; destruct H as [? ?]
+    | [ H : key_not_In _ (_ :: _) |- _] => rewrite key_not_In_cons in H; destruct H as [? ?]
+    | [ H : key_not_In _ _ |- _] => rewrite key_not_In_fst in H
+    | [ H : DisjKey (_ ++ _) _ |- _] => rewrite DisjKey_app_split_l in H; destruct H as [? ?]
+    | [ H : DisjKey _ (_ ++ _) |- _] => rewrite DisjKey_app_split_r in H; destruct H as [? ?]
+    | [ H : DisjKey (_ :: _) _ |- _] => rewrite DisjKey_cons_l_str in H; destruct H as [? ?]
+    | [ H : DisjKey _ (_ :: _) |- _] => rewrite DisjKey_cons_r_str in H; destruct H as [? ?]
+    | [ H : NoDup (_ :: _) |- _] => rewrite NoDup_cons_iff in H; destruct H as [? ?]
+    | [ H : NoDup (_ ++ _) |- _] => rewrite (NoDup_app_Disj_iff string_dec) in H; destruct H as [? [? ?]]
+    | [ H : ~In _ (_ :: _) |- _] => rewrite not_in_cons in H; destruct H as [? ?]
+    | [ H : ~In _ (_ ++ _) |- _] => rewrite (nIn_app_iff string_dec) in H; destruct H as [? ?]
+    end.
+
+  Ltac normalize_key_concl :=
+    match goal with
+    | [ |- key_not_In _ (_ ++ _)] => rewrite key_not_In_app_iff; split
+    | [ |- key_not_In _ (_ :: _)] => rewrite key_not_In_cons; split
+    | [ |- key_not_In _ _] => rewrite key_not_In_fst
+    | [ |- DisjKey (_ ++ _) _] => rewrite DisjKey_app_split_l; split
+    | [ |- DisjKey _ (_ ++ _)] => rewrite DisjKey_app_split_r; split
+    | [ |- DisjKey (_ :: _) _] => rewrite DisjKey_cons_l_str; split
+    | [ |- DisjKey _ (_ :: _)] => rewrite DisjKey_cons_r_str; split
+    | [ |- NoDup (_ :: _)] => rewrite NoDup_cons_iff; split
+    | [ |- NoDup (_ ++ _)] => rewrite (NoDup_app_Disj_iff string_dec); repeat split
+    | [ |- ~In _ (_ :: _)] => rewrite not_in_cons; split
+    | [ |- ~In _ (_ ++ _)] => rewrite (nIn_app_iff string_dec); split
+    end.
+  
+  Ltac my_simplifier :=
+    match goal with
+    | [ H : context [map _ nil] |- _] => idtac "m_s 1"; rewrite map_nil in H
+    | [ H : context [map _ (_ ++ _)] |- _] => idtac "m_s 2"; rewrite map_app in H
+    | [ H : context [map _ (_ :: _)] |- _] => idtac "m_s 3"; rewrite map_cons in H
+    | [ H : _ \/ _ |- _] => idtac "or"; destruct H
+    | [ H : _ /\ _ |- _] => idtac "and"; destruct H
+    | [ H : SubList _ nil |- _] => idtac "SubList right nil"; apply SubList_nil_r in H
+    | [ H : (_, _) = (_, _) |- _] => idtac "pair_eq"; apply inversionPair in H; destruct H as [? ?]
+    | [ H : existT ?a ?b ?c1 = existT ?a ?b ?c2 |- _] => idtac "EqDep1"; apply Eqdep.EqdepTheory.inj_pair2 in H
+    | [ H : existT ?a ?b1 ?c1 = existT ?a ?b2 ?c2 |- _] => idtac "EqDep2"; apply inversionExistT in H; destruct H as [? ?]
+    | [ H1 : In (?a, ?b) ?c, H2 : ~In ?a (map fst ?c) |- _] => idtac "In nIn fst H1 := "H1": In ("a","b") "c" H2 := " H2; apply (in_map fst) in H1; contradiction
+    | [ |- context [map _ nil]] => idtac "m_s 4"; rewrite map_nil
+    | [ |- context [map _ (_ ++ _)]] => idtac "m_s 5"; rewrite map_app
+    | [ |- context [map _ (_ :: _)]] => idtac "m_s 6"; rewrite map_cons
+    | [ |- context [In _ (_ :: _)]] => idtac "in_cons_iff concl"; rewrite in_cons_iff
+    | [ |- context [In _ (_ ++ _)]] => idtac "in_app_iff concl"; rewrite in_app_iff
+    end.
+
+  Ltac my_simpl_solver :=
+    match goal with
+    | [ |- DisjKey nil _] => apply DisjKey_nil_l
+    | [ |- DisjKey _ nil] => apply DisjKey_nil_r
+    | [ |- ?a = ?a] => reflexivity
+    | [ |- True] => apply I
+    | [ |- NoDup nil] => constructor
+    | [ |- ~In _ nil] => intro; my_simpl_solver
+    | [ |- NoDup (_ :: nil)] => econstructor; my_simpl_solver
+    | [ H : False |- _] => idtac "False"; exfalso; apply H
+    | [ H : ?a <> ?a |- _] => idtac "neq"; exfalso; apply H; reflexivity
+    | [ H : In _ nil |- _] => idtac "In nil"; inversion H
+    end.
+  
+  Ltac decompose_In H :=
+    repeat (rewrite in_cons_iff in H || rewrite in_app_iff in H).
+  
+  Ltac resolve_wb' :=
+    let o_j := fresh "o" in
+    let HSL1 := fresh "H" in
+    let HSL2 := fresh "H" in
+    let HCorrect := fresh "H" in
+    let HSemAction := fresh "H" in
+    let HR := fresh "H" in
+    match goal with
+    | [HSemAction1 : SemAction ?o1 ?a_i _ _ _ _,
+                     HActionWb : ActionWb (getKindAttr ?o2) ?a_i |- _] =>
+      specialize (HActionWb _ _ _ _ _ HSemAction1) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]; clear HSemAction1
+    | [HSemAction1 : SemAction _ (?a_i _) _ _ _ _,
+                     HActionWb : forall _, ActionWb _ (?a_i _) |- _] =>
+      specialize (HActionWb _ _ _ _ _ _ HSemAction1) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]; clear HSemAction1
+    end.
+
+  Ltac resolve_rel' :=
+    let HupdsNil := fresh "HupdsNil" in
+    let HcallsNil := fresh "HcallsNil" in
+    let reads_s := fresh "reads_s" in
+    let HSemAction_s := fresh "HSemAction_s" in
+    let upds_s := fresh "upds_s" in
+    let HdoUpdRegsR := fresh "HdoUpdRegsR" in
+    match goal with
+    | [HSemAction : SemAction ?o_i ?a_i _ _ _ _,
+                    HERelation : EffectlessRelation ?R ?a_i _,
+                                 HoRelation : ?R ?o_i _ |- _] =>
+      specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+      ; clear HSemAction
+    | [HSemAction : SemAction ?o_i1 (?a_i _) _ _ _ _,
+                    HERelation : forall _, EffectlessRelation ?R (?a_i _) _,
+         HoRelation : ?R ?o_i2 ?o_j |- _] =>
+      specialize (HERelation _ _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+      ; clear HSemAction
+    | [HSemAction : SemAction ?o_i1 ?a_i _ _ _ _,
+                    HERelation : EffectfulRelation ?R ?a_i _,
+                                 HoRelation : ?R ?o_i2 ?o_j |- _] =>
+      specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [reads_s [upds_s [HSemAction_s HdoUpdRegsR]]]
+      ; clear HSemAction
+    | [HSemAction : SemAction ?o_i1 (?a_i _) _ _ _ _,
+                    HERelation : forall _, EffectfulRelation ?R (?a_i _) _,
+         HoRelation : ?R ?o_i2 ?o_j |- _] =>
+      specialize (HERelation _ _ _ HoRelation _ _ _ _ HSemAction) as [reads_s [upds_s [HSemAction_s HdoUpdRegsR]]]
+      ; clear HSemAction
+    end.
+
+  Ltac resolve_sublist :=
+    let HNoDup := fresh "HNoDup" in
+    let HSubList2 := fresh "HSubList" in
+    match goal with
+    | [Heq : (map (fun x => (fst x, _)) ?o1) = (map (fun y => (fst y, _)) ?o2),
+             HSubList1 : SubList ?o1 ?o3 |- _] =>
+      assert (NoDup (map fst o3)) as HNoDup
+      ;[ reduce_map
+         ; decompose_NoDup_string
+         ; auto
+       | assert (SubList o2 o3) as HSubList2
+         ; [prove_sublist
+           | specialize (SubList_chain HNoDup HSubList1 HSubList2 (getKindAttr_fst _ _ Heq)) as ?
+             ; subst
+             ; clear Heq HNoDup HSubList1 HSubList2]
+       ]
+    | [Heq : (map fst ?o1) = (map fst ?o2),
+             HSubList1 : SubList ?o1 ?o3 |- _] =>
+      assert (NoDup (map fst o3)) as HNoDup
+      ;[ reduce_map
+         ; decompose_NoDup_string
+         ; auto
+       | assert (SubList o2 o3) as HSubList2
+         ; [prove_sublist
+           | specialize (SubList_chain HNoDup HSubList1 HSubList2 Heq) as ?
+             ; subst
+             ; clear Heq HNoDup HSubList1 HSubList2]
+       ]
+    end.
+  
+  Ltac mychs' :=
+    (match goal with
+     | _ => idtac "clean_useless_hyp"; clean_useless_hyp
+     | _ => idtac "mySubst"; mySubst
+     | _ => idtac "my_simplifier"; my_simplifier 
+     | _ => idtac "normalize_key_hyps"; normalize_key_hyps
+     | _ => idtac "find_if_inside" ; find_if_inside
+     | _ => idtac "simpl_solver"; my_simpl_solver
+     | _ => idtac "main"; (match goal with
+             | [H: SemAction _ (Return _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H; destruct H as [? [? [? ?]]]
+             | [H: SemAction _ (MCall _ _ _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H; destruct H as [? [? [? ?]]]
+             | [H: SemAction _ (LetAction _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H; destruct H as [? [? [? [? [? [? [? [? [? [? [? [? ?]]]]]]]]]]]]
+             | [H: SemAction _ (ReadReg _ _ _) _ _ _ _ |- _]
+               => let TMP := fresh "H" in apply inversionSemAction' in H; destruct H as [? [? [TMP [? ?]]]]; decompose_In TMP
+             | [H: SemAction _ (WriteReg _ _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H; destruct H as [? [? [? [? ?]]]]
+             | [H: SemAction _ (IfElse _ _ _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H;
+                  let TMP := fresh "H" in destruct evalExpr eqn:TMP in H; destruct H as [? [? ?]]
+             | [H: SemAction _ (LetExpr _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H
+             | [H: SemAction _ (ReadNondet _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H; destruct H as [? ?]
+             | [H: SemAction _ (Sys _ _) _ _ _ _ |- _]
+               => apply inversionSemAction' in H
+                           end)
+     | _ => idtac "construct";
+            (match goal with
+             | [ |- SemAction _ (Return _) _ _ _ _ ] => econstructor 10
+             | [ |- SemAction _ (MCall _ _ _ _) _ _ _ _] => econstructor 1
+             | [ |- SemAction _ (LetAction _ _) _ _ _ _] => econstructor 3
+             | [ |- SemAction _ (ReadReg _ _ _) _ _ _ _] => econstructor 5
+             | [ |- SemAction _ (WriteReg _ _ _) _ _ _ _] => econstructor 6
+             | [ |- SemAction _ (IfElse _ _ _ _) _ _ _ _] => eapply SemAction_if_split
+             | [ |- SemAction _ (LetExpr _ _) _ _ _ _] => econstructor 2
+             | [ |- SemAction _ (ReadNondet _ _) _ _ _ _] => econstructor 4
+             | [ |- SemAction _ (SemSys _ _) _ _ _ _] => econstructor 9
+             end)
+     | _ => idtac "rel_solver";
+            (match goal with
+             | [ H : SemAction ?o ?a _ _ _ _ |- SemAction ?o ?a _ _ _ _] => apply H
+             | [ H : SemAction ?o1 ?a _ _ _ _ |- SemAction ?o2 ?a _ _ _ _] => eapply SemActionExpand;[| apply H]; prove_sublist
+             end) 
+     (*| [H: match _ with _ => _ end |- _ ] => idtac "match"; progress simpl in H *)
+     end).
+
+  
   Goal ArbiterCorrect implArbiter specArbiter.
     destruct implFreeListCorrect.
-    econstructor 1 with (ArbiterR := myArbiterR FreeListR0 FreeListRegs0).
-    all:
-      intros;
-      unfold EffectfulRelation.
-    {
-      intros ? ? HArbiterR ? ? ? ? HImpSem;
-        simpl in *;
-        mychs; (* can be thought of as clean_hyp_step: here it simply
-                  extracts as much info from the
-                  [ SemAction _ (clientReqGen implArbiter id type req) ... ]
-                  hypothesis as possible as in the ordinary clean_hyp_step tactic *)
-        destruct HArbiterR as [ArbiterVal
-                                 LocalReg
-                                 FreeListImplRegs
-                                 FreeListSpecRegs
-                                 HImplRegs
-                                 Ho_iCorrect
-                                 Ho_sCorrect
-                                 Ho_iNoDup
-                                 Ho_sNoDup
-                                 HFreeList];
-        simpl in HImplRegs;
+    econstructor 1 with (arbiterR := myArbiterR freeListR0 freeListRegs0 outerRegs) (outerRegs := outerRegs).
+    assert (forall (o o' o'' : RegsT)
+                   (HSubList : SubList o (o' ++ o''))
+                   (HgetKindAttr : getKindAttr o = getKindAttr o')
+                   (HNoDup : NoDup (map fst (o' ++ o''))),
+               o = o') as ReplaceRegsT.
+    { clear.
+      induction o; intros.
+      - destruct o'; auto.
+        inv HgetKindAttr.
+      - induction o'.
+        inv HgetKindAttr.
+        destruct (HSubList _ (in_eq _ _)); subst; inv HgetKindAttr; inv HNoDup.
+        + erewrite IHo; eauto.
+          apply SubList_cons in HSubList; dest.
+          simpl in H1.
+          assert (~In a o).
+          { intro.
+            apply (in_map fst) in H4; apply H2.
+            rewrite map_app, in_app_iff.
+            left; setoid_rewrite <- (getKindAttr_fst _ _ H0); assumption.
+          }
+          eapply SubList_Strengthen; eauto.
+        + exfalso; apply H5.
+          rewrite in_map_iff; exists a; auto.
+    }
+    assert (forall (o o' o'' : RegsT)
+                   (HSubList : SubList o (o'' ++ o'))
+                   (HgetKindAttr : getKindAttr o = getKindAttr o')
+                   (HNoDup : NoDup (map fst (o'' ++ o'))),
+               o = o') as ReplaceRegsT_rev.
+    { clear - ReplaceRegsT.
+      intros; eapply ReplaceRegsT with (o'' := o''); auto.
+      - repeat intro; specialize (HSubList _ H).
+        rewrite in_app_iff in *; firstorder fail.
+      - rewrite map_app, NoDup_app_iff in *; dest; repeat split; auto.
+    }
+    
+    assert (forall {B C : Type} (l1 l2 l3 l4 : list (B * C)),
+               DisjKey l3 l4 ->
+               SubList (map fst l1) (map fst l3) ->
+               SubList (map fst l2) (map fst l4) ->
+               DisjKey l1 l2) as DisjKeyShrink.
+    { clear; repeat intro.
+      firstorder fail.
+    }
+    assert (forall {B C : Type} (l1 l2 : list (B * C)),
+               SubList l1 l2 ->
+               SubList (map fst l1) (map fst l2)) as SubListPairs.
+    { clear; repeat intro.
+      rewrite in_map_iff in *; dest.
+      firstorder fail.
+    }
+    all :
+    intros;
+      unfold EffectfulRelation, ActionWb.
+    intros ? ? HArbiterR ? ? ? ? HImpSem.
+    destruct HArbiterR as [ArbiterVal
+                               LocalReg
+                               OuterRegs
+                               LocalRegVal
+                               FreeListImplRegs
+                               FreeListSpecRegs
+                               HImplRegs
+                               HOuterRegs
+                               Ho_iCorrect
+                               Ho_sCorrect
+                               Ho_iNoDup
+                               Ho_sNoDup
+                               HFreeList].
+      destruct LocalReg; inv LocalRegVal.
+      unfold sendReq, memCallback, arbiterRule,
+      implArbiter, specArbiter, implParams, specParams,
+      arbiterImpl, Impl.sendReq, Impl.nextToAlloc, Impl.alloc, alloc,
+      nextToAlloc, freelist, arbiter in *.
+      repeat mychs'.
+      repeat resolve_wb'.
+      repeat resolve_sublist.
+      repeat resolve_rel'.
+      repeat mychs'.
+      do 2 eexists; split; intros.
+      repeat mychs'; auto.
+      repeat mychs'.
+      repeat mychs'; auto; repeat mychs'; repeat normalize_key_concl; auto.
+      mychs'.
+      simpl; auto.
+      2 : {
+        eapply SemActionExpand; eauto.
+        prove_sublist.
+      }
+      apply DisjKey_nil_l.
+      find_if_inside.
+      repeat mychs'.
+      econstructor.
+      2 : {
+        econstructor.
+        simpl; auto.
+        2 :{
+          reflexivity.
+        }
+        2 : {
+          econstructor.
+          econstructor.
+          2 : {
+            eapply SemActionExpand; eauto.
+            prove_sublist.
+        }
+        2 : {
+          eapply SemAction_if_split.
+          find_if_inside.
+          econstructor.
+          2 : {
+            econstructor.
+            econstructor.
+            econstructor.
+            reflexivity.
+            econstructor.
+            eapply SemActionExpand; eauto.
+            prove_sublist.
+          }
+          2 : {
+            econstructor.
+            reflexivity.
+            reflexivity.
+            reflexivity.
+            reflexivity.
+          }
+          apply DisjKey_nil_r.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+        }
+        find_if_inside.
+          specialize (SemActionUpdSub HSemAction_s0) as HSubList.
+          simpl_nodup_map_fst.
+          split.
+          apply SubListPairs in HSubList; apply SubListPairs in H27.
+          repeat rewrite fst_getKindAttr in HSubList.
+          repeat rewrite fst_getKindAttr in H27.
+          apply DisjKey_Commutative.
+          eapply DisjKeyShrink; intro.
+          apply H3.
+          auto.
+          auto.
+          apply DisjKey_nil_r.
+        reflexivity.
+        reflexivity.
+        reflexivity.
+        }
+        find_if_inside.
+        repeat rewrite key_not_In_app_iff in *.
+        repeat rewrite key_not_In_fst in *.
+        dest.
+        
+        repeat split; auto.
+        specialize (SemActionUpdSub HSemAction_s0) as HSubList.
+        apply SubListPairs in HSubList.
+        repeat rewrite fst_getKindAttr in HSubList.
+        firstorder fail.
+      }
+      2 : {
+        econstructor.
+        reflexivity.
+        reflexivity.
+        reflexivity.
+        reflexivity.
+      }
+      simple_solver.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      find_if_inside.
+      find_if_inside.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      repeat find_if_inside.
+      reflexivity.
+      reflexivity.
+      repeat find_if_inside.
+      econstructor.
+      reflexivity.
+      Ltac simpl_doupdregs :=
+        match goal with
+        | [ |- context [doUpdRegs (_ (_ ++ _))]] => rewrite doUpdRegs_app_r
+        | [ |- context [doUpdRegs (_ ++ _) _]] => rewrite doUpdRegs_app_l
+        | [ |- context [doUpdRegs _ (_ :: nil)]] => idtac
+        | [ |- context [doUpdRegs _ (?a :: ?l)]] => rewrite (app_cons a l)
+        | [ |- context [doUpdRegs (_ :: nil) _]] => idtac
+        | [ |- context [doUpdRegs (_ :: _) _]] => rewrite doUpdRegs_cons_l
+        end.
+      Ltac reduce_doupdregs :=
+        match goal with
+        | [ HDisjKey : DisjKey ?l1 ?l2 |- context [doUpdRegs ?l1 ?l2]] => rewrite (doUpdRegs_DisjKey l1 l2)
+        | [ Hkey_not_In : key_not_In (fst ?a) ?l1 |- context [doUpdRegs (?a :: nil) ?l1]] => rewrite (doUpdRegs_key_not_In a l1)
+        | [ Hneq : (fst ?a) <> (fst ?b) |- context [doUpdRegs (?a::nil) (?b::nil)]] => rewrite doUpdRegs_keys_neq
+        | [ |- context [map fst (doUpdRegs _ _)]] => rewrite doUpdRegs_preserves_keys
+        | [ HNoDup : NoDup (map fst ?o),
+                     HSubList : SubList (getKindAttr ?u) (getKindAttr ?o)
+            |- context [getKindAttr (doUpdRegs ?u ?o)]] => rewrite (doUpdReg_preserves_getKindAttr HNoDup HSubList)
+        | [ |- context [doUpdRegs nil _] ] => rewrite doUpdRegs_nil
+        end.
+      3 : {
+        repeat simpl_doupdregs.
+        repeat reduce_doupdregs.
+        rewrite doUpdRegs_cons_l.
+        rewrite doUpdRegs_app_l.
+        rewrite doUpdRegs_app_l.
+        reduce_doupdregs.
+      simpl.
+      rewrite String.eqb_refl.
+      3 :{
+        simpl.
+        rewrite String.eqb_refl.
+        f_equal.
+        rewrite app_cons.
+        rewrite doUpdRegs_app_r.
+        reflexivity.
+      }
+      repeat rewrite doUpdRegs_app_foo.
+      repeat rewrite doUpdRegs_nil.
+      rewrite doUpdRegs_DisjKey.
+      rewrite doUpdRegs_DisjKey.
+      rewrite doUpdReg_preserves_getKindAttr.
+      reflexivity.
+      admit. (* NoDup map fst deconstruction Ltac? *)
+      assumption.
+      admit. (* DisjKey x (doUpdRegs u o) <-> DisjKey x o *)
+      admit.
+      repeat rewrite doUpdRegs_app_foo.
+      repeat rewrite doUpdRegs_nil.
+      rewrite doUpdRegs_DisjKey.
+      rewrite doUpdReg_preserves_getKindAttr.
+      rewrite doUpdRegs_DisjKey.
+      reflexivity.
+      admit. (* SubList (map fst a) (map fst b) -> NoDup (map fst (b ++ c)) -> DisjKey a c ? *)
+      admit.
+      rewrite doUpdRegs_DisjKey.
+      assumption.
+      admit.
+      admit.
+      simpl; rewrite String.eqb_refl; f_equal.
+      rewrite doUpdRegs_app_r.
+      f_equal.
+      rewrite doUpdRegs_cons_foo.
+      rewrite doUpdRegs_DisjKey.
+      rewrite doUpdRegs_cons_foo.
+      rewrite doUpdRegs_app_foo.
+      rewrite doUpdRegs_app_foo.
+      rewrite doUpdRegs_app_foo.
+      admit.
+      admit.
+      rewrite doUpdRegs_preserves_keys; auto.
+      rewrite doUpdRegs_preserves_keys; auto.
+      assert ((doUpdRegs ([(ArbiterName, existT (fullType type) (SyntaxKind Bool) true)] ++ (x6 ++ x2 ++ []) ++ []) FreeListImplRegs) =
+              (doUpdRegs x2 FreeListImplRegs)).
+      { rewrite doUpdRegs_app_foo.
+        rewrite doUpdRegs_app_foo.
+        rewrite doUpdRegs_app_foo.
+        rewrite doUpdRegs_app_foo.
+        repeat rewrite doUpdRegs_nil.
+        rewrite doUpdRegs_DisjKey.
+        rewrite doUpdRegs_DisjKey.
+        reflexivity.
+        admit.
+        admit. }
+        rewrite H0.
+      assert ((doUpdRegs ((ArbiterName, existT (fullType type) (SyntaxKind Bool) true)::(x6 ++ upds_s ++ []) ++ []) FreeListSpecRegs) =
+              (doUpdRegs upds_s FreeListSpecRegs)).
+      { rewrite doUpdRegs_cons_foo.
+        rewrite doUpdRegs_app_foo.
+        rewrite doUpdRegs_app_foo.
+        rewrite doUpdRegs_app_foo.
+        repeat rewrite doUpdRegs_nil.
+        rewrite doUpdRegs_DisjKey.
+        rewrite doUpdRegs_DisjKey.
+        reflexivity.
+        admit.
+        admit. }
+      rewrite H6.
+      assumption.
+      repeat mychs'.
+      repeat resolve_rel.
+      repeat (simpl in H0; rewrite in_app_iff in H0).
+      foo H0 Ho_iNoDup.
+      do 2 eexists; split; intros.
+      econstructor.
+      simpl; auto.
+      econstructor.
+      all : try reflexivity.
+      2 : {
+        apply HSemAction_s.
+      }
+      apply DisjKey_nil_l.
+      eapply SemAction_if_split.
+      rewrite H4.
+      econstructor.
+      7 : {
+        reflexivity.
+      }
+      2 : {
+        econstructor.
+        simpl; auto.
+        2 : {
+          reflexivity.
+        }
+        2 : {
+          econstructor.
+          econstructor.
+          2 : {
+            apply HSemAction_s0.
+          }
+          2 : {
+            eapply SemAction_if_split; find_if_inside.
+            econstructor.
+            2 : {
+              econstructor; try reflexivity.
+            }
+            apply DisjKey_nil_l.
+            econstructor.
+            all : try reflexivity.
+          }
+          apply DisjKey_nil_r.
+          reflexivity.
+          reflexivity.
+          reflexivity.
+        }
+        assumption.
+      }
+      2 : {
+        econstructor; try reflexivity.
+      }
+      apply DisjKey_nil_r.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      (* Probably not necessary, but a nice addition would be a robust doUpdRegs 'solver' that tried to reduce the size of the upds and cut the o into parts 
+         i.e. doUpdRegs (u1 ++ u2 ++ u3) (o1 ++ o2 ++ o3) = doUpdRegs u1 o1 ++ doUpdRegs u2 o2 ++ doUpdRegs u3 o3.
+       *)
+      assert ((doUpdRegs ([] ++ ((ArbiterName, existT (fullType type) (SyntaxKind Bool) (evalExpr (Const type true))) :: x6 ++ [] ++ []) ++ [])
+                         ((ArbiterName, existT (fullType type) (SyntaxKind Bool) x) :: FreeListImplRegs ++ OuterRegs))
+                =
+                (doUpdRegs ([(ArbiterName, existT (fullType type) (SyntaxKind Bool) (evalExpr (Const type true)))]) ([(ArbiterName, existT (fullType type) (SyntaxKind Bool) x)]))
+                  ++ FreeListImplRegs
+                  ++ (doUpdRegs (x6) (OuterRegs))).
+      { admit. }
+      
+      assert ((doUpdRegs ([] ++ ((ArbiterName, existT (fullType type) (SyntaxKind Bool) (evalExpr (Const type true))) :: x6 ++ [] ++ []) ++ [])
+                         ((ArbiterName, existT (fullType type) (SyntaxKind Bool) x) :: FreeListSpecRegs ++ OuterRegs))
+                =
+                (doUpdRegs ([(ArbiterName, existT (fullType type) (SyntaxKind Bool) (evalExpr (Const type true)))]) ([(ArbiterName, existT (fullType type) (SyntaxKind Bool) x)]))
+                  ++ FreeListSpecRegs
+                  ++ (doUpdRegs (x6) (OuterRegs))).
+      { admit. }
+      rewrite H, H0.
+      clear H H0.
+      econstructor.
+      reflexivity.
+      3 : {
+        simpl.
+        rewrite String.eqb_refl.
+        reflexivity.
+      }
+      reflexivity.
+      rewrite doUpdReg_preserves_getKindAttr.
+      reflexivity.
+      admit.
+      assumption.
+      simpl.
+      rewrite String.eqb_refl.
+      reflexivity.
+      rewrite app_cons in Ho_iNoDup.
+      repeat rewrite NoDup_app_DisjKey in *.
+      repeat rewrite DisjKey_app_split_r in *.
+      repeat rewrite DisjKey_app_split_l in *.
+      dest; repeat split; auto.
+      Ltac simplify_keys :=
+        match goal with
+        | [ |- context [map fst (doUpdRegs _ _ )] ] => rewrite doUpdRegs_preserves_keys
+        end.
+      simplify_keys; simpl.
+      econstructor; auto.
+      econstructor.
+      simplify_keys; auto.
+      Ltac simplify_DisjKeys :=
+        match goal with
+        | [ |- DisjKey (doUpdRegs _ _) _ ] => erewrite DisjKey_same;[|apply doUpdRegs_preserves_keys]
+        | [ |- DisjKey _ (doUpdRegs _ _) ] => apply DisjKey_Commutative; erewrite DisjKey_same; [|apply doUpdRegs_preserves_keys]
+        | [H : DisjKey ?x ?y |- DisjKey ?y ?x ] => apply (DisjKey_Commutative H)
+        end.
+      repeat simplify_DisjKeys.
+      simplify_DisjKeys.
+      assumption.
+      repeat simplify_DisjKeys.
+      rewrite app_cons in Ho_sNoDup.
+      repeat rewrite NoDup_app_DisjKey in *.
+      repeat rewrite DisjKey_app_split_r in *.
+      repeat rewrite DisjKey_app_split_l in *.
+      dest; repeat split; auto.
+      simplify_keys; simpl; auto.
+      simplify_keys; auto.
+      repeat simplify_DisjKeys.
+      repeat simplify_DisjKeys.
+      auto.
+      repeat simplify_DisjKeys.
+      auto.
+      repeat mychs'.
+      repeat resolve_rel.
+      mychs'.
+      repeat (simpl in H0; rewrite in_app_iff in H0).
+      foo H0 Ho_iNoDup.
+      do 2 eexists; split; intros.
+      econstructor.
+      simpl; auto.
+      econstructor.
+      2 : {
+        apply HSemAction_s.
+      }
+      apply DisjKey_nil_l.
+      eapply SemAction_if_split.
+      find_if_inside.
+      econstructor.
+      2 :{
+        econstructor; reflexivity.
+      }
+      apply DisjKey_nil_l.
+      econstructor; reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      find_if_inside.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      reflexivity.
+      repeat rewrite doUpdRegs_nil.
+      econstructor; auto.
+    - 
+      unfold sendReq, memCallback, arbiterRule,
+      implArbiter, specArbiter, implParams, specParams,
+      arbiterImpl, Impl.sendReq, Impl.nextToAlloc, Impl.alloc, alloc,
+      nextToAlloc, freelist, arbiter in *.
+      intros.
+      split.
+      repeat mychs'.
+      repeat resolve_rel.
+      (*
+                                                         
+  Ltac resolve_rel :=
+    match goal with
+    | [HSemAction1 : SemAction ?o_i ?a_i ?reads ?upds ?calls ?retV,
+       HActionWb : ActionWb ?o1 ?a_i,
+       Ho_iNoDup : NoDup (map fst ?o_i) |- SemAction ?o_s _ _ _ _ _]
+      => match goal with
+         | [HERelation : EffectlessRelation ?R a_i ?a_s,
+            HoRelation : ?R ?o_i1 ?o_j1 |- _] =>
+           idtac "hypotheses found R :=" R " o_i1 := " o_i1 " o_j1 := " o_j1;
+           let o_j := fresh "o_j" in
+           let HSL1 := fresh "HSL1" in
+           let HSL2 := fresh "HSL2" in
+           let HCorrect := fresh "HCorrect" in
+           let HSemAction := fresh "HSemAction" in
+           let HR := fresh "HR" in
+           let TMP := fresh "TMP" in
+           let HupdsNil := fresh "HupdsNil" in
+           let HcallsNil := fresh "HcallsNil" in
+           let reads_s := fresh "reads_s" in
+           let HSemAction_s := fresh "HSemAction_s" in
+           specialize (HActionWb _ _ _ _ _ HSemAction1) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR]
+           ;assert (SubList o_i1 o_i) as TMP
+           ;[prove_sublist
+            |rewrite (SubList_chain Ho_iNoDup HSL1 TMP (getKindAttr_fst _ _ HCorrect)) in *; clear TMP]
+           ;specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+           ; subst
+           ; assert (SubList o_j1 o_s) as TMP
+           ;[prove_sublist
+            | apply (SemActionExpand TMP) in HSemAction_s; clear TMP]
+         | _ => idtac "internal hyp not matched"
+         end
+    | _ => idtac "external hyp not matched"                  
+    end.
+*)
+
+      
+      let Q := fresh H in destruct evalExpr eqn:Q in H3.
+      simpl; auto.
+      simpl in H0; destruct H0 as [Heq | HIn]; [apply inversionPair in Heq as [HName HEqDep]; EqDep_subst; auto
+                                               | simpl in Ho_iNoDup; inversion Ho_iNoDup; apply (in_map fst) in HIn; tauto].
+      simpl; eauto.
+      3 : {
+        apply inversionSemAction' in H3; dest.
+        destruct evalExpr eqn:G in H3.
+        eapply SemAction_if_split.
+        subst.
+        specialize (nextToAllocWb0 _ _ _ _ _ H2) as [[o_j [HSL1 [HSL2 [HCorrect HSemAction]]]] HR].
+      assert (SubList FreeListImplRegs
+                      ((ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal) :: FreeListImplRegs ++ OuterRegs)) as P
+      ;[prove_sublist|rewrite (SubList_chain Ho_iNoDup HSL1 P (getKindAttr_fst _ _ HCorrect)) in *; clear P].
+      specialize (nextToAllocCorrect0 _ _ HFreeList _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction']]].
+      erewrite G.
+      subst.
+      mychs'; dest.
+      subst.
+      econstructor 3.
+      2 : {
+        eapply (SemActionExpand) with (o := FreeListSpecRegs);[prove_sublist| apply HSemAction'].
+      }
+      apply DisjKey_nil_l.
+      mychs'; dest.
+      simpl in H0.
+      destruct H0 as [Heq | HIn].
+      apply inversionPair in Heq as [HName HEqDep].
+      EqDep_subst.
+      mychs'; dest.
+      mychs'; dest.
+      2 : {
+        mychs'; dest.
+        mychs'; dest.
+        simpl; auto.
+        3 : {
+          mychs'; dest.
+          mychs'; dest.
+          apply inversionSemAction' in H7; dest.
+          specialize (H _ _ _ _ _ _ H8) as [[o_j' [HSL1' [HSL2' [HCorrect' HSemAction'']]]] HR'].
+          assert (SubList OuterRegs ((ArbiterName, existT (fullType type) (SyntaxKind Bool) x) :: FreeListImplRegs ++ OuterRegs)) as P'
+          ; [prove_sublist|rewrite (SubList_chain Ho_iNoDup HSL1' P' (getKindAttr_fst _ _ HCorrect')) in *; clear P'].
+          econstructor 3.
+          2 : {
+            eapply SemActionExpand with (o := OuterRegs); [prove_sublist | apply HSemAction''].
+          }
+          2 : {
+            mychs'; dest.
+            apply inversionSemAction' in H9; eapply SemAction_if_split.
+            destruct evalExpr eqn:G in H9; rewrite G; dest.
+            mychs'; dest.
+            2 : {
+              mychs'; dest.
+              mychs'; dest.
+              mychs'; dest.
+              mychs'; dest.
+              2 : {
+                apply inversionSemAction' in H9.
+                specialize (allocWb0 _ _ _ _ _ _ H9) as [[o_j'' [HSL1'' [HSL2'' [HCorrect'' HSemAction''']]]] HR''].
+                assert (SubList FreeListImplRegs ((ArbiterName, existT (fullType type) (SyntaxKind Bool) x) :: FreeListImplRegs ++ OuterRegs)) as P''
+                ; [prove_sublist|rewrite (SubList_chain Ho_iNoDup HSL1'' P'' (getKindAttr_fst _ _ HCorrect'')) in *; clear P''].
+                specialize (allocCorrect0 _ _ _ HFreeList _ _ _ _ HSemAction''') as [reads_s' [upds_s' [HSemAction'''' HR''']]].
+                econstructor 2.
+                eapply SemActionExpand with (o := FreeListSpecRegs);[prove_sublist | apply HSemAction''''].
+                apply HSemAction'''.
+                mychs'; dest.
+                
+            rewrite G; dest.
+            
+            mychs'; dest.
+          specialize (H creqa).
+        
+        
+        exists o' : list RegT,
+         SubList o' ((ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal) :: FreeListImplRegs ++ OuterRegs) /\
+         SubList x1 o' /\ getKindAttr o' = getKindAttr OuterRegs /\ SemAction o' ((let (_, _, _, _, nextToAlloc, _, _) := implFreeList in nextToAlloc) type) x1 x2 x3 x7
+        unfold ActionWb in *.
+        specialize (nextToAllocCorrect0 _ _ HFreeList).
+        eapply nextToAllocCorrect0.
+        eapply SemActionExpand.
+        
+        rewrite app_cons.
+        eapply app_sublist_r; reflexivity.
+      simpl in H0.
+      clean_hyp_step.
+      4 : {
+        apply inversionSemAction' in H3.
+        eapply SemAction_if_split.
+        case_eq (evalExpr (! Var type (SyntaxKind Bool) x && ReadStruct (Var type (SyntaxKind (Maybe TransactionTag)) x7) F1)%kami_expr).
+      repeat (mychs'; dest); discharge_SemAction.
+      5 : {
+      (repeat mychs'; dest); discharge_SemAction.
+      
+      mychs'; dest.
+      mychs'.
+      mychs'; dest.
+      mychs'.
+      mychs'; dest.
+      
+      mychs; discharge_SemAction; eauto.
+      
+      
+      + unfold Impl.sendReq in *.
+        apply inversionSemAction in HImpSem; dest; subst.
+        unfold arbiter, specParams, implParams in *.
+        econstructor; eauto.
+        * inv H; [left | exfalso]; auto.
+          inv Ho_iNoDup; apply H3; rewrite in_map_iff; exists ((ArbiterName, existT _ _  x)); auto.
+        * apply inversionSemAction in H0; dest; subst.
+          unfold ActionWb in nextToAllocWb0.
+          specialize (nextToAllocWb0 _ _ _ _ _ H1); dest.
+          assert (forall (o o' o'' : RegsT)
+                         (HSubList : SubList o (o' ++ o''))
+                         (HgetKindAttr : getKindAttr o = getKindAttr o')
+                         (HNoDup : NoDup (map fst (o' ++ o''))),
+                     o = o') as ReplaceRegsT.
+          { clear.
+            induction o; intros.
+            - destruct o'; auto.
+              inv HgetKindAttr.
+            - induction o'.
+              inv HgetKindAttr.
+              destruct (HSubList _ (in_eq _ _)); subst; inv HgetKindAttr; inv HNoDup.
+              + erewrite IHo; eauto.
+                apply SubList_cons in HSubList; dest.
+                simpl in H1.
+                assert (~In a o).
+                { intro.
+                  apply (in_map fst) in H4; apply H2.
+                  rewrite map_app, in_app_iff.
+                  left; setoid_rewrite <- (getKindAttr_fst _ _ H0); assumption.
+                }
+                eapply SubList_Strengthen; eauto.
+              + exfalso; apply H5.
+                rewrite in_map_iff; exists a; auto.
+          }
+          assert (forall (o o' o'' : RegsT)
+                         (HSubList : SubList o (o'' ++ o'))
+                         (HgetKindAttr : getKindAttr o = getKindAttr o')
+                         (HNoDup : NoDup (map fst (o'' ++ o'))),
+                     o = o') as ReplaceRegsT_rev.
+          { clear - ReplaceRegsT.
+            intros; eapply ReplaceRegsT with (o'' := o''); auto.
+            - repeat intro; specialize (HSubList _ H).
+              rewrite in_app_iff in *; firstorder fail.
+            - rewrite map_app, NoDup_app_iff in *; dest; repeat split; auto.
+          }
+          assert (forall (A : Type) (a : A) (l : list A),
+                     a :: l = [a] ++ l) as app_cons.
+          { auto. }
+          assert (forall o o' k (a : ActionT type k) reads upds calls ret
+                         (HSubList : SubList o o')
+                         (HSemAction : SemAction o a reads upds calls ret),
+                     SemAction o' a reads upds calls ret) as SemActionExpand.
+          { clear.
+            induction a; intros; try (apply inversionSemAction in HSemAction); dest; subst.
+            - econstructor; eauto.
+            - econstructor; eauto.
+            - econstructor; eauto.
+            - econstructor; eauto.
+            - econstructor; eauto.
+            - econstructor; eauto.
+              rewrite in_map_iff in H; dest.
+              specialize (HSubList _ H2).
+              rewrite in_map_iff.
+              exists x0; split; auto.
+            - destruct (evalExpr e) eqn:G; dest;[econstructor 7 | econstructor 8]; eauto.
+            - econstructor; eauto.
+            - econstructor; eauto.
+          }
+          rewrite app_cons in H3, Ho_iNoDup.
+          rewrite (ReplaceRegsT_rev _ _ _ H3 H6 Ho_iNoDup) in *.
+          specialize (nextToAllocCorrect0 _ _ HFreeList _ _ _ _ H7); dest; subst.
+          econstructor.
+          -- apply (DisjKey_nil_l).
+          -- rewrite app_cons.
+             eapply SemActionExpand; eauto.
+             eapply app_sublist_r; eauto.
+          -- apply inversionSemAction in H2; dest.
+             instantiate (1 := if (evalExpr (! Var type (SyntaxKind Bool) x && ReadStruct (Var type (SyntaxKind (Maybe TransactionTag)) x7) F1)%kami_expr)
+                                    then _ else []).
+             destruct evalExpr eqn:G in H8; dest.
+             ++ econstructor 7.
+                3 : {
+                  apply inversionSemAction in H8; dest.
+                  apply inversionSemAction in H15; dest.
+                  apply inversionSemAction in H15; dest.
+                  apply inversionSemAction in H18; dest.
+                  destruct evalExpr eqn:G0 in H22; dest.
+                  apply inversionSemAction in H22; dest.
+                  apply inversionSemAction in H22; dest.
+                  apply inversionSemAction in H22; dest.
+                  apply inversionSemAction in H22; dest.
+                  specialize (allocWb0 _ _ _ _ _ _ H22); dest.
+                  rewrite app_cons in H28.
+                  rewrite (ReplaceRegsT_rev _ _ _ H28 H31 Ho_iNoDup) in H32.
+                  specialize (allocCorrect0 _ _ _ HFreeList _ _ _ _ H32); dest.
+                  econstructor; simpl; auto.
+                  2 : {
+                    econstructor.
+                    econstructor.
+                    3 : {
+                      econstructor 7.
+                      3 : {
+                        econstructor.
+                        econstructor.
+                        econstructor.
+                        2 : {
+                          econstructor.
+                          eapply SemActionExpand.
+                          rewrite app_cons.
+                          eapply app_sublist_r; reflexivity.
+                          apply H33.
+                        }
+                        apply H27.
+                      }
+                      3 : {
+                        econstructor; auto.
+                      }
+                      apply DisjKey_nil_r.
+                      admit. (* General problem with routerSendReq. *)
+                      reflexivity.
+                      reflexivity.
+                      reflexivity.
+                    }
+                    2 : {
+                      instantiate (4 := nil).
+                      instantiate (3 := nil).
+                      instantiate (2 := x17).
+                      admit.
+                      (* General problem with routerSendReq. *)
+                    }
+                    apply DisjKey_nil_l.
+                    admit.
+                    admit.
+                    admit.
+                  }
+                  2 : {
+                    econstructor.
+                    simpl; auto.
+                    2 : {
+                      simpl; auto.
+                    }
+                    2 : {
+                      econstructor.
+                      econstructor.
+                      3 : {
+                        econstructor 8.
+                        3 : {
+                          econstructor; eauto.
+                        }
+                        apply DisjKey_nil_l.
+                        apply G0.
+                        econstructor.
+                        admit.
+                        all : reflexivity.
+                      }
+                      apply DisjKey_nil_r.
+                      instantiate (3 := nil).
+                      instantiate (2 := nil).
+                      instantiate (1 := x17).
+                      admit.
+                      reflexivity.
+                      reflexivity.
+                      admit.
+                    }
+                    repeat intro; auto.
+                  }
+                  repeat intro; auto.
+                }
+                3 : {
+                  apply inversionSemAction in H9; dest.
+                  econstructor; auto.
+                  eauto.
+                }
+                apply DisjKey_nil_r.
+                simpl in H.
+                destruct H.
+                apply inversionPair in H; dest.
+                EqDep_subst.
+                apply G.
+                apply (in_map fst) in H.
+                simpl in Ho_iNoDup; inv Ho_iNoDup.
+                simpl in H.
+                contradiction.
+                reflexivity.
+                instantiate (1:= (if false
+                                  then [(ArbiterName, existT (fullType type) (SyntaxKind Bool) true)] else [])).
+                admit.
+                
+                apply inversionSemAction in H8; dest.
+                apply inversionSemAction in H15; dest.
+                apply inversionSemAction in H15; dest.
+                apply inversionSemAction in H18; dest.
+                destruct evalExpr eqn:G0 in H22; dest.
+                apply inversionSemAction in H22; dest.
+                apply inversionSemAction in H22; dest.
+                apply inversionSemAction in H22; dest.
+                apply inversionSemAction in H22; dest.
+                apply inversionSemAction in H9; dest.
+                apply inversionSemAction in H23; dest.
+                rewrite H29 in H13.
+                apply H13.
+                apply inversionSemAction in H9; dest.
+                rewrite H28 in H13.
+                assumption.
+             ++ econstructor 8.
+                4 : {
+                  apply inversionSemAction in H8; dest.
+                  apply inversionSemAction in H9; dest.
+                  rewrite H8 in H9.
+                  econstructor; auto.
+                  apply H9.
+                }
+                apply DisjKey_nil_r.
+                destruct H.
+                apply inversionPair in H; dest; EqDep_subst; auto.
+                apply (in_map fst) in H; simpl in H, Ho_iNoDup; inv Ho_iNoDup.
+                contradiction.
+                econstructor.
+                reflexivity.
+                reflexivity.
+                reflexivity.
+                reflexivity.
+                simpl; auto.
+                simpl; auto.
+                simpl; auto.
+          -- admit.
+          -- auto.
+          -- simpl.
+                apply inversionSemAction in H22; dest.
+                  
+                ** apply inversionSemAction in H8; apply inversionSemAction in H9; dest.
+                   econstructor; simpl; eauto.
+                   apply inversionSemAction in H18; dest.
+                   econstructor; eauto.
+                   apply inversionSemAction in H18; dest.
+                   econstructor 3 with (readRegs := [(ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal)]) (v := x21); eauto.
+                   admit. (* This has to do with knowing that the routerSendReq has no reads/writes (in the Arbiter module), but it's an empty function right now. *)
+                   apply inversionSemAction in H21; dest.
+                   destruct evalExpr eqn:G0 in H25; dest.
+                   apply inversionSemAction in H25; dest.
+                   apply inversionSemAction in H25; dest.
+                   apply inversionSemAction in H25; dest.
+                   apply inversionSemAction in H25; dest.
+                   specialize (allocWb0 _ _ _ _ _ _ H25); dest.
+                   rewrite app_cons in H31.
+                   rewrite (ReplaceRegsT_rev _ _ _ H31 H34 Ho_iNoDup) in H35.
+                   specialize (allocCorrect0 _ _ _ HFreeList _ _ _ _ H35); dest.
+                   econstructor 7.
+                   3 : {
+                     repeat (econstructor; eauto).
+                     eapply SemActionExpand.
+                     rewrite app_cons.
+                     eapply app_sublist_r; reflexivity.
+                     apply H36.
+                   }
+                   3 : {
+                     econstructor; auto.
+                     admit.
+                   }
+                   apply DisjKey_nil_r.
+                   unfold alloc in *.
+                   assumption.
+                   admit.
+                   3 : {
+                     eapply SemActionExpand.
+                     rewrite app_cons.
+                     eapply app_sublist_r; reflexivity.
+                     apply H36.
+                   3 : {
+                     apply inversionSemAction in H26; dest; econstructor; auto.
+                     eauto.
+                   }
+                   6 : {
+                     apply inversionSemAction in H25; dest; econstructor; auto.
+                   }
+                   6 : {
+                     apply inversionSemAction in H26; dest; econstructor; auto.
+                   }
+                   econstructor; auto.
+                   econstructor; auto.
+                   econstructor; auto.
+                   econstructor; auto.
+
+                   apply DisjKey_nil_r.
+                   eapply SemActionExpand; eauto.
+                   rewrite app_cons.
+                   eapply app_sublist_r; reflexivity.
+                     2 : {
+                       apply H36.
+                     rewrite app_cons.
+                   2 : {
+                     apply inversionSemAction in H26; dest.
+                     econstructor; eauto.
+                   }
+                   2 : {
+                     
+                   apply DisjKey_nil_r.
+                   apply inversionSemAction in H25; dest.
+                   econstructor; auto.
+                   apply inversionSemAction in H25; dest.
+                   econstructor; auto.
+                   apply inversionSemAction in H25; dest.
+                   econstructor.
+                   apply H30.
+                   6 : {
+                     apply inversionSemAction in H25; dest.
+                     apply inversionSemAction in H26; dest.
+                     rewrite H29, H31, H34; reflexivity.
+                   }
+                   5 : {
+                     apply inversionSemAction in H25; dest.
+                     apply inversionSemAction in H26; dest.
+                     rewrite H28, H30, H33; reflexivity.
+                   }
+                   4 : {
+                     apply DisjKey_nil_r.
+                   }
+                   3 : {
+                     apply inversionSemAction in H26; dest.
+                     rewrite H29, H31; reflexivity.
+                   }
+                   apply inversionSemAction in H25; dest.
+                   econstructor; eauto.
+                   apply inversionSemAction in H26; dest.
+                   specialize (allocWb0 _ _ _ _ _ _ H25); dest.
+                   rewrite app_cons in H34.
+                   rewrite (ReplaceRegsT_rev _ _ _ H3 H6 Ho_iNoDup) in *.
+                   specialize (allocCorrect0 _ _ _ HFreeList _ _ _ _ H38).
+                   --- apply inversionSemAction in H25; dest; econstructor; eauto.
+                       apply inversionSemAction in H25; dest; econstructor; eauto.
+                       apply inversionSemAction in H25; dest; econstructor; eauto.
+                       apply inversionSemAction in H25; dest; econstructor; eauto.
+                ** apply inversionSemAction in H9; dest.
+                   econstructor.
+                   econstructor; eauto.
+                   
+                   
+             
+               (SemActionExpand _ _ _ _ _ _ _ _ (SubList_app_r [(ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal)] (SubList_refl FreeListImplRegs))).
+              
+             specialize (SubList_app_r [(ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal)] (SubList_refl FreeListImplRegs)).                           ).
+              
+              
+          specialize (nextToAllocCorrect0 _ _ HFreeList).
+        inv H; auto.
+        simpl in *; mychs.
+      destruct HArbiterR as [ArbiterVal
+                               LocalReg
+                               FreeListImplRegs
+                               FreeListSpecRegs
+                               HImplRegs
+                               Ho_iCorrect
+                               Ho_sCorrect
+                               Ho_iNoDup
+                               Ho_sNoDup
+                               HFreeList];
         try use_correct (nextToAlloc implFreeList type) HFreeList FreeListImplRegs;
         try use_correct (alloc implFreeList type) HFreeList FreeListImplRegs;
         try use_correct (free implFreeList type) HFreeList FreeListImplRegs.
@@ -224,13 +1927,22 @@ Section Proofs.
                      end;
               intuition auto.
             solve_leftover_Ins FreeListSpecRegs.
-            admit.
+            specialize (nextToAllocCorrect0 _ _ HFreeList).
+            unfold Impl.alloc, alloc in *; simpl in *.
+            (* I think that clean_hyp clobbered the SemAction needed here *)
+            assert ( SemAction ((ArbiterName, existT (fullType type) (SyntaxKind Bool) rv) :: FreeListSpecRegs) ((let (_, _, _, _, nextToAlloc, _, _) := specFreeList in nextToAlloc) type) [] [] [] r1) as RMV_THS.
+            { admit. }
+            apply RMV_THS.
           }
+          Focus 3.
+          subst.
+          mychs.
+          { admit. }
           { admit. }
           all: repeat match goal with
                       | [|- SemAction _ ?a _ _ _ _] =>
                         lazymatch a with
-                        | context[memReq] => admit (* we don't know anyting about this yet *)
+                        | context[sendReq] => admit (* we don't know anyting about this yet *)
                         end
                       | [|- False] => solve[simpl in *; auto]
                       end.
@@ -451,5 +2163,3 @@ Section Proofs.
   Admitted.
 
 End Proofs.
-
-*)
