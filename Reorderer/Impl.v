@@ -43,7 +43,7 @@ Section Reorderer.
     Section withTy.
       Definition sendReq
                  ty
-                 (isError : ImmRes @# ty -> Bool @# ty)
+                 (isError : immResK @# ty -> Bool @# ty)
                  (memReq
                   : ty ReordererArbiterReq ->
                     ActionT ty ReordererImmRes)
@@ -88,17 +88,19 @@ Section Reorderer.
           DispString _ "[Reorderer.reordererCallback]\n"
         ];
         LET idx: ReordererReqId <- #resp @% "tag";
-        LET res: MInst <- #resp @% "resp";
+        LET res: mInstK <- #resp @% "resp";
         Read valids: Array numReqId Bool <- validArray;
         Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
-        WriteRf rfWrite(#idx: reqIdSz ; #res: MInst);
+        WriteRf rfWrite(#idx: reqIdSz ; #res: mInstK);
         System [
-          DispString _ "[Reorderer.reordererCallback] stored response.\n"
+          DispString _ "[Reorderer.reordererCallback] stored response:\n";
+          DispHex #res;
+          DispString _ "\n"
         ];
         Retv.
 
       (* Conceptual rule *)
-      Definition responseToPrefetcher
+      Definition responseToPrefetcherRule
                  (prefetcherCallback: forall {ty}, ty ReordererRes -> ActionT ty Void)
                  ty
       : ActionT ty Void
@@ -111,7 +113,7 @@ Section Reorderer.
            LET deqP: ReordererReqId
                        <- UniBit (TruncLsb _ 1)
                        (castToReqIdSz (fun n => Expr ty (SyntaxKind (Bit (n + 1)))) #deqPFull);
-           ReadRf inst: MInst <- rfRead(#deqP: ReordererReqId);
+           ReadRf inst: mInstK <- rfRead(#deqP: ReordererReqId);
            ReadRf vaddrInfo: ReordererStorage <- arfRead(#deqP: ReordererReqId);
            LET resp
            :  ReordererRes
@@ -122,6 +124,11 @@ Section Reorderer.
                 };
            If (#deqPFull != #enqPFull) && (#valids@[#deqP])
            then
+             System [
+               DispString _ "[Reorderer.responseToPrefetcher] sending response to prefetcher:";
+               DispHex #resp;
+               DispString _ "\n"
+             ];
              LETA _ <- prefetcherCallback (resp : ty ReordererRes);
              Write deqPtr <- #deqPFull + $1;
              Retv;
@@ -139,7 +146,7 @@ Section Reorderer.
     Definition regFiles: list RegFileBase :=
       [ 
         @Build_RegFileBase false 1 rfName
-                           (Async [rfRead]) rfWrite (Nat.pow 2 reqIdSz) MInst (@RFNonFile _ _ None);
+                           (Async [rfRead]) rfWrite (Nat.pow 2 reqIdSz) mInstK (@RFNonFile _ _ None);
           
         @Build_RegFileBase false 1 arfName
                            (Async [arfRead]) arfWrite (Nat.pow 2 reqIdSz) ReordererStorage (@RFNonFile _ _ None)
@@ -150,7 +157,7 @@ Section Reorderer.
       {|
         Reorderer.Ifc.regs := regs;
         Reorderer.Ifc.regFiles := regFiles;
-        Reorderer.Ifc.responseToPrefetcher := responseToPrefetcher;
+        Reorderer.Ifc.responseToPrefetcherRule := responseToPrefetcherRule;
         Reorderer.Ifc.callback := reordererCallback;
         Reorderer.Ifc.sendReq := sendReq
       |}.

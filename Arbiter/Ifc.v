@@ -14,26 +14,26 @@ Section Arbiter.
   Record ArbiterClient (reqK resK : Kind)
     := {
          clientTagSz : nat;
-         ClientTag := Bit clientTagSz;
-         ClientReq
+         clientTagK := Bit clientTagSz;
+         clientReqK
            := STRUCT_TYPE {
-                "tag" :: ClientTag;
+                "tag" :: clientTagK;
                 "req" :: reqK
               };
-         ClientRes
+         clientResK
            := STRUCT_TYPE {
-                "tag"  :: ClientTag;
+                "tag"  :: clientTagK;
                 "resp" :: Maybe resK
               };
          clientHandleRes
-           :  forall {ty}, ty ClientRes -> ActionT ty Void
+           :  forall {ty}, ty clientResK -> ActionT ty Void
        }.
 
   Class ArbiterParams :=
     {
       reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
       respK : Kind;  (* data returned by a memory device - specifically Data. *)
-      ImmRes : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
+      immResK : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
       numTransactions: nat;
       clients : list (ArbiterClient reqK respK)
     }.
@@ -42,12 +42,6 @@ Section Arbiter.
     Context `{ArbiterParams}.
 
     Definition numClients := length clients.
-
-    Definition clientTag (clientId : Fin.t numClients)
-      := ClientTag (nth_Fin clients clientId).
-
-    Definition clientReq (clientId : Fin.t numClients)
-      := ClientReq (nth_Fin clients clientId).
 
     Definition transactionTagSz := Nat.log2_up numTransactions.
 
@@ -66,11 +60,10 @@ Section Arbiter.
            "resp" :: Maybe respK
          }.
 
-    (* Immediate response from the Device Router *)
     Definition ArbiterImmRes
       := STRUCT_TYPE {
            "ready" :: Bool;
-           "info"  :: ImmRes
+           "info"  :: immResK
          }.
 
     Class Arbiter
@@ -79,13 +72,13 @@ Section Arbiter.
            regFiles : list RegFileBase;
 
            sendReq
-             (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
+             (isError : forall {ty}, immResK @# ty -> Bool @# ty)
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->
                  ActionT ty ArbiterImmRes)
              : forall (clientId : Fin.t numClients) {ty},
-               ty (clientReq clientId) ->
+               ty (clientReqK (nth_Fin clients clientId)) ->
                ActionT ty ArbiterImmRes;
 
            memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;

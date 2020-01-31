@@ -13,10 +13,10 @@ Section Prefetch.
 
   Context (prefetcherImplParams: PrefetcherImplParams).
 
-  Local Definition PAddr    := Bit PAddrSz.
-  Local Definition VAddr    := Bit VAddrSz.
-  Local Definition CompInst := Bit CompInstSz.
-  Local Definition InstSz   := CompInstSz + CompInstSz.
+  Local Definition PAddr    := Bit pAddrSz.
+  Local Definition VAddr    := Bit vAddrSz.
+  Local Definition CompInst := Bit compInstSz.
+  Local Definition InstSz   := compInstSz + compInstSz.
   Local Definition Inst     := Bit InstSz.
 
   Local Open Scope kami_expr.
@@ -35,7 +35,7 @@ Section Prefetch.
     Write topReg: TopEntry <-
       STRUCT {
         "vaddr" ::= $0;
-        "info"  ::= $$(getDefaultConst ImmRes);
+        "info"  ::= $$(getDefaultConst immResK);
         "noErr" ::= $$false;
         "upper" ::= (Invalid: Maybe CompInst @# ty);
         "lower" ::= (Invalid: Maybe CompInst @# ty)};
@@ -94,7 +94,9 @@ Section Prefetch.
   Definition memCallback ty (reordererRes: ty PrefetcherRes)
     :  ActionT ty Void
     := System [
-         DispString _ "[Prefetcher.memCallback]\n"
+         DispString _ "[Prefetcher.memCallback] reordererRes: \n";
+         DispHex #reordererRes;
+         DispString _ "\n"
        ];
        LET entryData
          :  PrefetcherFifoEntry
@@ -124,9 +126,19 @@ Section Prefetch.
       DispString _ "[Prefetcher.fetchInstruction]\n"
     ];
     Read top: TopEntry <- topReg;
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] top:\n";
+      DispHex #top;
+      DispString _ "\n"
+    ];
     LETA ftop: Maybe PrefetcherFifoEntry <- (@Fifo.Ifc.first _ fifo _);
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] ftop:\n";
+      DispHex #ftop;
+      DispString _ "\n"
+    ];
 
-    LET topInfo: ImmRes <- #top @% "info";
+    LET topInfo: immResK <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
     LET topShortAddr: ShortVAddr <- #top @% "vaddr";
     LET lower: Maybe CompInst <- #top @% "lower";
@@ -145,7 +157,7 @@ Section Prefetch.
     LET ftopShortAddr: ShortVAddr <- #ftopAddrInst @% "vaddr";
 
     LET ftopMInst: Maybe Inst <- #ftopAddrInst @% "inst";
-    LET ftopInfo: ImmRes <- #ftopAddrInst @% "info";
+    LET ftopInfo: immResK <- #ftopAddrInst @% "info";
     LET ftopNoErr: Bool <- #ftopMInst @% "valid";
     LET ftopInst : Inst <- #ftopMInst @% "data";
     LET ftopUpperInst: CompInst <- ZeroExtendTruncMsb _ #ftopInst;
@@ -154,6 +166,11 @@ Section Prefetch.
     LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
 
     LETA notComplete : Bool <- isNotComplete #top #ftop;
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] not complete?:\n";
+      DispHex #notComplete;
+      DispString _ "\n"
+    ];
 
     LET retAddr: VAddr <-
       (IF isErr #topInfo || !#topNoErr
@@ -173,12 +190,18 @@ Section Prefetch.
              then #upperFull
              else #completedInst));
 
+    (* TODO: LLEE: how do we dequeue from the fifo into the top register when the top register is initialized to contain all invalid data? *)
     LET doDeq: Bool <-
       #upperValid &&
       ((isErr #topInfo || !#topNoErr) ||
        (#lowerValid && !#lowerCompressed) ||
        (!#lowerValid && !#notComplete));
 
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] doDeq?:\n";
+      DispHex #doDeq;
+      DispString _ "\n"
+    ];
     If #doDeq
     then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
           @Fifo.Ifc.deq _ outstanding _);
@@ -203,6 +226,11 @@ Section Prefetch.
                                                 "lower" ::= STRUCT { "valid" ::= $$false ;
                                                                      "data"  ::= #lowerInst } });
 
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] new top entry:\n";
+      DispHex #newTopEntry;
+      DispString _ "\n"
+    ];
     Write topReg: TopEntry <- #newTopEntry;
 
     LET ret: DeqRes <- STRUCT { "notComplete" ::= #notComplete;
@@ -210,6 +238,11 @@ Section Prefetch.
                                 "info"  ::= #topInfo;
                                 "noErr" ::= #topNoErr;
                                 "inst"  ::= #retInst};
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] deq result:\n";
+      DispHex #ret;
+      DispString _ "\n"
+    ];
     Ret (STRUCT {
            "valid" ::= #upperValid;
            "data"  ::=  #ret }: Maybe DeqRes @# ty).
@@ -235,5 +268,5 @@ Section Prefetch.
                                         Prefetcher.Ifc.fetchInstruction := fetchInstruction;
                                         Prefetcher.Ifc.clearTop := clearTop;
                                         Prefetcher.Ifc.notCompleteDeqRule := notCompleteDeqRule;
-                                        Prefetcher.Ifc.transferRul := transferRule; |}.
+                                        Prefetcher.Ifc.transferRule := transferRule; |}.
 End Prefetch.

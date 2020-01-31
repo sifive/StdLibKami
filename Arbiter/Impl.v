@@ -27,7 +27,7 @@ Section ArbiterImpl.
     Definition clientIdSz := Nat.log2_up numClients.
     Definition ClientId := Bit clientIdSz.
 
-    Definition GenericClientTagSz
+    Definition genericClientTagSz
       := fold_left Nat.max
            (map
              (fun client : ArbiterClient _ _
@@ -35,12 +35,12 @@ Section ArbiterImpl.
              clients)
            0.
 
-    Definition GenericClientTag := Bit GenericClientTagSz.
+    Definition genericClientTag := Bit genericClientTagSz.
 
     Definition ClientIdTag
       := STRUCT_TYPE {
            "id"  :: ClientId;
-           "tag" :: GenericClientTag
+           "tag" :: genericClientTag
          }.
 
     Section withTy.
@@ -53,14 +53,14 @@ Section ArbiterImpl.
       Open Scope kami_expr_scope.
 
       Definition sendReq
-        (isError : forall {ty}, ImmRes @# ty -> Bool @# ty)
+        (isError : forall {ty}, immResK @# ty -> Bool @# ty)
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
             ActionT ty ArbiterImmRes)
         (clientId : Fin.t numClients)
         (ty : Kind -> Type)
-        (clientReq : ty (clientReq clientId))
+        (clientReq : ty (clientReqK (nth_Fin clients clientId)))
         :  ActionT ty ArbiterImmRes
         := System [
              DispString _ "[Arbiter.sendReq]\n"
@@ -70,7 +70,7 @@ Section ArbiterImpl.
              :  Maybe TransactionTag
              <- nextToAlloc;
            System [
-             DispString _ "[Arbiter.sendReq] next available transaction tag:\n";
+             DispString _ "[Arbiter.sendReq] next available transaction tag\n";
              DispHex #transactionTag;
              DispString _ "\n"
            ];
@@ -96,7 +96,7 @@ Section ArbiterImpl.
                      :  ClientIdTag
                      <- STRUCT {
                           "id"  ::= $(proj1_sig (Fin.to_nat clientId));
-                          "tag" ::= ZeroExtendTruncLsb GenericClientTagSz (#clientReq @% "tag")
+                          "tag" ::= ZeroExtendTruncLsb genericClientTagSz (#clientReq @% "tag")
                         };
                    System [
                      DispString _ "[Arbiter.sendReq] saving transaction and client id tag:\n";
@@ -104,9 +104,6 @@ Section ArbiterImpl.
                      DispString _ "\n"
                    ];
                    WriteRf alistWrite (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
-                   System [
-                     DispString _ "[Arbiter.sendReq] saved transaction and client id tag:\n"
-                   ];
                    LET transactionTagData
                      :  TransactionTag
                      <- #transactionTag @% "data";
@@ -116,14 +113,8 @@ Section ArbiterImpl.
                      DispString _ "\n"
                    ];
                    alloc transactionTagData;
-                   System [
-                     DispString _ "[Arbiter.sendReq] allocated transaction tag:\n"
-                   ];
                Ret #routerImmRes
              else
-               System [
-                 DispString _ "[Arbiter.sendReq] not sending request - busy.\n"
-               ];
                Ret $$(getDefaultConst ArbiterImmRes)
              as result;
            System [
@@ -162,11 +153,16 @@ Section ArbiterImpl.
                     If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
                       then
                         LET clientRes
-                          :  ClientRes client
+                          :  clientResK client
                           <- STRUCT {
                                "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
+                        System [
+                          DispString _ "[Arbiter.memCallback] client res: ";
+                          DispHex #clientRes;
+                          DispString _ "\n"
+                        ];
                         clientHandleRes client clientRes;
                     Retv)
                (getFins numClients))
