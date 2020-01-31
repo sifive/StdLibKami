@@ -83,8 +83,8 @@ Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
     sendReqCorrect: forall 
         (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty ArbiterImmRes),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
-        forall cid creqa, EffectfulRelation arbiterR (@sendReq _ imp req cid type creqa) (@sendReq _ spec req cid type creqa);
-    sendReqWb: forall req cid creqa, ActionWb arbiterRegs (@sendReq _ imp req cid type creqa);
+        forall is_err cid creqa , EffectfulRelation arbiterR (@sendReq _ imp is_err req cid type creqa) (@sendReq _ spec is_err req cid type creqa);
+    sendReqWb: forall is_err req cid creqa, ActionWb arbiterRegs (@sendReq _ imp is_err req cid type creqa);
     memCallbackCorrect: forall resp, EffectfulRelation arbiterR (@memCallback _ imp type resp) (@memCallback _ spec type resp);
     memCallbackWb: forall resp, ActionWb arbiterRegs (@memCallback _ imp type resp);
     ruleCorrect: EffectfulRelation arbiterR (@arbiterRule _ imp type) (@arbiterRule _ spec type);
@@ -98,7 +98,7 @@ Section Proofs.
   Context (memReq: forall ty, ty MemReq -> ActionT ty Bool).
   *)
   (** * Spec parameters *)
-  Variable (ArrayName ArbiterName AlistRead AlistWrite : string).
+  Variable (ArrayName ArbiterName AlistName AlistRead AlistWrite : string).
   
 (*  Definition specFreeListParams: FreeListParams := Build_FreeListParams transactionTagSz ArrayName.
   Definition specFreeList := (@specFreeList specFreeListParams).*)
@@ -107,6 +107,7 @@ Section Proofs.
   Variable (outerRegs : list (Attribute FullKind)).
   Definition specParams: ArbiterImplParams := 
     {| Arbiter.Impl.arbiter := ArbiterName;
+       Arbiter.Impl.alistName := AlistName;
        Arbiter.Impl.alistRead := AlistRead;
        Arbiter.Impl.alistWrite := AlistWrite;
        Arbiter.Impl.freelist := specFreeList |}.
@@ -114,6 +115,7 @@ Section Proofs.
   (** * Impl parameters *)
   Definition implParams: ArbiterImplParams :=
     {| Arbiter.Impl.arbiter := ArbiterName;
+       Arbiter.Impl.alistName := AlistName;
        Arbiter.Impl.alistRead := AlistRead;
        Arbiter.Impl.alistWrite := AlistWrite;
        Arbiter.Impl.freelist := implFreeList |}.
@@ -726,6 +728,153 @@ Section Proofs.
     repeat intro; induction l; auto.
     exfalso; specialize (H _ (in_eq _ _)); auto.
   Qed.
+
+  Lemma SubList_filter {B : Type} :
+    forall (a : B) (l1 l2 : list B),
+      SubList l1 l2 ->
+      ~In a l2 ->
+      ~In a l1.
+  Proof. repeat intro; eauto. Qed.
+
+  Lemma DisjKey_filter {B C : Type} :
+    forall (l1 l2 l3 l4 : list (B * C)),
+      SubList (map fst l3) (map fst l1) ->
+      SubList (map fst l4) (map fst l2) ->
+      DisjKey l1 l2 ->
+      DisjKey l3 l4.
+  Proof. repeat intro; firstorder fail. Qed.
+
+  Lemma DisjKey_filter_r {B C : Type} :
+    forall (l1 l2 l3 : list (B * C)),
+      SubList (map fst l3) (map fst l2) ->
+      DisjKey l1 l2 ->
+      DisjKey l1 l3.
+  Proof. repeat intros; firstorder fail. Qed.
+
+  Lemma DisjKey_filter_l {B C : Type} :
+    forall (l1 l2 l3 : list (B * C)),
+      SubList (map fst l3) (map fst l2) ->
+      DisjKey l2 l1 ->
+      DisjKey l3 l1.
+  Proof. repeat intros; firstorder fail. Qed.
+
+  Definition doUpdReg (u : RegsT) (r : RegT) : RegT :=
+    match findReg (fst r) u with
+    | Some y => (fst r, y)
+    | None => r
+    end.
+
+  Fixpoint oneUpdRegs (r : RegT) (o : RegsT) : RegsT :=
+    match o with
+    | nil => nil
+    | x :: o'
+      => (if String.eqb (fst x) (fst r)
+          then r
+          else x) :: (oneUpdRegs r o')
+    end.
+
+  Definition oneUpdReg (r1 r2 : RegT) : RegT :=
+    if String.eqb (fst r2) (fst r1) then r1 else r2.
+  
+  Lemma doUpdRegs_cons_r' :
+    forall (u o : RegsT) (r : RegT),
+      doUpdRegs u (r :: o) = doUpdReg u r :: doUpdRegs u o.
+  Proof. intros; simpl; auto. Qed.
+
+  Lemma oneUpdRegs_doUpdRegs :
+    forall (o : RegsT) (r : RegT),
+      doUpdRegs [r] o = oneUpdRegs r o.
+  Proof.
+    induction o; intros; auto.
+    simpl; destruct String.eqb eqn:G; f_equal; eauto.
+    rewrite String.eqb_eq in G; rewrite G; destruct r; reflexivity.
+  Qed.
+
+
+  Lemma doUpdRegs_cons_l' :
+    forall (u o : RegsT) (r : RegT),
+      doUpdRegs (r :: u) o = oneUpdRegs r (doUpdRegs u o).
+  Proof.
+    intros.
+    rewrite <- oneUpdRegs_doUpdRegs, doUpdRegs_cons_l; reflexivity.
+  Qed.
+  
+  Lemma doUpdReg_oneUpdReg :
+    forall (r1 r2 : RegT),
+      oneUpdReg r1 r2 = doUpdReg [r1] r2.
+  Proof.
+    intros; unfold oneUpdReg, doUpdReg, findReg.
+    destruct String.eqb eqn:G; auto.
+    rewrite String.eqb_eq in G; rewrite G; destruct r1; reflexivity.
+  Qed.
+  
+  Lemma oneUpdRegs_cons :
+    forall (o : RegsT) (r1 r2 : RegT),
+      oneUpdRegs r1 (r2 :: o) = oneUpdReg r1 r2 :: oneUpdRegs r1 o.
+  Proof.
+    intros; rewrite <- oneUpdRegs_doUpdRegs, doUpdRegs_cons_r', <- doUpdReg_oneUpdReg.
+    f_equal; apply oneUpdRegs_doUpdRegs.
+  Qed.
+
+  Lemma oneUpdRegs_app :
+    forall (o1 o2 : RegsT) (r : RegT),
+      oneUpdRegs r (o1 ++ o2) = oneUpdRegs r o1 ++ oneUpdRegs r o2.
+  Proof.
+    intros; repeat rewrite <- oneUpdRegs_doUpdRegs; rewrite doUpdRegs_app_r; reflexivity.
+    Qed.
+  
+  Lemma doUpdReg_doUpdRegs :
+    forall (u : RegsT) (r : RegT),
+      doUpdRegs u [r] = [doUpdReg u r].
+  Proof. auto. Qed.
+  
+  Lemma doUpdReg_app :
+    forall (u1 u2 : RegsT) (r : RegT),
+      doUpdReg (u1 ++ u2) r = doUpdReg u1 (doUpdReg u2 r).
+  Proof.
+    intros.
+    enough ([doUpdReg (u1 ++ u2) r] = [doUpdReg u1 (doUpdReg u2 r)]) as P.
+    { inv P; reflexivity. }
+    repeat rewrite <- doUpdReg_doUpdRegs; rewrite doUpdRegs_app_l; reflexivity.
+  Qed.
+
+  Lemma doUpdReg_cons :
+    forall (u : RegsT) (r1 r2 : RegT),
+      doUpdReg (r1 :: u) r2 = oneUpdReg r1 (doUpdReg u r2).
+  Proof.
+    intros.
+    enough ([doUpdReg (r1 :: u) r2] = [oneUpdReg r1 (doUpdReg u r2)]) as P.
+    { inv P; reflexivity. }
+    rewrite <- doUpdReg_doUpdRegs, doUpdRegs_cons_l, doUpdReg_doUpdRegs, oneUpdRegs_doUpdRegs.
+    reflexivity.
+  Qed.
+
+  Lemma doUpdReg_notIn :
+    forall  (u : RegsT) (r : RegT),
+      ~ In (fst r) (map fst u) ->
+      doUpdReg u r = r.
+  Proof.
+    induction u; intros; auto.
+    unfold doUpdReg; destruct findReg eqn:G; auto.
+    exfalso; apply findRegs_Some', (in_map fst) in G; apply H; assumption.
+  Qed.
+
+  Corollary doUpdReg_nil :
+    forall (r : RegT),
+      doUpdReg nil r = r.
+  Proof. eauto using in_nil, doUpdReg_notIn. Qed.
+
+  Lemma oneUpdRegs_notIn :
+    forall (u : RegsT) (r : RegT),
+      ~ In (fst r) (map fst u) ->
+      oneUpdRegs r u = u.
+  Proof.
+    induction u; intros; auto.
+    simpl; destruct String.eqb eqn:G.
+    - rewrite String.eqb_eq in G; simpl in H; subst.
+      exfalso; apply H; auto.
+    - f_equal; apply IHu; intro; apply H; simpl; auto.
+  Qed.
   
   Ltac clean_useless_hyp :=
     match goal with
@@ -782,6 +931,7 @@ Section Proofs.
     | [ H : existT ?a ?b ?c1 = existT ?a ?b ?c2 |- _] => idtac "EqDep1"; apply Eqdep.EqdepTheory.inj_pair2 in H
     | [ H : existT ?a ?b1 ?c1 = existT ?a ?b2 ?c2 |- _] => idtac "EqDep2"; apply inversionExistT in H; destruct H as [? ?]
     | [ H1 : In (?a, ?b) ?c, H2 : ~In ?a (map fst ?c) |- _] => idtac "In nIn fst H1 := "H1": In ("a","b") "c" H2 := " H2; apply (in_map fst) in H1; contradiction
+    | [ H : forall _, (~In _ (map fst ?l1)) \/ (~In _ (map fst ?l2)) |- _] => fold (DisjKey l1 l2) in H
     | [ |- context [map _ nil]] => idtac "m_s 4"; rewrite map_nil
     | [ |- context [map _ (_ ++ _)]] => idtac "m_s 5"; rewrite map_app
     | [ |- context [map _ (_ :: _)]] => idtac "m_s 6"; rewrite map_cons
@@ -921,7 +1071,7 @@ Section Proofs.
              | [ |- SemAction _ (IfElse _ _ _ _) _ _ _ _] => eapply SemAction_if_split
              | [ |- SemAction _ (LetExpr _ _) _ _ _ _] => econstructor 2
              | [ |- SemAction _ (ReadNondet _ _) _ _ _ _] => econstructor 4
-             | [ |- SemAction _ (SemSys _ _) _ _ _ _] => econstructor 9
+             | [ |- SemAction _ (Sys _ _) _ _ _ _] => econstructor 9
              end)
      | _ => idtac "rel_solver";
             (match goal with
@@ -930,7 +1080,6 @@ Section Proofs.
              end) 
      (*| [H: match _ with _ => _ end |- _ ] => idtac "match"; progress simpl in H *)
      end).
-
   
   Goal ArbiterCorrect implArbiter specArbiter.
     destruct implFreeListCorrect.
@@ -1018,116 +1167,105 @@ Section Proofs.
       repeat mychs'; auto.
       repeat mychs'.
       repeat mychs'; auto; repeat mychs'; repeat normalize_key_concl; auto.
-      mychs'.
-      simpl; auto.
-      2 : {
-        eapply SemActionExpand; eauto.
-        prove_sublist.
-      }
-      apply DisjKey_nil_l.
-      find_if_inside.
+
+      (* Ltac key_sublists := *)
+      (*   match goal with *)
+      (*   | [ |- SubList (map fst ?l1) (map fst ?l2)] *)
+      (*     => *)
+      (*     (match goal with *)
+      (*      | [ H : SubList l1 l2 |- _] => apply (SubList_map fst) in H; assumption *)
+      (*      | [ H : SubList (map (fun x => (fst x, projT1 (snd x))) l1) (map (fun y => (fst y, projT1 (snd y))) l2) *)
+      (*          |- _] => apply (SubList_map fst) in H *)
+      (*                   ; repeat rewrite fst_getKindAttr in H *)
+      (*                   ; assumption *)
+      (*      | [ H : SemAction l1 _ l2 _ _ _ *)
+      (*          |- _] => apply SemActionReadsSub in H *)
+      (*                   ; key_sublists *)
+      (*      | [ H : SemAction l1 _ _ l2 _ _ *)
+      (*          |- _] => apply SemActionUpdSub in H *)
+      (*                   ; key_sublists *)
+      (*      end) *)
+      (*   end. *)
+
+      Ltac aggressive_key_finder l1 :=
+        match goal with
+        | [ H1 : SubList l1 _ |- _]
+          => apply (SubList_map fst) in H1
+        | [ H1 : SubList (map (fun x => (fst x, projT1 (snd x))) l1) (map (fun y => (fst y, projT1 (snd y))) _) |- _]
+          => apply (SubList_map fst) in H1
+             ; repeat rewrite fst_getKindAttr in H1
+        | [ H1 : SemAction _ _ l1 _ _ _ |- _]
+          => apply SemActionReadsSub in H1
+        | [ H1 : SemAction _ _ _ l1 _ _ |- _]
+          => apply SemActionUpdSub in H1
+        end.
+      
+      Ltac solve_keys :=
+        let TMP1 := fresh "H" in
+        let TMP2 := fresh "H" in
+        (match goal with
+         | [ |- ~ In ?a (map fst ?l1)]
+           => idtac "1"
+              ; specialize (SubList_refl (map fst l1)) as TMP1
+              ; repeat (aggressive_key_finder l1)
+         | [ |- DisjKey ?l1 ?l2]
+           => idtac "2"
+              ; specialize (SubList_refl (map fst l1)) as TMP1
+              ; specialize (SubList_refl (map fst l2)) as TMP2
+              ; repeat (aggressive_key_finder l1)
+              ; repeat (aggressive_key_finder l2)
+         end)
+        ; (match goal with
+           | [ H1 : ?P
+               |- ?P]
+             => apply H1
+           | [ H1 : DisjKey ?l1 ?l2
+               |- DisjKey ?l2 ?l1]
+             => apply DisjKey_Commutative, H1
+           | [ H1 : ~ In ?a (map fst ?l2),
+                    H2 : SubList (map fst ?l1) (map fst ?l2)
+               |- ~ In ?a (map fst ?l1)]
+             => idtac "3"; apply (SubList_filter _ H2 H1)
+           | [ H1 : DisjKey ?l1 ?l2,
+                    H2 : SubList (map fst ?l3) (map fst ?l1),
+                         H3 : SubList (map fst ?l4) (map fst ?l2)
+               |- DisjKey ?l3 ?l4]
+             => idtac "4"; apply (DisjKey_filter _ _ H2 H3 H1)
+           | [ H1 : DisjKey ?l1 ?l2,
+                    H2 : SubList (map fst ?l3) (map fst ?l1),
+                         H3 : SubList (map fst ?l4) (map fst ?l2)
+               |- DisjKey ?l4 ?l3]
+             => apply DisjKey_Commutative, (DisjKey_filter _ _ H2 H3 H1)
+           end).
+      solve_keys.
+      solve_keys.
       repeat mychs'.
-      econstructor.
-      2 : {
-        econstructor.
-        simpl; auto.
-        2 :{
-          reflexivity.
-        }
-        2 : {
-          econstructor.
-          econstructor.
-          2 : {
-            eapply SemActionExpand; eauto.
-            prove_sublist.
-        }
-        2 : {
-          eapply SemAction_if_split.
-          find_if_inside.
-          econstructor.
-          2 : {
-            econstructor.
-            econstructor.
-            econstructor.
-            reflexivity.
-            econstructor.
-            eapply SemActionExpand; eauto.
-            prove_sublist.
-          }
-          2 : {
-            econstructor.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-          }
-          apply DisjKey_nil_r.
-          reflexivity.
-          reflexivity.
-          reflexivity.
-          reflexivity.
-          reflexivity.
-          reflexivity.
-          reflexivity.
-        }
-        find_if_inside.
-          specialize (SemActionUpdSub HSemAction_s0) as HSubList.
-          simpl_nodup_map_fst.
-          split.
-          apply SubListPairs in HSubList; apply SubListPairs in H27.
-          repeat rewrite fst_getKindAttr in HSubList.
-          repeat rewrite fst_getKindAttr in H27.
-          apply DisjKey_Commutative.
-          eapply DisjKeyShrink; intro.
-          apply H3.
-          auto.
-          auto.
-          apply DisjKey_nil_r.
-        reflexivity.
-        reflexivity.
-        reflexivity.
-        }
-        find_if_inside.
-        repeat rewrite key_not_In_app_iff in *.
-        repeat rewrite key_not_In_fst in *.
-        dest.
-        
-        repeat split; auto.
-        specialize (SemActionUpdSub HSemAction_s0) as HSubList.
-        apply SubListPairs in HSubList.
-        repeat rewrite fst_getKindAttr in HSubList.
-        firstorder fail.
-      }
-      2 : {
-        econstructor.
-        reflexivity.
-        reflexivity.
-        reflexivity.
-        reflexivity.
-      }
-      simple_solver.
-      reflexivity.
-      reflexivity.
-      reflexivity.
-      reflexivity.
-      reflexivity.
-      reflexivity.
-      find_if_inside.
-      find_if_inside.
-      reflexivity.
-      reflexivity.
-      reflexivity.
-      repeat find_if_inside.
-      reflexivity.
-      reflexivity.
-      repeat find_if_inside.
+      repeat mychs'.
+      repeat mychs'; auto.
+      repeat mychs'; auto.
       econstructor.
       reflexivity.
+      
+      Ltac doUpdRegs_simpl_r :=
+        match goal with
+        | [ |- context [doUpdRegs _ (_ ++ _)]] => rewrite doUpdRegs_app_r
+        | [ |- context [doUpdRegs _ (_ :: _)]] => rewrite doUpdRegs_cons_r'
+        end.
+
+      Ltac doUpdRegs_simpl_l :=
+        match goal with
+        | [ |- context [doUpdRegs (_ ++ _) _]] => rewrite doUpdRegs_app_l
+        | [ |- context [doUpdRegs (_ :: _) _]] => rewrite doUpdRegs_cons_l'
+        | [ |- context [doUpdReg (_ ++ _) _]] => rewrite doUpdReg_app
+        | [ |- context [doUpdReg (_ :: _) _]] => rewrite doUpdReg_cons
+        end.
+      
+(*      
       Ltac simpl_doupdregs :=
         match goal with
         | [ |- context [doUpdRegs (_ (_ ++ _))]] => rewrite doUpdRegs_app_r
         | [ |- context [doUpdRegs (_ ++ _) _]] => rewrite doUpdRegs_app_l
-        | [ |- context [doUpdRegs _ (_ :: nil)]] => idtac
+        | [ |- context [doUpdRegs _ (_ :: nil)]] => cbv beta
         | [ |- context [doUpdRegs _ (?a :: ?l)]] => rewrite (app_cons a l)
         | [ |- context [doUpdRegs (_ :: nil) _]] => idtac
         | [ |- context [doUpdRegs (_ :: _) _]] => rewrite doUpdRegs_cons_l
@@ -1143,12 +1281,58 @@ Section Proofs.
             |- context [getKindAttr (doUpdRegs ?u ?o)]] => rewrite (doUpdReg_preserves_getKindAttr HNoDup HSubList)
         | [ |- context [doUpdRegs nil _] ] => rewrite doUpdRegs_nil
         end.
+*)
       3 : {
+        repeat doUpdRegs_simpl_r.
+        repeat doUpdRegs_simpl_l.
+        repeat rewrite doUpdRegs_nil.
+        repeat rewrite doUpdReg_nil.
+        Ltac oneUpdRegs_red :=
+          match goal with
+          | [ |- context [ oneUpdRegs ?r ?o]]
+            => let TMP := fresh "H" in
+            assert (~ In (fst r) (map fst o)) as TMP
+            ; [ repeat rewrite doUpdRegs_preserves_keys
+                ; solve_keys
+              | rewrite (oneUpdRegs_notIn _ _ TMP)
+                ; clear TMP]
+          end.
+
+        Ltac doUpdReg_red :=
+          match goal with
+          | [ |- context [doUpdReg ?u ?r]]
+            => let TMP := fresh "H" in
+               assert (~ In (fst r) (map fst u)) as TMP
+               ; [ repeat rewrite doUpdRegs_preserves_keys
+                   ; solve_keys
+                 | rewrite (doUpdReg_notIn _ _ TMP)
+                   ; clear TMP]
+          end.
+
+        Ltac doUpdRegs_red :=
+          match goal with
+          | [ |- context [doUpdRegs ?u ?o]]
+            => let TMP := fresh "H" in
+              assert (DisjKey u o) as TMP
+              ; [ repeat rewrite doUpdRegs_preserves_keys
+                  ; solve_keys
+                | rewrite (doUpdRegs_DisjKey _ _ TMP)
+                  ; clear TMP]
+          end.
+        
+        repeat oneUpdRegs_red.
+        repeat doUpdReg_red.
+        repeat doUpdRegs_red.
+        assert (~ In (fst (ArbiterName, existT (fullType type) (SyntaxKind Bool) (evalExpr (Const type true)))) (map fst  (doUpdRegs x6 (doUpdRegs x4 FreeListImplRegs)) )) as  H.
+        repeat rewrite doUpdRegs_preserves_keys.
+        repeat solve_keys.
+        rewrite (oneUpdRegs_notIn _ _ H).
+; [repeat rewrite doUpdRegs_preserves_keys; solve_keys | rewrite (doUpdReg_notIn _ _  H)].
         repeat simpl_doupdregs.
         repeat reduce_doupdregs.
         rewrite doUpdRegs_cons_l.
-        rewrite doUpdRegs_app_l.
-        rewrite doUpdRegs_app_l.
+        repeat rewrite doUpdRegs_app_l.
+        repeat reduce_doupdregs.
         reduce_doupdregs.
       simpl.
       rewrite String.eqb_refl.
