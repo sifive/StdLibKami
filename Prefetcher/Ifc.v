@@ -47,7 +47,7 @@ Section Prefetcher.
   Definition PrefetcherReq
     := STRUCT_TYPE {
          "mode"  :: privModeK;
-         "paddr" :: PAddr;
+         "paddr" :: Maybe PAddr;
          "vaddr" :: VAddr
        }.
 

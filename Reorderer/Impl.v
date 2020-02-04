@@ -63,18 +63,24 @@ Section Reorderer.
            :  ReordererArbiterReq
                 <- STRUCT {
                   "tag" ::= #enqP;
-                  "req" ::= #req @% "paddr"
+                  "req" ::= #req @% "paddr" @% "data"
                 };
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
            then
-             LETA res <- memReq arbiterReq;
+             If #req @% "paddr" @% "valid"
+             then memReq arbiterReq
+             else Ret (STRUCT { "ready" ::= $$ true;
+                                "info" ::= $$ (getDefaultConst immResK)})
+             as res;
              If #res @% "ready"
              then
                Write enqPtr <- #enqPFull + $1;
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
                                                           "info" ::= #res @% "info" };
                WriteRf arfWrite(#enqP : reqIdSz ; #dataVal : ReordererStorage);
-               Write validArray: Array numReqId Bool <- #valids@[#enqP <- isError (#res @% "info")];
+               Write validArray: Array numReqId Bool <- #valids@[#enqP <- (IF #req @% "paddr" @% "valid"
+                                                                           then isError (#res @% "info")
+                                                                           else $$ true)];
                Retv;
              Ret (#res @% "ready")
            else Ret $$false
