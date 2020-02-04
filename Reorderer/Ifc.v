@@ -17,7 +17,7 @@ Section Reorderer.
     Definition ReordererReq
       := STRUCT_TYPE {
            "mode"  :: privModeK;
-           "paddr" :: pAddrK;
+           "paddr" :: Maybe pAddrK;
            "vaddr" :: vAddrK
          }.
 
