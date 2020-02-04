@@ -65,6 +65,8 @@ Section Prefetcher.
          "vaddr" :: VAddr;
          "info"  :: immResK;
          "noErr" :: Bool;
+         "compressed?" :: Bool;
+         "errUpper?"   :: Bool;
          "inst"  :: Inst 
        }.
 

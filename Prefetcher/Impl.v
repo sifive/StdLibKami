@@ -190,7 +190,6 @@ Section Prefetch.
              then #upperFull
              else #completedInst));
 
-    (* TODO: LLEE: how do we dequeue from the fifo into the top register when the top register is initialized to contain all invalid data? *)
     LET doDeq: Bool <-
       #upperValid &&
       ((isErr #topInfo || !#topNoErr) ||
@@ -233,10 +232,30 @@ Section Prefetch.
     ];
     Write topReg: TopEntry <- #newTopEntry;
 
+    LET straddle: Bool <- (IF #lowerValid
+                           then $$ false
+                           else (IF #upperCompressed
+                                 then $$ false
+                                 else $$ true));
+
+    LET upperOnly: Bool <- (IF #lowerValid
+                            then $$ false
+                            else (IF #upperCompressed
+                                  then $$ true
+                                  else $$ false));
+    
+    LET isErrUpper: Bool <- (IF #straddle
+                             then (IF #topNoErr && !(isErr #topInfo)
+                                   then $$ true
+                                   else $$ false)
+                             else $$false);
+
     LET ret: DeqRes <- STRUCT { "notComplete" ::= #notComplete;
                                 "vaddr" ::= #retAddr;
-                                "info"  ::= #topInfo;
-                                "noErr" ::= #topNoErr;
+                                "info"  ::= (IF #isErrUpper then #ftopInfo else #topInfo);
+                                "noErr" ::= (IF #isErrUpper then #ftopNoErr else #topNoErr);
+                                "compressed?" ::= isCompressed (UniBit (TruncLsb compInstSz compInstSz) #retInst);
+                                "errUpper?" ::= #isErrUpper;
                                 "inst"  ::= #retInst};
     System [
       DispString _ "[Prefetcher.fetchInstruction] deq result:\n";
