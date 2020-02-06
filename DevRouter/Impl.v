@@ -7,7 +7,6 @@ Section SimpleDevRouter.
   Context (routed: string).
   
   Section withParams.
-    Context `{DevRouterImplParams}.
     Open Scope kami_expr_scope.
     Open Scope kami_action_scope.
     Section withTy.
