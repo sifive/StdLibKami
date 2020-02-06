@@ -42,7 +42,7 @@ Section RegListFifo.
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    Definition allRegs := map (fun i => (regsName ++ "_" ++ natToHexStr i)%string) (seq 0 len).
+    Local Definition allRegs := map (fun i => (regsName ++ "_" ++ natToHexStr i)%string) (seq 0 len).
 
     Local Definition fastModLen ty (w : Bit (fifoLogSz + 1) @# ty): Bit fifoLogSz @# ty :=
       UniBit (TruncLsb fifoLogSz 1) w.
