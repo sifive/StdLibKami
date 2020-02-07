@@ -4,15 +4,9 @@ Require Import StdLibKami.FreeList.Ifc.
 
 Section SimpleDevRouter.
   Context `{DevRouterParams}.
-  Class DevRouterImplParams :=
-    {
-      (* A bool register indicating whether we've routed a response
-         from a device yet *)
-      routed: string;
-    }.
+  Context (routed: string).
   
   Section withParams.
-    Context `{DevRouterImplParams}.
     Open Scope kami_expr_scope.
     Open Scope kami_action_scope.
     Section withTy.
