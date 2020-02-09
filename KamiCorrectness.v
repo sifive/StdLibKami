@@ -22,9 +22,12 @@ Definition EffectlessRelation {k: Kind} (R: RegsT -> RegsT -> Prop) (a_i a_s: Ac
 Definition ActionWb {k} myRegs (act: ActionT type k): Prop :=
   forall o reads upds calls ret,
     NoDup (map fst o) ->
+    SubList myRegs (getKindAttr o) ->
     SemAction o act reads upds calls ret ->
-    ((exists o', SubList o' o /\ SubList reads o'
-                 /\ getKindAttr o' = myRegs
-                 /\ SemAction o' act reads upds calls ret
+    ((exists o',
+         SubList o' o
+         /\ SubList reads o'
+         /\ getKindAttr o' = myRegs
+         /\ SemAction o' act reads upds calls ret
      ) /\
      SubList (getKindAttr upds) myRegs).

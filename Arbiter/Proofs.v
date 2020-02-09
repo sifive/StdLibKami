@@ -78,6 +78,11 @@ Record FreeListCorrect {len} (imp spec: @FreeList len): Type :=
 
 Variable (B : Type).
 
+(*
+clientHandleRes
+     : forall (reqK resK : Kind) (a : ArbiterClient reqK resK) (ty : Kind -> Type), ty (clientResK a) -> ActionT ty Void
+*)
+
 Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
   {
     arbiterRegs: list (Attribute FullKind);
@@ -91,7 +96,9 @@ Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
         (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty ArbiterImmRes),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
         forall is_err cid creqa, ActionWb arbiterRegs (@sendReq _ imp is_err req cid type creqa);
-    memCallbackCorrect: forall resp, EffectfulRelation arbiterR (@memCallback _ imp type resp) (@memCallback _ spec type resp);
+    memCallbackCorrect:
+        (forall (reqK resK : Kind) (ac : ArbiterClient reqK resK) cr, ActionWb outerRegs (@clientHandleRes reqK resK ac type cr)) ->
+        forall resp, EffectfulRelation arbiterR (@memCallback _ imp type resp) (@memCallback _ spec type resp);
     memCallbackWb: forall resp, ActionWb arbiterRegs (@memCallback _ imp type resp);
     ruleCorrect: EffectfulRelation arbiterR (@arbiterRule _ imp type) (@arbiterRule _ spec type);
     ruleWb: ActionWb arbiterRegs (@arbiterRule _ imp type);
@@ -966,6 +973,16 @@ Section Proofs.
     unfold doUpdReg; simpl; destruct String.eqb; auto; apply IHu.
   Qed.
   
+  Lemma SubList_cons_l_iff {B : Type}:
+    forall (a : B) (l1 l2 : list B),
+      SubList (a :: l1) l2 <->
+      In a l2 /\ SubList l1 l2.
+  Proof.
+    split; intros; rewrite app_cons, SubList_app_l_iff in *; split; try firstorder fail.
+    repeat intro; inv H0; dest; auto.
+    inv H1.
+  Qed.
+  
   Ltac my_simplifier :=
     match goal with
     | [ H1 : ?a = ?b,
@@ -981,6 +998,7 @@ Section Proofs.
     | [ H : existT ?a ?b1 ?c1 = existT ?a ?b2 ?c2 |- _] => idtac "EqDep2"; apply inversionExistT in H; destruct H as [? ?]
     | [ H1 : In (?a, ?b) ?c, H2 : ~In ?a (map fst ?c) |- _] => idtac "In nIn fst H1 := "H1": In ("a","b") "c" H2 := " H2; apply (in_map fst) in H1; contradiction
     | [ H : forall _, (~In _ (map fst ?l1)) \/ (~In _ (map fst ?l2)) |- _] => fold (DisjKey l1 l2) in H
+    (* | [ |- forall _, (~In _ (map fst ?l1)) \/ (~In _ (map fst ?l2))] => fold (DisjKey l1 l2) *)
     | [ |- context [map _ nil]] => idtac "m_s 4"; rewrite map_nil
     | [ |- context [map _ (_ ++ _)]] => idtac "m_s 5"; rewrite map_app
     | [ |- context [map _ (_ :: _)]] => idtac "m_s 6"; rewrite map_cons
@@ -993,6 +1011,10 @@ Section Proofs.
     | [ |- ( _ , _ ) = ( _ , _ )] => f_equal
     | [ |- (map (fun x => (fst x, projT1 (snd x))) _) = _ :: _] => eapply BreakGKAEvar1
     | [ |- (map (fun x => (fst x, projT1 (snd x))) _) = _ ++ _] => eapply BreakGKAEvar2
+    | [ H : SubList (_ :: _) _ |- _]
+      => rewrite SubList_cons_l_iff in H
+    | [ H : SubList (_ ++ _) _ |- _]
+      => rewrite SubList_app_l_iff in H
     end.
 
   Lemma SubList_nil_l {B : Type} :
@@ -1021,21 +1043,28 @@ Section Proofs.
     repeat (rewrite in_cons_iff in H || rewrite in_app_iff in H).
   
   Ltac resolve_wb' :=
-    let HNoDup := fresh "H" in
-    match goal with
-    | [HSemAction1 :SemAction ?o1 ?a_i _ _ _ _,
-                              HActionWb : ActionWb _ ?a_i |- _] =>
-      assert (NoDup (map fst o1)) as HNoDup
-      ;[
-      |specialize (HActionWb _ _ _ _ _ HNoDup HSemAction1) as [[? [? [? [? ?]]]] ?]
-       ; clear HSemAction1 HNoDup]
-    | [HSemAction1 : SemAction ?o1 (?a_i _) _ _ _ _,
-                     HActionWb : forall _, ActionWb _ (?a_i _) |- _] =>
-      assert (NoDup (map fst o1)) as HNoDup
-      ;[
-      | specialize (HActionWb _ _ _ _ _ _ HNoDup HSemAction1) as [[? [? [? [? ?]]]] ?]
-        ; clear HSemAction1 HNoDup]
-    end.
+      let HNoDup := fresh "H" in
+      let HSubList := fresh "H" in
+      match goal with
+      | [HSemAction1 :SemAction ?o1 ?a_i _ _ _ _,
+                      HActionWb : ActionWb ?myR ?a_i |- _] =>
+        assert (NoDup (map fst o1)) as HNoDup
+        ;[
+        | assert (SubList myR (getKindAttr o1)) as HSubList
+          ;[clear HNoDup HSemAction1
+           | specialize (HActionWb _ _ _ _ _ HNoDup HSubList HSemAction1)
+             as [[? [? [? [? ?]]]] ?]
+            ; clear HSemAction1 HNoDup HSubList]]
+      | [HSemAction1 : SemAction ?o1 (?a_i _) _ _ _ _,
+                       HActionWb : forall _, ActionWb ?myR (?a_i _) |- _] =>
+        assert (NoDup (map fst o1)) as HNoDup
+        ;[
+        | assert (SubList myR (getKindAttr o1)) as HSubList
+          ;[clear HNoDup HSemAction1
+           | specialize (HActionWb _ _ _ _ _ _ HNoDup HSubList HSemAction1)
+             as [[? [? [? [? ?]]]] ?]
+          ; clear HSemAction1 HNoDup HSubList]]
+      end.
 
   Ltac resolve_rel' :=
     let HupdsNil := fresh "HupdsNil" in
@@ -1048,7 +1077,8 @@ Section Proofs.
     | [HSemAction : SemAction ?o_i ?a_i _ _ _ _,
                     HERelation : EffectlessRelation ?R ?a_i _,
                                  HoRelation : ?R ?o_i _ |- _] =>
-      specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction) as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
+      specialize (HERelation _ _ HoRelation _ _ _ _ HSemAction)
+        as [HupdsNil [HcallsNil [reads_s HSemAction_s]]]
       ; clear HSemAction
     | [HSemAction : SemAction ?o_i1 (?a_i _) _ _ _ _,
                     HERelation : forall _, EffectlessRelation ?R (?a_i _) _,
@@ -1154,6 +1184,12 @@ Section Proofs.
     | [ |- context [doUpdRegs (_ :: _) _]] => rewrite doUpdRegs_cons_l'
     | [ |- context [doUpdReg (_ ++ _) _]] => rewrite doUpdReg_app
     | [ |- context [doUpdReg (_ :: _) _]] => rewrite doUpdReg_cons
+    | [H : context [doUpdRegs _ (_ ++ _)] |- _] => rewrite doUpdRegs_app_r in H
+    | [H : context [doUpdRegs _ (_ :: _)] |- _] => rewrite doUpdRegs_cons_r' in H
+    | [H : context [doUpdRegs (_ ++ _) _] |- _] => rewrite doUpdRegs_app_l in H
+    | [H : context [doUpdRegs (_ :: _) _] |- _] => rewrite doUpdRegs_cons_l' in H
+    | [H : context [doUpdReg (_ ++ _) _] |- _] => rewrite doUpdReg_app in H
+    | [H : context [doUpdReg (_ :: _) _] |- _] => rewrite doUpdReg_cons in H
     end.
 
   Ltac doUpdRegs_red :=
@@ -1207,16 +1243,6 @@ Section Proofs.
     | [ H : (fst ?r1) <> (fst ?r2) |- context [(oneUpdReg ?r1 ?r2)]]
       => idtac "dur_r 10("; cbv [oneUpdReg]; rewrite <- (String.eqb_neq H); idtac ")dur_r 10"
     end.
-  
-  Lemma SubList_cons_l_iff {B : Type}:
-    forall (a : B) (l1 l2 : list B),
-      SubList (a :: l1) l2 <->
-      In a l2 /\ SubList l1 l2.
-  Proof.
-    split; intros; rewrite app_cons, SubList_app_l_iff in *; split; try firstorder fail.
-    repeat intro; inv H0; dest; auto.
-    inv H1.
-  Qed.
 
   Ltac goal_split :=
     match goal with
@@ -1307,6 +1333,97 @@ Section Proofs.
     | [ |- context [nil ++ _]] => rewrite app_nil_l
     end.
   
+  Ltac sublist_iff :=
+    match goal with
+    | [ H : SubList ?l (map (fun x => (fst x, projT1 (snd x))) _)
+        |- _] => (match l with
+                  | (map (fun y => (fst y, projT1 (snd y))) _) => idtac "sl1" H; revert H; sublist_iff
+                  | _ => idtac "sl2" H; rewrite SubList_map_iff in H; dest; sublist_iff
+                  end)
+    | _ => idtac "fail?"; intros
+    end.
+
+  Ltac main_body :=
+    match goal with
+    | [H: SemAction _ (Return _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+         ; destruct H as [? [? [? ?]]]
+    | [H: SemAction _ (MCall _ _ _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+         ; destruct H as [? [? [? ?]]]
+    | [H: SemAction _ (LetAction _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+         ; destruct H as [? [? [? [? [? [? [? [? [? [? [? [? ?]]]]]]]]]]]]
+    | [H: SemAction _ (ReadReg _ _ _) _ _ _ _ |- _]
+      => let TMP := fresh "H" in
+         apply inversionSemAction' in H
+         ; destruct H as [? [? [TMP [? ?]]]]; decompose_In TMP
+    | [H: SemAction _ (WriteReg _ _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+         ; destruct H as [? [? [? [? ?]]]]
+    | [H: SemAction _ (IfElse _ _ _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H;
+         let TMP := fresh "H" in
+         destruct evalExpr eqn:TMP in H
+         ; destruct H as [? [? ?]]
+    | [H: SemAction _ (LetExpr _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+    | [H: SemAction _ (ReadNondet _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+         ; destruct H as [? ?]
+    | [H: SemAction _ (Sys _ _) _ _ _ _ |- _]
+      => apply inversionSemAction' in H
+    | [H: SemAction _ (gatherActions (map _ ?l) _) _ _ _ _ |- _]
+      => idtac " I don't know what to do here, induction will loop"
+    end.
+
+  Ltac hyp_consumer :=
+    match goal with
+     | _ => idtac "sublist_sol["; sublist_sol; idtac "sublist_sol"
+     | _ => idtac "normalize_key_concl["; normalize_key_concl; idtac "normalize_key_concl"
+     | _ => idtac "clean_useless_hyp["; clean_useless_hyp; idtac "clean_useless_hyp"
+     | _ => idtac "mySubst["; mySubst; idtac "mySubst"
+     | _ => idtac "my_simplifier["; my_simplifier; idtac "my_simplifier" 
+     | _ => idtac "normalize_key_hyps["; normalize_key_hyps; idtac "normalize_key_hyps"
+     | _ => idtac "simpl_solver["; my_simpl_solver; idtac "simpl_solver"
+     | _ => idtac "find_if_inside["; find_if_inside; idtac "find_if_inside"
+     | _ => idtac "resolve_wb'["; resolve_wb'; idtac "resolve_wb'"
+     | _ => idtac "resolve_sublist["; resolve_sublist; idtac "resolve_sublist"
+     | _ => idtac "resolve_rel'["; resolve_rel'; idtac "resolve_rel'"
+(*     | _ => doUpdRegs_simpl; idtac "doUpdRegs_simpl"
+     | _ => doUpdRegs_red; idtac "doUpdRegs_red" *)
+     | _ => idtac "main["; main_body; idtac "main"
+     | _ => idtac "sublist_iff["; sublist_iff; idtac "sublist_iff"
+    end.
+
+  Ltac goal_consumer :=
+    match goal with
+     | _ => goal_split; idtac "goal_split"
+     | _ => (match goal with
+             | [ |- SemAction _ (Return _) _ _ _ _ ] => econstructor 10
+             | [ |- SemAction _ (MCall _ _ _ _) _ _ _ _] => econstructor 1
+             | [ |- SemAction _ (LetAction _ _) _ _ _ _] => econstructor 3
+             | [ |- SemAction _ (ReadReg _ _ _) _ _ _ _] => econstructor 5
+             | [ |- SemAction _ (WriteReg _ _ _) _ _ _ _] => econstructor 6
+             | [ |- SemAction _ (IfElse _ _ _ _) _ _ _ _] => eapply SemAction_if_split
+             | [ |- SemAction _ (LetExpr _ _) _ _ _ _] => econstructor 2
+             | [ |- SemAction _ (ReadNondet _ _) _ _ _ _] => econstructor 4
+             | [ |- SemAction _ (Sys _ _) _ _ _ _] => econstructor 9
+             end); idtac "construct"
+     | _ => (match goal with
+             | [ H : SemAction ?o ?a _ _ _ _ |- SemAction ?o ?a _ _ _ _] => apply H
+             | [ H : SemAction ?o1 ?a _ _ _ _ |- SemAction ?o2 ?a _ _ _ _] => eapply SemActionExpand;[| apply H]
+             end); idtac "rel_solver"
+     | _ => solve_keys; idtac "solve_keys"
+     | _ => my_risky_simplifier; idtac "risky_simpl"
+     | _ => my_risky_solver; idtac "risky_solver"
+     | _ => gka_doUpdReg_red; idtac "gka_doUpdReg_red"
+     | _ => normalize_sublist_l; idtac "normalize_sublist_l"
+    end.
+  
+  (* Ltac solve_wb := *)
+  (*   (match goal with *)
+  (*      [ |-  *)
   Ltac mychs' :=
     (match goal with
      | _ => sublist_sol; idtac "sublist_sol"
@@ -1322,30 +1439,9 @@ Section Proofs.
      | _ => resolve_rel'; idtac "resolve_rel'"
 (*     | _ => doUpdRegs_simpl; idtac "doUpdRegs_simpl"
      | _ => doUpdRegs_red; idtac "doUpdRegs_red" *)
-     | _ => (match goal with
-             | [H: SemAction _ (Return _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H; destruct H as [? [? [? ?]]]
-             | [H: SemAction _ (MCall _ _ _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H; destruct H as [? [? [? ?]]]
-             | [H: SemAction _ (LetAction _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H; destruct H as [? [? [? [? [? [? [? [? [? [? [? [? ?]]]]]]]]]]]]
-             | [H: SemAction _ (ReadReg _ _ _) _ _ _ _ |- _]
-               => let TMP := fresh "H" in apply inversionSemAction' in H; destruct H as [? [? [TMP [? ?]]]]; decompose_In TMP
-             | [H: SemAction _ (WriteReg _ _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H; destruct H as [? [? [? [? ?]]]]
-             | [H: SemAction _ (IfElse _ _ _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H;
-                  let TMP := fresh "H" in destruct evalExpr eqn:TMP in H; destruct H as [? [? ?]]
-             | [H: SemAction _ (LetExpr _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H
-             | [H: SemAction _ (ReadNondet _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H; destruct H as [? ?]
-             | [H: SemAction _ (Sys _ _) _ _ _ _ |- _]
-               => apply inversionSemAction' in H
-             | [H: SemAction _ (gatherActions (map _ ?l)) _ _ _ _ |- _]
-               => induction ?l
-                           end); idtac "main"
+     | _ => main_body; idtac "main"
      | _ => goal_split; idtac "goal_split"
+     | _ => sublist_iff; idtac "sublist_iff"
      | _ => (match goal with
              | [ |- SemAction _ (Return _) _ _ _ _ ] => econstructor 10
              | [ |- SemAction _ (MCall _ _ _ _) _ _ _ _] => econstructor 1
@@ -1387,29 +1483,193 @@ Section Proofs.
   
   Ltac simple_tactic :=
     repeat mychs'; doUpdRegs_solv.
+        Ltac resolve_wb'' :=
+        let HNoDup := fresh "H" in
+        let HSubList := fresh "H" in
+        match goal with
+        | [HSemAction1 :SemAction ?o1 ?a_i _ _ _ _,
+                        HActionWb : ActionWb ?myR ?a_i |- _] =>
+          idtac "1";
+          assert (NoDup (map fst o1)) as HNoDup
+          ;[
+          | assert (SubList myR (getKindAttr o1)) as HSubList
+            ;[clear HNoDup HSemAction1
+             | specialize (HActionWb _ _ _ _ _ HNoDup HSubList HSemAction1)
+               as [[? [? [? [? ?]]]] ?]
+               ; clear HSemAction1 HNoDup HSubList]]
+        | [HSemAction1 : SemAction ?o1 (?a_i _) _ _ _ _,
+                         HActionWb : forall _, ActionWb ?myR (?a_i _) |- _] =>
+          idtac "2"(* ; *)
+        (* assert (NoDup (map fst o1)) as HNoDup *)
+        (* ;[ *)
+        (* | assert (SubList myR (getKindAttr o1)) as HSubList *)
+        (*   ;[clear HNoDup HSemAction1 *)
+        (*    | specialize (HActionWb _ _ _ _ _ _ HNoDup HSubList HSemAction1) *)
+        (*      as [[? [? [? [? ?]]]] ?] *)
+        (*      ; clear HSemAction1 HNoDup HSubList]] *)
+        | [HSemAction1 : SemAction ?o1 (?a_i _ _) _ _ _ _,
+                         HActionWb : forall _ _, ActionWb ?myR (?a_i _ _) |- _] =>
+          idtac "3"(* ; *)
+        (* assert (NoDup (map fst o1)) as HNoDup *)
+        (* ;[ *)
+        (* | assert (SubList myR (getKindAttr o1)) as HSubList *)
+        (*   ;[clear HNoDup HSemAction1 *)
+        (*    | specialize (HActionWb _ _ _ _ _ _ _ HNoDup HSubList HSemAction1) *)
+        (*      as [[? [? [? [? ?]]]] ?] *)
+        (*      ; clear HSemAction1 HNoDup HSubList]] *)
+        | [HSemAction1 : SemAction ?o1 (?a_i _ _ _) _ _ _ _,
+                         HActionWb : forall _ _ _, ActionWb ?myR (?a_i _ _ _) |- _] =>
+          idtac "4"(* ; *)
+        (* assert (NoDup (map fst o1)) as HNoDup *)
+        (* ;[ *)
+        (* | assert (SubList myR (getKindAttr o1)) as HSubList *)
+        (*   ;[clear HNoDup HSemAction1 *)
+        (*    | specialize (HActionWb _ _ _ _ _ _ _ _ HNoDup HSubList HSemAction1) *)
+        (*      as [[? [? [? [? ?]]]] ?] *)
+        (*      ; clear HSemAction1 HNoDup HSubList]] *)
+        | [HSemAction1 : SemAction ?o1 (?a_i _ _ _ _ _) _ _ _ _,
+                         HActionWb :  forall _ _ _ _, ActionWb ?myR (?a_i _ _ _ _ _)|- _] =>
+          idtac "5" HActionWb myR a_i;
+          assert (NoDup (map fst o1)) as HNoDup
+          ;[
+          | assert (SubList myR (getKindAttr o1)) as HSubList
+            ;[clear HNoDup HSemAction1
+             | specialize (HActionWb _ _ _ _ _ _ _ _ _ HNoDup HSubList HSemAction1)
+               as [[? [? [? [? ?]]]] ?]
+               ; clear HSemAction1 HNoDup HSubList]]
+        | [HSemAction1 : SemAction ?o1 (?a_i _ _ _ _ _) _ _ _ _,
+                         HActionWb : forall _ _ _ _ _, ActionWb ?myR (?a_i _ _ _ _ _) |- _] =>
+          idtac "6"(* ; *)
+                (* assert (NoDup (map fst o1)) as HNoDup *)
+                (* ;[ *)
+                (* | assert (SubList myR (getKindAttr o1)) as HSubList *)
+                (*   ;[clear HNoDup HSemAction1 *)
+                (*    | specialize (HActionWb _ _ _ _ _ _ _ _ _ _ HNoDup HSubList HSemAction1) *)
+                (*      as [[? [? [? [? ?]]]] ?] *)
+                (*      ; clear HSemAction1 HNoDup HSubList]] *)
+        end.
   
   Goal ArbiterCorrect implArbiter specArbiter.
+    assert (forall {B: Type} {k_in k_out} (f : B -> ActionT type k_in) myReg
+                   (cont : ActionT type k_out),
+               ActionWb myReg cont ->
+               (forall (b : B),
+                   ActionWb myReg (f b)) ->
+               forall (l : list B),
+                 ActionWb myReg (gatherActions (map f l) (fun val => cont))) as gatherAction_invar.
+    { clear.
+      induction l; simpl; intros; auto.
+      unfold ActionWb; intros.
+      repeat main_body; subst.
+      specialize (H0 _ _ _ _ _ _ H1 H2 H4); dest.
+      specialize (IHl _ _ _ _ _ H1 H2 H5); dest.
+      eexists; repeat goal_split.
+      apply H10.
+      rewrite SubList_app_l_iff; split; auto.
+      subst; repeat hyp_consumer.
+      auto.
+      clear H4 H5.
+      repeat hyp_consumer.
+      repeat goal_consumer.
+      assumption.
+      repeat hyp_consumer.
+      repeat goal_consumer.
+      auto.
+      auto.
+    }
+    (* assert *)
+    (*   (forall (cId : t numClients), *)
+    (*       ActionWb (getKindAttr OuterRegs) *)
+    (*                ((fun clientId : t numClients => *)
+    (*                    (If Const type ($(proj1_sig (to_nat clientId)))%word == *)
+    (*                     ReadStruct (Var type (SyntaxKind ClientIdTag) *)
+    (*                                     (evalExpr (ReadArrayConst (Var type (SyntaxKind (Array 1 ClientIdTag)) x) F1))) F1 *)
+    (*                     then LET clientRes : clientResK (nth_Fin clients clientId) <- *)
+    (*                                          STRUCT {"tag" ::= ZeroExtendTruncLsb (clientTagSz (nth_Fin clients clientId)) (ReadStruct (Var type (SyntaxKind ArbiterRouterRes) resp) F1); *)
+    (*                                                            "resp" ::= ReadStruct (Var type (SyntaxKind ArbiterRouterRes) resp) (FS F1)}; *)
+    (*                          System [DispString type "[Arbiter.memCallback] client res: "; *)
+    (*                                  DispHex (Var type (SyntaxKind (clientResK (nth_Fin clients clientId))) clientRes); DispString type "\n"]; *)
+    (*                          clientHandleRes (nth_Fin clients clientId) clientRes; Retv)%kami_action) cId)) as P0. *)
+    (* { clear - H. *)
+    (*   unfold ActionWb; repeat intro. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   resolve_wb''. *)
+    (*   auto. *)
+    (*   auto. *)
+    (*   repeat goal_consumer; eauto. *)
+    (*   find_if_inside. *)
+    (*   repeat goal_consumer; auto. *)
+    (*   hyp_consumer. *)
+    (*   hyp_consumer. *)
+    (*   rewrite app_nil_r. *)
+    (*   auto. *)
+    (*   hyp_consumer. *)
+    (*   rewrite app_nil_r. *)
+    (*   auto. *)
+    (*   hyp_consumer. *)
+    (*   rewrite app_nil_r. *)
+    (*   auto. *)
+    (*   repeat hyp_consumer. *)
+    (*   rewrite SubList_map_iff in H1; dest. *)
+    (*   repeat goal_consumer. *)
+    (*   apply H1. *)
+    (*   all : hyp_consumer. *)
+    (*   all : auto. *)
+    (*   repeat goal_consumer; auto. *)
+    (*   hyp_consumer. *)
+    (* } *)
+    assert (forall k (a : ActionT type k) myRegs1 myRegs2,
+               SubList myRegs1 myRegs2 ->
+               ActionWb myRegs1 a ->
+               ActionWb myRegs2 a) as ActionWbExpand.
+    { clear.
+      unfold ActionWb; intros.
+      specialize (H0 _ _ _ _ _ H1 (SubList_transitive H H2) H3); dest.
+      rewrite SubList_map_iff in H2; dest.
+      assert (SubList x x0).
+      { rewrite <- H8, <- H6 in H.
+        repeat intro.
+        specialize (H0 _ H9).
+        specialize (in_map fst _ _ H9) as P.
+        apply (SubList_map fst) in H; repeat rewrite fst_getKindAttr in H.
+        specialize (H _ P).
+        rewrite in_map_iff in H; dest.
+        specialize (H2 _ H10).
+        rewrite (KeyMatching3 _ _ _ H1 H0 H2 (eq_sym H)).
+        assumption.
+      }
+      split.
+      - exists x0; repeat split; auto.
+        + apply (SubList_transitive H5 H9).
+        + eapply SemActionExpand; [apply H9| assumption].
+      - apply (SubList_transitive H4 H).
+    }
+    assert (ActionWb nil Retv%kami_action) as RetvWb.
+    { clear.
+      unfold ActionWb; intros.
+      repeat hyp_consumer.
+      repeat goal_split.
+      - instantiate (1 := nil).
+        apply SubList_nil_l.
+      - apply SubList_nil_l.
+      - auto.
+      - constructor; auto.
+      - apply SubList_nil_l.
+    }
     destruct implFreeListCorrect.
     econstructor 1 with (arbiterR:= myArbiterR freeListR0 freeListRegs0 outerRegs)
                         (outerRegs := outerRegs)
                         (arbiterRegs := (ArbiterName, SyntaxKind Bool) :: freeListRegs0 ++ outerRegs).
-    
-(*  Record myArbiterR (freelistR: RegsT -> RegsT -> Prop) freelistRegs outerRegs (o_i o_s: RegsT): Prop :=
-    {
-      ArbiterVal: bool;
-      LocalReg: RegT;
-      OuterRegs: RegsT;
-      LocalRegVal : LocalReg = (ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal);
-      FreeListImplRegs: RegsT;
-      FreeListSpecRegs: RegsT;
-      HImplRegs: (getKindAttr FreeListImplRegs) = freelistRegs;
-      HOuterRegs: (getKindAttr OuterRegs) = outerRegs;
-      Ho_iCorrect: o_i = LocalReg :: FreeListImplRegs ++ OuterRegs;
-      Ho_sCorrect: o_s = LocalReg :: FreeListSpecRegs ++ OuterRegs;
-      Ho_iNoDup: List.NoDup (map fst o_i);
-      Ho_sNoDup: List.NoDup (map fst o_s);
-      HFreeList: freelistR FreeListImplRegs FreeListSpecRegs
-    }.*)
     all :
     intros;
       unfold EffectfulRelation, ActionWb; intros
@@ -1420,67 +1680,398 @@ Section Proofs.
         Impl.alloc, Impl.memCallback, Impl.arbiterRule,
         Impl.free, alloc, free,
         nextToAlloc, freelist, arbiter in *.
-    all : repeat mychs'.
-    all : repeat mychs'.
-    auto.
-    all : repeat mychs'.
-    auto.
-    repeat doUpdRegs_simpl.
-    repeat doUpdRegs_red.
-    Record_construct.
-    all : repeat mychs'.
-    all : repeat mychs'.
-    auto.
-    auto.
-    all : repeat mychs'.
-    repeat doUpdRegs_simpl.
-    repeat doUpdRegs_red.
-    Record_construct.
-    all : repeat mychs'.
-    all : repeat mychs'.
-    auto.
-    auto.
-    all : repeat mychs'.
-    repeat doUpdRegs_simpl.
-    repeat doUpdRegs_red.
-    Record_construct.
-    all : repeat mychs'.
-    all : repeat mychs'.
-    4 : auto.
-    all : repeat mychs'.
-    8 : auto.
-    6 : auto.
-    6 : auto.
-    all : repeat mychs'.
-    auto.
-    auto.
-    4 : auto.
-    auto.
-    all : repeat mychs'.
-    5 : auto.
-    5 : auto.
-    all : repeat mychs'.
-    auto.
-    auto.
-    auto.
-    6 : auto.
-    all : repeat mychs'.
-    3 : auto.
-    4 : auto.
-    5 : auto.
-    all : repeat mychs'.
-    16 : auto.
-    all : repeat mychs'.
-    23 : auto.
-    22 : auto.
-    all : repeat doUpdRegs_simpl.
-    all : repeat doUpdRegs_red.
-    all : try Record_construct.
-    all : repeat mychs'.
-    all : repeat mychs'.
-    10 : {
-      induction (getFins numClients); simpl in *.
+    1 :{
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      auto.
+      auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      auto.
+      auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      auto.
+      auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+    }
+    4 : {
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+    }
+    1 : {
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      6 : auto.
+      6 : auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      2 : auto.
+      2 : auto.
+      2 : auto.
+      2 : auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      4 : auto.
+      8 : auto.
+      6 : auto.
+      6 : auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      auto.
+      auto.
+      4 : auto.
+      5 : auto.
+      3 : auto.
+      all : repeat (repeat hyp_consumer; repeat goal_consumer).
+      3 : auto.
+      2 : auto.
+      auto.
+    }
+    3 : {
+      repeat (repeat hyp_consumer).
+      rewrite in_map_iff in H1; dest.
+      repeat (repeat hyp_consumer).
+      destruct x2, s0; simpl in *; subst.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      2 : auto.
+      2 : auto.
+      2 : auto.
+      2 : auto.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      apply H4.
+      auto.
+    }
+    1 : { 
+      repeat (repeat hyp_consumer).
+      Ltac extract_gatherActions subRegs :=
+        match goal with
+        | [ H : SemAction ?o (gatherActions (map ?f ?l) (fun _ : _ => ?s)) _ _ _ _ |- _]
+          => idtac "f" f "l" l "s" s;
+             assert (ActionWb (getKindAttr subRegs) s /\
+                     (forall t,
+                         ActionWb (getKindAttr subRegs) (f t)) /\
+                     SubList subRegs o)
+        end.
+      extract_gatherActions OuterRegs.
+      { repeat goal_consumer; intros.
+        eapply ActionWbExpand.
+        2 : {
+          unfold ActionWb; intros.
+          repeat main_body.
+          repeat mySubst.
+          repeat goal_consumer.
+          5 : auto.
+          5 : auto.
+          5 : auto.
+          4 : auto.
+          3 : auto.
+          2 : my_simpl_solver.
+          2 : my_simplifier; my_simpl_solver.
+          instantiate (1 := nil).
+          my_simpl_solver.
+        }
+        repeat my_simplifier; repeat my_simpl_solver.
+        eapply ActionWbExpand.
+          2 : {
+            unfold ActionWb; intros.
+            repeat main_body.
+            repeat mySubst.
+            repeat clean_useless_hyp.
+            resolve_wb''.
+            repeat my_simpl_solver.
+            2 : {
+              repeat goal_consumer.
+              4 : {
+                find_if_inside.
+                goal_consumer.
+                all : repeat my_simpl_solver.
+                3 : repeat goal_consumer.
+                all : repeat my_simpl_solver.
+                all : repeat my_simpl_solver.
+                goal_consumer.
+                goal_consumer.
+                apply H22.
+              }
+              my_simpl_solver.
+              my_simpl_solver.
+              all : repeat find_if_inside.
+              all : repeat my_risky_simplifier; repeat my_simpl_solver.
+              eapply H21.
+              auto.
+            }
+            my_simpl_solver.
+            repeat mySubst.
+            repeat clean_useless_hyp.
+            rewrite SubList_map_iff in H13; dest.
+            repeat goal_consumer.
+            4 : {
+              find_if_inside.
+              repeat goal_consumer.
+              all : repeat my_simpl_solver.
+              my_simpl_solver.
+            }
+            all : try find_if_inside.
+            all : repeat my_simplifier; repeat my_simpl_solver.
+            all : repeat my_risky_simplifier; repeat my_simpl_solver.
+            apply H13.
+            apply H14.
+          }
+          apply SubList_refl.
+          sublist_sol.
+        }
+      dest.
+      specialize (gatherAction_invar _ _ _ _ _ _ H11 H13 (getFins numClients)).
+      resolve_wb'.
+      repeat hyp_consumer.
+      eapply SubList_map.
+      repeat hyp_consumer.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      3 : auto.
+      3 : auto.
+      all : try gka_doUpdReg_red; try my_simpl_solver.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+    }
+    1 : { 
+      repeat (repeat hyp_consumer).
+      Ltac extract_gatherActions' subRegs :=
+        match goal with
+        | [ H : SemAction ?o (gatherActions (map ?f ?l) (fun _ : _ => ?s)) _ _ _ _ |- _]
+          => idtac "assert (ActionWb (getKindAttr "subRegs") "s" /\ (forall t', ActionWb (getKindAttr "subRegs") ("f "t')) /\ SubList "subRegs" "o")"
+             (* assert (ActionWb (getKindAttr subRegs) s /\ *)
+             (*         (forall t', *)
+             (*             ActionWb (getKindAttr subRegs) (f t')) /\ *)
+             (*         SubList subRegs o) *)
+        end.
+      extract_gatherActions' OuterRegs.
+      assert (ActionWb (getKindAttr  OuterRegs )  Retv%kami_action
+ /\ (forall t', ActionWb (getKindAttr  OuterRegs ) (
+(fun clientId : t numClients =>
+ (If Const type ($(proj1_sig (to_nat clientId)))%word ==
+     ReadStruct
+       (Var type (SyntaxKind ClientIdTag)
+          (evalExpr (ReadArrayConst (Var type (SyntaxKind (Array 1 ClientIdTag)) x) F1))) F1
+  then LET clientRes : clientResK (nth_Fin clients clientId) <-
+       STRUCT {"tag"
+               ::= ZeroExtendTruncLsb (clientTagSz (nth_Fin clients clientId))
+                     (ReadStruct (Var type (SyntaxKind ArbiterRouterRes) resp) F1);
+       "resp" ::= ReadStruct (Var type (SyntaxKind ArbiterRouterRes) resp) (FS F1)};
+       System [DispString type "[Arbiter.memCallback] client res: ";
+              DispHex (Var type (SyntaxKind (clientResK (nth_Fin clients clientId))) clientRes);
+              DispString type "\n"]; clientHandleRes (nth_Fin clients clientId) clientRes; Retv)%kami_action)
+t')) /\ SubList  OuterRegs   o ).
+      { repeat goal_consumer; intros.
+        eapply ActionWbExpand.
+        2 : {
+          unfold ActionWb; intros.
+          repeat main_body.
+          repeat mySubst.
+          repeat goal_consumer.
+          5 : auto.
+          5 : auto.
+          5 : auto.
+          4 : auto.
+          3 : auto.
+          2 : my_simpl_solver.
+          2 : my_simplifier; my_simpl_solver.
+          instantiate (1 := nil).
+          my_simpl_solver.
+        }
+        repeat my_simplifier; repeat my_simpl_solver.
+        eapply ActionWbExpand.
+          2 : {
+            unfold ActionWb; intros.
+            repeat main_body.
+            repeat mySubst.
+            repeat clean_useless_hyp.
+            resolve_wb''.
+            repeat my_simpl_solver.
+            2 : {
+              repeat goal_consumer.
+              4 : {
+                find_if_inside.
+                goal_consumer.
+                all : repeat my_simpl_solver.
+                3 : repeat goal_consumer.
+                all : repeat my_simpl_solver.
+                all : repeat my_simpl_solver.
+                goal_consumer.
+                goal_consumer.
+                apply H22.
+              }
+              my_simpl_solver.
+              my_simpl_solver.
+              all : repeat find_if_inside.
+              all : repeat my_risky_simplifier; repeat my_simpl_solver.
+              eapply H21.
+              auto.
+            }
+            my_simpl_solver.
+            repeat mySubst.
+            repeat clean_useless_hyp.
+            rewrite SubList_map_iff in H13; dest.
+            repeat goal_consumer.
+            4 : {
+              find_if_inside.
+              repeat goal_consumer.
+              all : repeat my_simpl_solver.
+              my_simpl_solver.
+            }
+            all : try find_if_inside.
+            all : repeat my_simplifier; repeat my_simpl_solver.
+            all : repeat my_risky_simplifier; repeat my_simpl_solver.
+            apply H13.
+            apply H14.
+          }
+          apply SubList_refl.
+          sublist_sol.
+        }
+      dest.
+      specialize (gatherAction_invar _ _ _ _ _ _ H11 H13 (getFins numClients)).
+      resolve_wb'.
+      repeat hyp_consumer.
+      eapply SubList_map.
+      repeat hyp_consumer.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      3 : auto.
+      3 : auto.
+      all : try gka_doUpdReg_red; try my_simpl_solver.
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+      repeat (repeat hyp_consumer; repeat goal_consumer).
+    }
+      repeat doUpdRegs_simpl.
+      repeat doUpdRegs_red.
+      Record_construct.
+      all : hyp_consumer.
+      all : repeat my_risky_solver.
+      all : repeat gka_doUpdReg_red; repeat my_simpl_solver.
+      all : repeat (repeat normalize_key_concl; repeat my_simplifier).
+      all : repeat my_simpl_solver.
+      solve_keys.
+            2 : { apply H22.
+                      goal_consumer.
+                      repeat my_simpl_solver.
+                      all : repeat my_simpl_solver.
+        my_simpl_solver.
+        auto.
+        apply H13. (* cheating *)
+        repeat goal_consumer.
+        3 : apply H21.
+        all : hyp_consumer.
+        2 : auto.
+        2 : auto.
+        2 : auto.
+        2 : auto.
+        repeat goal_consumer.
+        3 : auto.
+        3 : auto.
+        3 : auto.
+        my_simpl_solver.
+        simpl; auto.
+        all : try (my_risky_simplifier; my_simpl_solver).
+        rewrite SubList_map_iff in H13; dest.
+        repeat goal_consumer.
+        all : try my_simpl_solver.
+        3 : {
+          find_if_inside.
+          repeat goal_consumer.
+          all: repeat my_simpl_solver.
+          my_simpl_solver.
+        }
+        all : repeat find_if_inside; repeat my_risky_simplifier; repeat my_simpl_solver.
+        all : eauto.
+        repeat my_simplifier; repeat my_simpl_solver.
+      }
+      dest.
+        repeat hyp_consumer.
+      specialize (SubList_nil_l (getKindAttr OuterRegs)) as P.
+      specialize (ActionWbExpand _ _ _ _ P H15) as P1.
+      specialize (H11 _ _ _ _ _ _ P1 H13 (getFins numClients)) as P2.
+      clear P P1 H14 H15 H13 H11.
+      repeat hyp_consumer.
+      repeat goal_consumer.
+      solve_keys.
+      sublist_sol.
+      sublist_sol.
+      auto.
+      auto.
+      repeat doUpdRegs_simpl; repeat doUpdRegs_red; Record_construct.
+      all : repeat hyp_consumer.
+      3 : { my_risky_solver.
+      }
+      gka_doUpdReg_red; auto.
+      gka_doUpdReg_red; auto.
+      my_risky_solver.
+      assumption.
+    }
+    repeat (repeat hyp_consumer).
+      repeat doUpdRegs_
+      aggressive_key_finder upds_s.
+      aggressive_key_finder x5.
+        3 : auto.
+        repeat hyp_consumer.
+        instantiate (1 := nil).
+        all : repeat hyp_consumer.
+        all : hyp_consumer.
+        4 : auto.
+        4 : auto.
+        4 : auto.
+        3 : { repeat goal_consumer.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              2 : auto.
+              hyp_consumer.
+        }
+        3 : auto.
+              
+        3 : {
+        repeat (repeat hyp_consumer; repeat goal_consumer).
+        all : repeat (repeat hyp_consumer; repeat goal_consumer).
+        3 : auto.
+        all : repeat mychs'.
+        3 : auto.
+        6 : auto.
+      simpl in H12.
       repeat mychs'.
+      5 : {
+        simpl in *.
+        repeat mychs'.
+        specialize (IHl H13).
+        repeat mychs'.
+      2 : { simpl; repeat mychs'.
+            simpl; repeat mychs'.
+      }
+      all : repeat mychs'.
+      repeat doUpdRegs_simpl.
+      repeat doUpdRegs_red.
+      Record_construct.
+      all : repeat mychs'.
+      all : repeat mychs'.
+      all : auto.
+      2 : {
+       
+            
+            
       repeat mychs'.
       repeat doUpdRegs_simpl.
     19 : auto.
