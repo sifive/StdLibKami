@@ -1,6 +1,6 @@
 Require Import Kami.AllNotations.
 Section FifoInterface.
-  Context (k: Kind).
+  Context (k: Kind). 
   Class Fifo: Type :=
     {
       getLen: nat;
