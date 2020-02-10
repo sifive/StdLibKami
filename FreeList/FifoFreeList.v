@@ -2,16 +2,28 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.FreeList.Ifc.
 Section ImplTagFreeList.
+  Context {freeListParams : FreeListParams}.
+
+  Instance backingFifoParams
+    :  StdLibKami.Fifo.Ifc.FifoParams
+    := {|
+         StdLibKami.Fifo.Ifc.name := (StdLibKami.FreeList.Ifc.name ++ ".backingFifo")%string;
+         StdLibKami.Fifo.Ifc.k    := Bit tagSz;
+       |}.
+
+
+  Local Definition initName := (name ++ ".initTag")%string.
+
   Class ImplTagFreeListParams := {
-                                len: nat;
-                                initName: string;
-                                backingFifo: @Fifo (Bit (Nat.log2_up len));
+                                (* len: nat; *)
+                                (* initName: string; *)
+                                backingFifo: @Fifo backingFifoParams;
                               }.
 
   Section withParams.
     Context (implTagFreeListParams: ImplTagFreeListParams).
     
-    Definition Tag := Bit (Nat.log2_up len).
+    Definition Tag := Bit tagSz.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
@@ -69,7 +81,7 @@ Section ImplTagFreeList.
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := @Fifo.Ifc.regFiles _ backingFifo;
-        FreeList.Ifc.length := len;
+        FreeList.Ifc.length := Nat.pow 2 tagSz;
         FreeList.Ifc.initialize := initialize;
         FreeList.Ifc.nextToAlloc := nextToAlloc;
         FreeList.Ifc.alloc := alloc;

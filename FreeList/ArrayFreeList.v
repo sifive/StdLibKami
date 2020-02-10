@@ -7,19 +7,20 @@ Require Import Kami.Utila.
 Require Import StdLibKami.FreeList.Ifc.
 
 Section arrayFreeList.
+  Context {freeListParams : FreeListParams}.
 
+  Local Definition arrayRegName := (name ++ ".data")%string.
+
+(*
   Class ArrayFreeListParams
     := {
          len : nat;
          arrayRegName : string;
        }.
-
+*)
   Section arrayFreeListParams.
-    Context `{ArrayFreeListParams}.
-    
-    Definition TagSize := Nat.log2_up len.
-    Definition Tag := Bit TagSize.
-
+    Local Definition len := Nat.pow 2 tagSz.
+    Definition Tag := Bit tagSz.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.

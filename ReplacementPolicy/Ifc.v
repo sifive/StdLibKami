@@ -4,14 +4,23 @@ Section interface.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Variable size : nat.
-  Definition Index := Bit (Nat.log2_up size).
+  Class PolicyParams := {
+    name : string;
+    num  : nat;
+  }.
 
-  Class ReplacementPolicy
-    := {
-         getVictim : forall ty, ActionT ty Index;
-         access : forall ty, Index @# ty -> ActionT ty Void
-       }.
+  Section policyParams.
+    Context {policyParams : PolicyParams}.
+
+    Definition Index := Bit (Nat.log2_up num).
+
+    Class ReplacementPolicy
+      := {
+           getVictim : forall ty, ActionT ty Index;
+           access : forall ty, Index @# ty -> ActionT ty Void
+         }.
+
+  End policyParams.
 
   Close Scope kami_action.
   Close Scope kami_expr.

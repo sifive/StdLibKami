@@ -31,6 +31,7 @@ Section Arbiter.
 
   Class ArbiterParams :=
     {
+      name : string;
       reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
       respK : Kind;  (* data returned by a memory device - specifically Data. *)
       immResK : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)

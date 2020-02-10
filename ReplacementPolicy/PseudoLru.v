@@ -3,11 +3,11 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.ReplacementPolicy.Ifc.
 
 Section lru.
-  Class PseudoLruParams := { stateRegName : string;
-                             num : nat
-                           }.
+  Context {policyParams : PolicyParams}.
 
-  Variable params: PseudoLruParams.
+  Local Definition stateRegName := (StdLibKami.ReplacementPolicy.Ifc.name ++ ".state")%string.
+
+  (* Variable params: PseudoLruParams. *)
   
   Definition State := Array (num - 1) Bool.
   Definition IndexWidth := Nat.log2_up num.
@@ -85,7 +85,7 @@ Section lru.
   Local Open Scope kami_action.
   
   Instance PseudoLru
-    :  ReplacementPolicy num
+    :  @ReplacementPolicy (* num *) policyParams
     := {|
         getVictim := (fun ty =>
                         Read state : State <- stateRegName;
@@ -112,9 +112,14 @@ Section tests.
   Local Notation R := (Const type true).
 
   Definition testGetVictim (num : nat)
-    := let params := {| num := num; stateRegName := "test" |} in
-       fun (state: State params @# type) (expected : word (IndexWidth params)) =>
-         (evalLetExpr (LETE path : Path params <- getVictimAux state (Depth params) $0 $0;
+    := let params
+         :  PolicyParams
+         := {|
+              StdLibKami.ReplacementPolicy.Ifc.name := "test";
+              StdLibKami.ReplacementPolicy.Ifc.num  := num;
+            |} in
+       fun (state: State @# type) (expected : word IndexWidth) =>
+         (evalLetExpr (LETE path : Path <- getVictimAux state Depth $0 $0;
                          RetE (getIndexFromPath (Var _ (SyntaxKind _) path))) = expected).
 
   Goal testGetVictim (num := 3) (ARRAY {R; R}) $2. Proof. reflexivity. Qed.
@@ -144,9 +149,14 @@ Section tests.
     := map (evalLetExpr arr) (getFins n).
 
   Definition testAccess (num : nat) :=
-    let params := {| num := num; stateRegName := "test" |} in
-    fun (state: State params @# type) (index: Index params @# type) (expected : list bool) =>
-      evalArray (accessAux (getPathFromIndex index) (Depth params) $0 state) = expected.
+    let params
+      :  PolicyParams
+      := {|
+           StdLibKami.ReplacementPolicy.Ifc.name := "test";
+           StdLibKami.ReplacementPolicy.Ifc.num  := num;
+         |} in
+    fun (state: State @# type) (index: Index @# type) (expected : list bool) =>
+      evalArray (accessAux (getPathFromIndex index) Depth $0 state) = expected.
 
   Goal testAccess (num := 2) (ARRAY {R}) (Const type (1'b"0")) [true]. Proof. reflexivity. Qed.
   Goal testAccess (num := 2) (ARRAY {R}) (Const type (1'b"1")) [false]. Proof. reflexivity. Qed.

@@ -3,23 +3,19 @@ Require Import StdLibKami.FreeList.Ifc.
 Require Import StdLibKami.Reorderer.Ifc.
 Section Reorderer.
   Context `{ReordererParams}.
+
+  Local Definition rfName     := (StdLibKami.Reorderer.Ifc.name ++ ".rfName")%string.
+  Local Definition rfRead     := (StdLibKami.Reorderer.Ifc.name ++ ".rfRead")%string.
+  Local Definition rfWrite    := (StdLibKami.Reorderer.Ifc.name ++ ".rfWrite")%string.
+  Local Definition arfName    := (StdLibKami.Reorderer.Ifc.name ++ ".arfName")%string.
+  Local Definition arfRead    := (StdLibKami.Reorderer.Ifc.name ++ ".arfRead")%string.
+  Local Definition arfWrite   := (StdLibKami.Reorderer.Ifc.name ++ ".arfWrite")%string.
+  Local Definition enqPtr     := (StdLibKami.Reorderer.Ifc.name ++ ".enqPtr")%string.
+  Local Definition deqPtr     := (StdLibKami.Reorderer.Ifc.name ++ ".deqPtr")%string.
+  Local Definition validArray := (StdLibKami.Reorderer.Ifc.name ++ ".validArray")%string.
+
   Class ReordererImplParams :=
     {
-      (* Methods for interacting with the response buffer (holding Maybe Insts). *)
-      rfName: string;
-      rfRead: string;
-      rfWrite: string;
-      (* methods for interacting with the address memory, which keeps
-         track of the address each request corresponds to *)
-      arfName: string;
-      arfRead: string;
-      arfWrite: string;
-
-      enqPtr: string;
-      deqPtr: string;
-
-      validArray: string;
-
       logNumReqId: nat;
       lenIsPow2: Nat.pow 2 logNumReqId = numReqId;
     }.

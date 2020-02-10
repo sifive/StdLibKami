@@ -1,6 +1,7 @@
 Require Import Kami.All.
 Section Reorderer.
   Class ReordererParams := {                            
+      name: string;
       numReqId: nat;
       privModeK: Kind;                      
       pAddrK: Kind;

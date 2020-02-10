@@ -4,7 +4,7 @@ Require Import StdLibKami.FreeList.Ifc.
 
 Section SimpleDevRouter.
   Context `{DevRouterParams}.
-  Context (routed: string).
+  Local Definition routed := (StdLibKami.DevRouter.Ifc.name ++ ".routed")%string.
   
   Section withParams.
     Open Scope kami_expr_scope.
