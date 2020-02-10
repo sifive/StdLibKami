@@ -1767,16 +1767,14 @@ Section Proofs.
     }
     1 : { 
       repeat (repeat hyp_consumer).
-      Ltac extract_gatherActions' :=
+      Ltac extract_gatherActions' subRegs :=
         match goal with
         | [ H : SemAction ?o (gatherActions (map ?f ?l) (fun _ : _ => ?s)) _ _ _ _ |- _]
-          => assert (exists subRegs,
-                        (ActionWb (getKindAttr subRegs) s /\
-                         (forall t',
-                             ActionWb (getKindAttr subRegs) (f t')) /\
-                         SubList subRegs o))
+          => assert (ActionWb subRegs s /\
+                     (forall t',
+                         ActionWb subRegs (f t')))
         end.
-      extract_gatherActions'.
+      extract_gatherActions' outerRegs.
       { repeat goal_consumer; intros.
         eapply ActionWbExpand.
         2 :{
@@ -1803,7 +1801,7 @@ Section Proofs.
           5 : auto.
           all : try my_simpl_solver.
           4 : repeat goal_consumer.
-          all : try my_simpl_solver.
+          all : repeat my_simpl_solver.
           all : repeat my_risky_simplifier; repeat my_simpl_solver.
           5 : auto.
           apply H.
@@ -1824,24 +1822,22 @@ Section Proofs.
           apply H7.
           assumption.
         }
-        apply H4.
         apply SubList_refl.
       }
       dest.
       specialize (gatherAction_invar _ _ _ _ _ _ H5 H7 (getFins numClients)).
       resolve_wb'.
       repeat hyp_consumer.
-      eapply SubList_map.
+      my_simpl_solver.
       repeat hyp_consumer.
       rewrite in_map_iff in H1; dest.
       rewrite SubList_map_iff in H4; dest.
-      destruct x10, s0 in *.
+      destruct x9, s0 in *.
       simpl in *.
       repeat my_simplifier.
       repeat goal_consumer.
-      5 : auto.
+      all : repeat my_simpl_solver.
       4 : {
-        rewrite <- H1, H14.
         repeat hyp_consumer.
         reflexivity.
         reflexivity.
@@ -1850,21 +1846,26 @@ Section Proofs.
       apply H6.
       assumption.
       assumption.
-      sublist_sol.
-      2 : sublist_sol.
-      3 : sublist_sol.
-      resolve_sublist.
-      auto.
-      auto.
-      admit.
-      admit.
-      admit.
+      all : repeat sublist_sol.
+      all : resolve_sublist; repeat my_simpl_solver; repeat sublist_sol.
       Unshelve.
-      all : repeat econstructor.
-      all : auto.
-      admit.
-      admit.
+      all : clear; repeat econstructor.
+      all : repeat (match goal with
+                    |[ |- ?f ?K] => induction K; simpl; repeat econstructor; eauto
+                    end).
     }
-    Admitted.
+    Qed.
 
+  (* Inductive disj_union : list RegsT -> Prop := *)
+  (* | disj_nil : disj_union nil *)
+  (* | disj_cons newRegs newUnion oldUnion *)
+  (*             (HDisjNewRegs : forall oldRegs, *)
+  (*                 In oldRegs oldUnion -> *)
+  (*                 DisjKey newRegs oldRegs) *)
+  (*             (HNewUnion : newUnion = newRegs :: oldUnion): *)
+  (*     disj_union newUnion. *)
+
+  (* Definition partition_of (l1 : RegsT) (l2 : list RegsT) := *)
+  (*   disj_union l2 /\ l1 = concat l2 *)
+  
 End Proofs.
