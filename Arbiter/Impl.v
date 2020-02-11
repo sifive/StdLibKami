@@ -62,11 +62,11 @@ Section ArbiterImpl.
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
-            ActionT ty ArbiterImmRes)
+            ActionT ty (Maybe immResK))
         (clientId : Fin.t numClients)
         (ty : Kind -> Type)
         (clientReq : ty (clientReqK (nth_Fin clients clientId)))
-        :  ActionT ty ArbiterImmRes
+        :  ActionT ty (Maybe immResK)
         := System [
              DispString _ "[Arbiter.sendReq]\n"
            ];
@@ -92,10 +92,10 @@ Section ArbiterImpl.
                       "req" ::= #clientReq @% "req"
                     };
                LETA routerImmRes
-                 :  ArbiterImmRes
+                 :  Maybe immResK
                  <- routerSendReq routerReq;
                (* TODO: LLEE: accept an additional parameter that accepts an immres and returns true iff the immres signals an error. If error do not allocate resource (i.e. transaction tag. Note: this is a general error. Check other components as well. *) 
-               If #routerImmRes @% "ready" && !(isError (#routerImmRes @% "info"))
+               If #routerImmRes @% "valid" && !(isError (#routerImmRes @% "data"))
                  then
                    LET clientIdTag
                      :  ClientIdTag
@@ -120,7 +120,7 @@ Section ArbiterImpl.
                    alloc transactionTagData;
                Ret #routerImmRes
              else
-               Ret $$(getDefaultConst ArbiterImmRes)
+               Ret $$(getDefaultConst (Maybe immResK))
              as result;
            System [
              DispString _ "[Arbiter.sendReq] result:";

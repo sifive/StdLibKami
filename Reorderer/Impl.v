@@ -42,7 +42,7 @@ Section Reorderer.
                  (isError : immResK @# ty -> Bool @# ty)
                  (memReq
                   : ty ReordererArbiterReq ->
-                    ActionT ty ReordererImmRes)
+                    ActionT ty (Maybe immResK))
                  (req: ty ReordererReq)
         :  ActionT ty Bool
         := System [
@@ -65,20 +65,20 @@ Section Reorderer.
            then
              If #req @% "paddr" @% "valid"
              then memReq arbiterReq
-             else Ret (STRUCT { "ready" ::= $$ true;
-                                "info" ::= $$ (getDefaultConst immResK)})
+             else Ret (STRUCT { "valid" ::= $$true;
+                                "data"  ::= $$(getDefaultConst immResK)})
              as res;
-             If #res @% "ready"
+             If #res @% "valid"
              then
                Write enqPtr <- #enqPFull + $1;
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
-                                                          "info" ::= #res @% "info" };
+                                                          "info" ::= #res @% "data" };
                WriteRf arfWrite(#enqP : reqIdSz ; #dataVal : ReordererStorage);
                Write validArray: Array numReqId Bool <- #valids@[#enqP <- (IF #req @% "paddr" @% "valid"
-                                                                           then isError (#res @% "info")
+                                                                           then isError (#res @% "data")
                                                                            else $$ true)];
                Retv;
-             Ret (#res @% "ready")
+             Ret (#res @% "valid")
            else Ret $$false
            as ret;
            Ret #ret.

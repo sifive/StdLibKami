@@ -28,12 +28,6 @@ Section Reorderer.
            "req" :: pAddrK
          }.
 
-    Definition ReordererImmRes
-      := STRUCT_TYPE {
-           "ready" :: Bool;
-           "info"  :: immResK
-         }.
-
     Definition ReordererArbiterRes
       := STRUCT_TYPE {
            "tag"  :: ReordererReqId;
@@ -64,7 +58,7 @@ Section Reorderer.
           (isError : immResK @# ty -> Bool @# ty)
           (memReq
             : ty ReordererArbiterReq ->
-              ActionT ty ReordererImmRes)
+              ActionT ty (Maybe immResK))
           (p: ty ReordererReq)
           : ActionT ty Bool
       }.

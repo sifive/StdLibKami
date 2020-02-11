@@ -61,12 +61,6 @@ Section Arbiter.
            "resp" :: Maybe respK
          }.
 
-    Definition ArbiterImmRes
-      := STRUCT_TYPE {
-           "ready" :: Bool;
-           "info"  :: immResK
-         }.
-
     Class Arbiter
       := {
            regs : list RegInitT;
@@ -77,10 +71,10 @@ Section Arbiter.
              (routerSendReq 
                : forall {ty},
                  ty ArbiterRouterReq ->
-                 ActionT ty ArbiterImmRes)
+                 ActionT ty (Maybe immResK))
              : forall (clientId : Fin.t numClients) {ty},
                ty (clientReqK (nth_Fin clients clientId)) ->
-               ActionT ty ArbiterImmRes;
+               ActionT ty (Maybe immResK);
 
            memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;
 
