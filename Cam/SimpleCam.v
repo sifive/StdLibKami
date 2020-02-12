@@ -27,8 +27,14 @@ Section cam.
 
     Local Definition Index : Kind := Bit (Nat.log2_up (StdLibKami.Cam.Ifc.num)).
 
+    Local Open Scope kami_scope.
+
     Instance SimpleCam : Cam camParamsInst
       := {| 
+           regs
+             := makeModule_regs
+                  (Register regName : (Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK)))
+                    <- getDefaultConst (Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))));
            read
              := fun ty tag ctxt
                   => Read xs
@@ -98,5 +104,6 @@ Section cam.
                        as _;
                      Retv
          |}.
+    Local Close Scope kami_scope.
   End instance.
 End cam.
