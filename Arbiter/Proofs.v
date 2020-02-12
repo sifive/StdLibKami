@@ -88,11 +88,11 @@ Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
     outerRegs : list (Attribute FullKind);
     arbiterR: RegsT -> RegsT -> Prop;
     sendReqCorrect: forall 
-        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty ArbiterImmRes),
+        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty (Maybe immResK)),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
         forall is_err cid creqa , EffectfulRelation arbiterR (@sendReq _ imp is_err req cid type creqa) (@sendReq _ spec is_err req cid type creqa);
     sendReqWb: forall 
-        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty ArbiterImmRes),
+        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty (Maybe immResK)),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
         forall is_err cid creqa, ActionWb arbiterRegs (@sendReq _ imp is_err req cid type creqa);
     memCallbackCorrect:
@@ -112,27 +112,19 @@ Section Proofs.
   Context (memReq: forall ty, ty MemReq -> ActionT ty Bool).
   *)
   (** * Spec parameters *)
-  Variable (ArrayName ArbiterName AlistName AlistRead AlistWrite : string).
+  Variable (ArrayName AlistName AlistRead AlistWrite : string).
   
 (*  Definition specFreeListParams: FreeListParams := Build_FreeListParams transactionTagSz ArrayName.
   Definition specFreeList := (@specFreeList specFreeListParams).*)
-  Variable (specFreeList implFreeList: @FreeList numTransactions).
+  Variable (specFreeList implFreeList: @FreeList (@freeListParams A)).
   Variable (implFreeListCorrect: FreeListCorrect implFreeList specFreeList).
   Variable (outerRegs : list (Attribute FullKind)).
   Definition specParams: ArbiterImplParams := 
-    {| Arbiter.Impl.arbiter := ArbiterName;
-       Arbiter.Impl.alistName := AlistName;
-       Arbiter.Impl.alistRead := AlistRead;
-       Arbiter.Impl.alistWrite := AlistWrite;
-       Arbiter.Impl.freelist := specFreeList |}.
+    {| Arbiter.Impl.freelist := specFreeList |}.
   
   (** * Impl parameters *)
   Definition implParams: ArbiterImplParams :=
-    {| Arbiter.Impl.arbiter := ArbiterName;
-       Arbiter.Impl.alistName := AlistName;
-       Arbiter.Impl.alistRead := AlistRead;
-       Arbiter.Impl.alistWrite := AlistWrite;
-       Arbiter.Impl.freelist := implFreeList |}.
+    {| Arbiter.Impl.freelist := implFreeList |}.
 
   (** * The arbiter pseudo-modules involved in the correctness proof *)
   Definition specArbiter := @arbiterImpl A specParams.
@@ -144,7 +136,7 @@ Section Proofs.
       ArbiterVal: bool;
       LocalReg: RegT;
       OuterRegs: RegsT;
-      LocalRegVal : LocalReg = (ArbiterName, existT (fullType type) (SyntaxKind Bool) ArbiterVal);
+      LocalRegVal : LocalReg = (Impl.arbiterBusyRegName, existT (fullType type) (SyntaxKind Bool) ArbiterVal);
       FreeListImplRegs: RegsT;
       FreeListSpecRegs: RegsT;
       HImplRegs: (getKindAttr FreeListImplRegs) = freelistRegs;
@@ -1689,7 +1681,7 @@ Section Proofs.
     destruct implFreeListCorrect.
     econstructor 1 with (arbiterR:= myArbiterR freeListR0 freeListRegs0 outerRegs)
                         (outerRegs := outerRegs)
-                        (arbiterRegs := (ArbiterName, SyntaxKind Bool) :: freeListRegs0 ++ outerRegs).
+                        (arbiterRegs := (Impl.arbiterBusyRegName, SyntaxKind Bool) :: freeListRegs0 ++ outerRegs).
     all :
     intros;
       unfold EffectfulRelation, ActionWb; intros
@@ -1699,8 +1691,7 @@ Section Proofs.
         arbiterImpl, Impl.sendReq, Impl.nextToAlloc,
         Impl.alloc, Impl.memCallback, Impl.arbiterRule,
         Impl.free, alloc, free,
-        nextToAlloc, freelist, arbiter in *.
-    
+        nextToAlloc, freelist in *.
     - hyp_consumer1; goal_consumer1.
     - hyp_consumer1; extract_in_map; goal_consumer2.
     - hyp_consumer1.
