@@ -58,8 +58,9 @@ Section Reorderer.
            LET arbiterReq
            :  ReordererArbiterReq
                 <- STRUCT {
-                  "tag" ::= #enqP;
-                  "req" ::= #req @% "paddr" @% "data"
+                  "tag"   ::= #enqP;
+                  "mode"  ::= #req @% "mode";
+                  "paddr" ::= #req @% "paddr" @% "data"
                 };
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
            then

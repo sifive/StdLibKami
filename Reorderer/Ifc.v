@@ -24,8 +24,9 @@ Section Reorderer.
 
     Definition ReordererArbiterReq
       := STRUCT_TYPE {
-           "tag" :: ReordererReqId;
-           "req" :: pAddrK
+           "tag"   :: ReordererReqId;
+           "mode"  :: privModeK;
+           "paddr" :: pAddrK
          }.
 
     Definition ReordererArbiterRes

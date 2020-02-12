@@ -1,20 +1,10 @@
 Require Import Kami.AllNotations.
+Require Import Kami.Utila.
 Require Import StdLibKami.Fifo.Ifc.
 
 Local Open Scope kami_expr.
 Local Open Scope kami_action.
 
-Definition readReg ty (ls: list string) len (idx: Bit (Nat.log2_up len) @# ty) k :=
-  GatherActions (map (fun '(i, reg) => Read val: k <- reg;
-                                       Ret (IF $i == idx then pack #val else $0)) (tag ls)) as vals;
-    Ret (unpack k (CABit Bor vals)).
-    
-Definition writeReg ty (ls: list string) len (idx: Bit (Nat.log2_up len) @# ty) k (newval: k @# ty) :=
-  GatherActions (map (fun '(i, reg) => Read val: k <- reg;
-                                       Write reg: k <- (IF $i == idx then newval else #val);
-                                       Retv) (tag ls)) as _;
-    Retv.
-    
 Local Close Scope kami_action.
 Local Close Scope kami_expr.
 
@@ -27,11 +17,6 @@ Section RegListFifo.
   Class RegListFifoParams :=
     {
       fifoLogSz: nat;
-(*
-      enqPtr: string;
-      deqPtr: string;
-      regsName: string;
-*)
     }.
 
   Section withParams.
@@ -54,25 +39,31 @@ Section RegListFifo.
       UniBit (TruncLsb fifoLogSz 1) w.
 
     Definition isEmpty ty: ActionT ty Bool :=
+(*
       System [
         DispString _ "[Fifo.RegList.isEmpty]\n"
       ];
+*)
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
       Ret (#deq == #enq).
   
     Definition isFull ty: ActionT ty Bool :=
+(*
       System [
         DispString _ "[Fifo.RegList.isFull]\n"
       ];
+*)
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
       Ret ((#deq + $len) == #enq).
     
     Definition first ty: ActionT ty (Maybe k) := 
+(*
       System [
         DispString _ "[Fifo.RegList.first]\n"
       ];
+*)
       LETA empty: Bool <- isEmpty ty;
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       LET idx: Bit fifoLogSz <- (fastModLen #deq);
@@ -80,45 +71,57 @@ Section RegListFifo.
       Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe k @# ty).
 
     Definition deq ty: ActionT ty (Maybe k) :=
+(*
       System [
         DispString _ "[Fifo.RegList.deq]\n"
       ];
+*)
       LETA data: Maybe k <- first ty;
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Write fifoDeqRegName: Bit (fifoLogSz + 1) <- #deq + (IF #data @% "valid" then $1 else $0);
       Ret #data.
 
     Definition enq ty (new: ty k): ActionT ty Bool :=
+(*
       System [
         DispString _ "[Fifo.RegList.enq]\n";
         DispString _ ("[Fifo.RegList.enq] fifo size: " ++ nat_decimal_string fifoLogSz ++ "\n")
       ];
+*)
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
+(*
       System [
         DispString _ ("[Fifo.RegList.enq] enq from " ++ fifoEnqRegName ++ ": ");
         DispHex #enq;
         DispString _ "\n"
       ];
+*)
       LET idx: Bit fifoLogSz <- (fastModLen #enq);
+(*
       System [
         DispString _ "[Fifo.RegList.enq] idx: ";
         DispHex #idx;
         DispString _ "\n"
       ];
+*)
       LETA full: Bool <- isFull ty;
       If !#full then (
+(*
         System [
           DispString _ "[Fifo.RegList.enq] writing to idx.\n"
         ];
+*)
         Write fifoEnqRegName: Bit (fifoLogSz + 1) <- #enq + $1;
         writeReg allRegs len (nat_cast (fun x => Bit x @# ty) log_len_fifoLogSz #idx) #new
         );
       Ret !#full.
       
       Definition flush ty: ActionT ty Void :=
+(*
         System [
           DispString _ "[Fifo.RegList.flush]\n"
         ];
+*)
         Write fifoDeqRegName: Bit (fifoLogSz + 1) <- $0;
         Write fifoEnqRegName: Bit (fifoLogSz + 1) <- $0;
         Retv.
