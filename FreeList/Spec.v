@@ -1,17 +1,22 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.FreeList.Ifc.
 Section FreeListSpec.
+  Context {freeListParams : FreeListParams}.
+
+  Local Definition arrayRegName := (name ++ ".data")%string.
+
+(*
   Class FreeListParams := {
                            tagSize: nat;
                            arrayRegName: string;
                          }.
-
+*)
   Section withParams.
     Context `{FreeListParams}.
     
-    Definition len := Nat.pow 2 tagSize. (* length of the freelist *)
-    Definition CastTagSize := Nat.log2_up len.
-    Definition Tag := Bit CastTagSize.
+    Local Definition len := Nat.pow 2 tagSz.
+    Definition CastTagSize := Nat.log2_up (Nat.pow 2 tagSz).
+    Definition Tag := Bit tagSz.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.

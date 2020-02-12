@@ -7,6 +7,7 @@ Record DeviceData (reqK respK: Kind): Type :=
 
 Class DevRouterParams :=
   {
+    name: string;
     reqK: Kind;
     respK: Kind;
     devices: list (DeviceData reqK respK);

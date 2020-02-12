@@ -4,8 +4,22 @@ Require Import StdLibKami.Prefetcher.Ifc.
 
 Section Prefetch.
   Context `{prefetcherParams: PrefetcherParams}.
-  Context (fifo: Fifo.Ifc.Fifo PrefetcherFifoEntry).
-  Context (outstanding: Fifo.Ifc.Fifo Void).
+  Instance fifoParams
+    :  StdLibKami.Fifo.Ifc.FifoParams
+    := {|
+         StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".fifo")%string;
+         StdLibKami.Fifo.Ifc.k    := PrefetcherFifoEntry;
+       |}.
+
+  Instance outstandingFifoParams
+    :  StdLibKami.Fifo.Ifc.FifoParams
+    := {|
+         StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".outstandingFifo")%string;
+         StdLibKami.Fifo.Ifc.k    := Void;
+       |}.
+
+  Context (fifo: Fifo.Ifc.Fifo fifoParams).
+  Context (outstanding: Fifo.Ifc.Fifo outstandingFifoParams).
 
   Class PrefetcherImplParams :=
     { topReg : string ;

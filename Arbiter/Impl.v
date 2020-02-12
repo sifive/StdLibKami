@@ -4,18 +4,23 @@ Require Import StdLibKami.FreeList.Ifc.
 Require Import List.
 
 Section ArbiterImpl.
-  Context `{ArbiterParams}.
+  Context {arbiterParams : ArbiterParams}.
+
+  Local Definition arbiterBusyRegName := (Arbiter.Ifc.name ++ ".busy")%string.
+  Local Definition arbiterAlistName   := (Arbiter.Ifc.name ++ ".alist")%string.
+  Local Definition arbiterAlistReadName  := (Arbiter.Ifc.name ++ ".alistRead")%string.
+  Local Definition arbiterAlistWriteName := (Arbiter.Ifc.name ++ ".alistWrite")%string.
+
+  Instance freeListParams
+    :  FreeListParams 
+    := {|
+         name := (Arbiter.Ifc.name ++ ".freelist")%string;
+         tagSz := transactionTagSz;
+       |}.
 
   Class ArbiterImplParams :=
     {
-      arbiter: string;
-      (* Names of read/write names for the reg-file backing the
-         associative array with which we will map server tags to client
-         tags/IDs *)
-      alistName: string;
-      alistRead: string;
-      alistWrite: string;
-      freelist: @FreeList numTransactions;
+      freelist: @FreeList freeListParams;
     }.
 
   Section withParams.
@@ -57,15 +62,15 @@ Section ArbiterImpl.
         (routerSendReq
           : forall {ty},
             ty ArbiterRouterReq ->
-            ActionT ty ArbiterImmRes)
+            ActionT ty (Maybe immResK))
         (clientId : Fin.t numClients)
         (ty : Kind -> Type)
         (clientReq : ty (clientReqK (nth_Fin clients clientId)))
-        :  ActionT ty ArbiterImmRes
+        :  ActionT ty (Maybe immResK)
         := System [
              DispString _ "[Arbiter.sendReq]\n"
            ];
-           Read busy : Bool <- arbiter;
+           Read busy : Bool <- arbiterBusyRegName;
            LETA transactionTag
              :  Maybe TransactionTag
              <- nextToAlloc;
@@ -79,7 +84,7 @@ Section ArbiterImpl.
                System [
                  DispString _ "[Arbiter.sendReq] sending request.\n"
                ];
-               Write arbiter : Bool <- $$true;
+               Write arbiterBusyRegName : Bool <- $$true;
                LET routerReq
                  :  ArbiterRouterReq
                  <- STRUCT {
@@ -87,10 +92,10 @@ Section ArbiterImpl.
                       "req" ::= #clientReq @% "req"
                     };
                LETA routerImmRes
-                 :  ArbiterImmRes
+                 :  Maybe immResK
                  <- routerSendReq routerReq;
                (* TODO: LLEE: accept an additional parameter that accepts an immres and returns true iff the immres signals an error. If error do not allocate resource (i.e. transaction tag. Note: this is a general error. Check other components as well. *) 
-               If #routerImmRes @% "ready" && !(isError (#routerImmRes @% "info"))
+               If #routerImmRes @% "valid" && !(isError (#routerImmRes @% "data"))
                  then
                    LET clientIdTag
                      :  ClientIdTag
@@ -103,7 +108,7 @@ Section ArbiterImpl.
                      DispHex #clientIdTag;
                      DispString _ "\n"
                    ];
-                   WriteRf alistWrite (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
+                   WriteRf arbiterAlistWriteName (#transactionTag @% "data" : transactionTagSz ; #clientIdTag : ClientIdTag );
                    LET transactionTagData
                      :  TransactionTag
                      <- #transactionTag @% "data";
@@ -115,7 +120,7 @@ Section ArbiterImpl.
                    alloc transactionTagData;
                Ret #routerImmRes
              else
-               Ret $$(getDefaultConst ArbiterImmRes)
+               Ret $$(getDefaultConst (Maybe immResK))
              as result;
            System [
              DispString _ "[Arbiter.sendReq] result:";
@@ -141,7 +146,7 @@ Section ArbiterImpl.
              <- #routerRes @% "tag";
            ReadRf clientIdTag
              :  ClientIdTag
-             <- alistRead (#transactionTag: TransactionTag);
+             <- arbiterAlistReadName (#transactionTag: TransactionTag);
            LETA _
              <- free transactionTag;
            GatherActions
@@ -174,7 +179,7 @@ Section ArbiterImpl.
         := System [
              DispString _ "[Arbiter.arbiterRule]\n"
            ];
-           Write arbiter : Bool <- $$false;
+           Write arbiterBusyRegName : Bool <- $$false;
            Retv.
 
     End withTy.
@@ -184,13 +189,13 @@ Section ArbiterImpl.
 
     Definition regs: list RegInitT
       := makeModule_regs
-           (Register arbiter: Bool <- false) ++
-           (@FreeList.Ifc.regs numTransactions freelist).
+           (Register arbiterBusyRegName: Bool <- false) ++
+           (@FreeList.Ifc.regs freeListParams freelist).
 
     (* TODO: LLEE: check *)
     Definition regFiles :=
-      @Build_RegFileBase false 1 alistName (Async [alistRead]) alistWrite numTransactions ClientIdTag (@RFNonFile _ _ None) ::
-                         (@FreeList.Ifc.regFiles numTransactions freelist).
+      @Build_RegFileBase false 1 arbiterAlistName (Async [arbiterAlistReadName]) arbiterAlistWriteName numTransactions ClientIdTag (@RFNonFile _ _ None) ::
+                         (@FreeList.Ifc.regFiles freeListParams freelist).
 
     Instance arbiterImpl
       :  Arbiter

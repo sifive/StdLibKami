@@ -2,7 +2,8 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.Fifo.Ifc.
 
 Class PrefetcherParams :=
-  { privModeK : Kind;
+  { name : string;
+    privModeK : Kind;
     pAddrSz : nat;
     vAddrSz : nat;
     compInstSz : nat;
