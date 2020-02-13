@@ -8,7 +8,6 @@ Section cam.
   Class CamParams
     := {
          name : string;
-         num  : nat;
          keyK : Kind;
          dataK : Kind;
          readCtxtK : Kind;

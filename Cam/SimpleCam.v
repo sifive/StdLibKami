@@ -10,22 +10,23 @@ Section cam.
   Open Scope kami_expr.
   Open Scope kami_action.
 
-  Instance PolicyParams : PolicyParams := {|
-    ReplacementPolicy.Ifc.name := (StdLibKami.Cam.Ifc.name ++ ".replacementPolicy")%string;
-    ReplacementPolicy.Ifc.num  := StdLibKami.Cam.Ifc.num
-  |}.
-
-  Class SimpleCamParams := {
-    (* regName : string; *)
-    (* size : nat; *)
-    policy: @ReplacementPolicy PolicyParams;
-    camParamsInst : CamParams
+  Class SimpleCamParams :=
+    {
+      size : nat;      
+      policyParams : PolicyParams :=
+        {|
+          ReplacementPolicy.Ifc.name := (StdLibKami.Cam.Ifc.name ++ ".replacementPolicy")%string;
+          ReplacementPolicy.Ifc.num  := size
+        |};
+      
+      policy: @ReplacementPolicy policyParams;
+      camParamsInst : CamParams
   }.
 
   Section instance.
     Variable (params: SimpleCamParams).
 
-    Local Definition Index : Kind := Bit (Nat.log2_up (StdLibKami.Cam.Ifc.num)).
+    Local Definition Index : Kind := Bit (Nat.log2_up size).
 
     Local Open Scope kami_scope.
 
@@ -33,12 +34,12 @@ Section cam.
       := {| 
            regs
              := makeModule_regs
-                  (Register regName : (Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK)))
-                    <- getDefaultConst (Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))));
+                  (Register regName : (Array size (Maybe (Pair keyK dataK)))
+                    <- getDefaultConst (Array size (Maybe (Pair keyK dataK))));
            read
              := fun ty tag ctxt
                   => Read xs
-                       :  Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))
+                       :  Array size (Maybe (Pair keyK dataK))
                        <- regName;
                      utila_acts_find_pkt
                        (map
@@ -53,13 +54,13 @@ Section cam.
                                   "data"
                                     ::= #x @% "data" @% "snd"
                                 } : Maybe dataK @# ty))
-                          (seq 0 (StdLibKami.Cam.Ifc.num)));
+                          (seq 0 size));
 
            write
              := fun ty tag val
                   => LETA index : Index <- @getVictim _ policy ty;
                      Read xs
-                       :  Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))
+                       :  Array size (Maybe (Pair keyK dataK))
                        <- regName;
                      LET value
                        :  Pair keyK dataK
@@ -74,9 +75,9 @@ Section cam.
            flush
              := fun ty
                   => Write regName
-                       :  Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))
+                       :  Array size (Maybe (Pair keyK dataK))
                        <- $$(getDefaultConst
-                              (Array (StdLibKami.Cam.Ifc.num)
+                              (Array size
                                 (Maybe
                                 (Pair (@keyK camParamsInst)
                                    (@dataK camParamsInst)))));
@@ -85,7 +86,7 @@ Section cam.
            clear
              := fun ty tag ctxt
                   => Read xs
-                       :  Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK (@dataK camParamsInst)))
+                       :  Array size (Maybe (Pair keyK (@dataK camParamsInst)))
                        <- regName;
                      GatherActions
                        (map
@@ -95,12 +96,12 @@ Section cam.
                                If matchClear tag ctxt (#x @% "data" @% "fst") (#x @% "data" @% "snd")
                                  then
                                    Write regName
-                                     :  Array (StdLibKami.Cam.Ifc.num) (Maybe (Pair keyK dataK))
+                                     :  Array size (Maybe (Pair keyK dataK))
                                      <- #xs@[($i : Index @# ty)
                                           <- unpack (Maybe (Pair keyK dataK)) $0];
                                    Retv;
                                Retv)
-                          (seq 0 (StdLibKami.Cam.Ifc.num)))
+                          (seq 0 size))
                        as _;
                      Retv
          |}.
