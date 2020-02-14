@@ -253,9 +253,9 @@ Section Prefetch.
                                                 "upper" ::= STRUCT { "valid" ::= !(#ftop @% "valid");
                                                                      "data"  ::= #ftopUpperInst } ;
                                                 "lower" ::= STRUCT { "valid" ::= (IF #lowerValid
-                                                                                  then $$true
+                                                                                  then (#ftop @% "valid")
                                                                                   else (IF #upperCompressed
-                                                                                        then $$true
+                                                                                        then (#ftop @% "valid")
                                                                                         else $$false));
                                                                      "data"  ::= #ftopLowerInst } }
                                   else STRUCT { "vaddr" ::= #topShortAddr ;
