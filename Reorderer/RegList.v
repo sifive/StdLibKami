@@ -87,6 +87,15 @@ Section Reorderer.
                 };
            If (#deqPFull + $(Nat.pow 2 reqIdSz)) != #enqPFull
            then
+             System [
+               DispString _ "[Reorderer.sendReq] enqP: ";
+               DispHex #enqP;
+               DispString _ "\n";
+               DispString _ "[Reorderer.sendReq] forwarding request to Arbiter: ";
+               DispHex #arbiterReq;
+               DispString _ "\n"
+             ]; 
+
              If #req @% "paddr" @% "valid"
              then memReq arbiterReq
              else Ret (STRUCT { "valid" ::= $$true;
@@ -98,9 +107,29 @@ Section Reorderer.
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
                                                           "info" ::= #res @% "data" };
                LETA _ <- writeReg arfRegNames numReqId #enqP #dataVal;
-               Write validArray: Array numReqId Bool <- #valids@[#enqP <- (IF #req @% "paddr" @% "valid"
-                                                                           then isError (#res @% "data")
-                                                                           else $$ true)];
+               LET isComplete
+                 :  Bool
+                 <- IF #req @% "paddr" @% "valid"
+                      then isError (#res @% "data")
+                      else $$ true;
+               Write validArray: Array numReqId Bool <- #valids@[#enqP <- #isComplete];
+               System [
+                 DispString _ "[Reorderer.sendReq] stored request in enqP: ";
+                 DispHex #enqP;
+                 DispString _ "\n";
+                 DispString _ "[Reorderer.sendReq] stored request in deqP: ";
+                 DispHex #deqP;
+                 DispString _ "\n";
+                 DispString _ "[Reorderer.sendReq] request accepted. request complete?: ";
+                 DispHex #isComplete;
+                 DispString _ "\n";
+                 DispString _ "[Reorderer.sendReq] valids: ";
+                 DispBinary (pack #valids);
+                 DispString _ "\n";
+                 DispString _ "[Reorderer.sendReq] new valids: ";
+                 DispBinary (pack (#valids@[#enqP <- #isComplete]));
+                 DispString _ "\n"
+               ]; 
                Retv;
              Ret (#res @% "valid")
            else Ret $$false
@@ -111,16 +140,27 @@ Section Reorderer.
          response to a prior request *)
       Definition reordererCallback ty (resp: ty ReordererArbiterRes): ActionT ty Void :=
         System [
-          DispString _ "[Reorderer.reordererCallback]\n"
+          DispString _ "[Reorderer.reordererCallback] resp: ";
+          DispHex #resp;
+          DispString _ "\n"
         ];
         LET idx: ReordererReqId <- #resp @% "tag";
         LET res: mInstK <- #resp @% "resp";
         Read valids: Array numReqId Bool <- validArray;
-        Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true];
+        Write validArray: Array numReqId Bool <- #valids@[#idx <- $$true]; (* <==== IDX is wrong *)
         LETA _ <- writeReg rfRegNames numReqId #idx #res;
         System [
           DispString _ "[Reorderer.reordererCallback] stored response:\n";
           DispHex #res;
+          DispString _ "\n";
+          DispString _ "[Reorderer.reordererCallback] idx:\n";
+          DispHex #idx;
+          DispString _ "\n";
+          DispString _ "[Reorderer.reordererCallback] valids:\n";
+          DispBinary (pack #valids);
+          DispString _ "\n";
+          DispString _ "[Reorderer.reordererCallback] next valids:\n";
+          DispBinary (pack (#valids@[#idx <- $$true]));
           DispString _ "\n"
         ];
         Retv.
@@ -153,6 +193,9 @@ Section Reorderer.
                   "inst"  ::= #inst
                 };
            System [
+             DispString _ "[Reorderer.responseToPrefetcher] deqP: ";
+             DispHex #deqP;
+             DispString _ "\n";
              DispString _ "[Reorderer.responseToPrefetcher] deqPFull: ";
              DispHex #deqPFull;
              DispString _ "\n";
@@ -163,7 +206,7 @@ Section Reorderer.
              DispBinary (pack #valids);
              DispString _ "\n";
              DispString _ "[Reorderer.responseToPrefetcher] valids entry: ";
-             DispHex (#valids@[#deqP]);
+             DispBinary (#valids@[#deqP]);
              DispString _ "\n"
            ];
            If (#deqPFull != #enqPFull) && (#valids@[#deqP])

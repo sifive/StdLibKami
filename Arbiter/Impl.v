@@ -68,7 +68,9 @@ Section ArbiterImpl.
         (clientReq : ty (clientReqK (nth_Fin clients clientId)))
         :  ActionT ty (Maybe immResK)
         := System [
-             DispString _ "[Arbiter.sendReq]\n"
+             DispString _ "[Arbiter.sendReq] clientReq: ";
+             DispHex #clientReq;
+             DispString _ "\n"
            ];
            Read busy : Bool <- arbiterBusyRegName;
            LETA transactionTag
@@ -104,7 +106,7 @@ Section ArbiterImpl.
                           "tag" ::= ZeroExtendTruncLsb genericClientTagSz (#clientReq @% "tag")
                         };
                    System [
-                     DispString _ "[Arbiter.sendReq] saving transaction and client id tag:\n";
+                     DispString _ "[Arbiter.sendReq] saving transaction and client req tag:\n";
                      DispHex #clientIdTag;
                      DispString _ "\n"
                    ];
@@ -139,7 +141,9 @@ Section ArbiterImpl.
         (routerRes: ty ArbiterRouterRes)
         :  ActionT ty Void
         := System [
-             DispString _ "[Arbiter.memCallback]\n"
+             DispString _ "[Arbiter.memCallback] routerRes: ";
+             DispHex #routerRes;
+             DispString _ "\n"
            ];
            LET transactionTag
              :  TransactionTag
@@ -160,7 +164,8 @@ Section ArbiterImpl.
                         LET clientRes
                           :  clientResK client
                           <- STRUCT {
-                               "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag");
+                               (* "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#routerRes @% "tag"); (* TODO: LLEE: SOMETHINGS WRONG HERE *) *)
+                               "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#clientIdTag @% "tag");
                                "resp" ::= #routerRes @% "resp"
                              };
                         System [
