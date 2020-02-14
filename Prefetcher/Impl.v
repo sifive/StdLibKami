@@ -250,12 +250,12 @@ Section Prefetch.
                                   then STRUCT { "vaddr" ::= #ftopShortAddr ;
                                                 "info"  ::= #ftopInfo ;
                                                 "noErr" ::= #ftopNoErr ;
-                                                "upper" ::= STRUCT { "valid" ::= !(#ftop @% "valid");
+                                                "upper" ::= STRUCT { "valid" ::= #ftop @% "valid";
                                                                      "data"  ::= #ftopUpperInst } ;
                                                 "lower" ::= STRUCT { "valid" ::= (IF #lowerValid
-                                                                                  then (#ftop @% "valid")
+                                                                                  then #ftop @% "valid"
                                                                                   else (IF #upperCompressed
-                                                                                        then (#ftop @% "valid")
+                                                                                        then #ftop @% "valid"
                                                                                         else $$false));
                                                                      "data"  ::= #ftopLowerInst } }
                                   else STRUCT { "vaddr" ::= #topShortAddr ;
