@@ -152,6 +152,20 @@ Section Reorderer.
                   "info"  ::= #vaddrInfo @% "info";
                   "inst"  ::= #inst
                 };
+           System [
+             DispString _ "[Reorderer.responseToPrefetcher] deqPFull: ";
+             DispHex #deqPFull;
+             DispString _ "\n";
+             DispString _ "[Reorderer.responseToPrefetcher] enqPFull: ";
+             DispHex #enqPFull;
+             DispString _ "\n";
+             DispString _ "[Reorderer.responseToPrefetcher] valids: ";
+             DispBinary (pack #valids);
+             DispString _ "\n";
+             DispString _ "[Reorderer.responseToPrefetcher] valids entry: ";
+             DispHex (#valids@[#deqP]);
+             DispString _ "\n"
+           ];
            If (#deqPFull != #enqPFull) && (#valids@[#deqP])
            then
              System [
@@ -173,7 +187,7 @@ Section Reorderer.
       := makeModule_regs (
            Register enqPtr: ReordererPtr <- $ 0 ++
            Register deqPtr: ReordererPtr <- $ 0 ++
-           RegisterU validArray: Array numReqId Bool ++
+           Register validArray: Array numReqId Bool <- getDefaultConst (Array numReqId Bool) ++
            rfRegs ++
            arfRegs).
 
