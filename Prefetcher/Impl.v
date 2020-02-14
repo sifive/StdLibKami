@@ -37,19 +37,15 @@ Section Prefetch.
   Local Open Scope kami_action.
 
   Definition isFull ty: ActionT ty Bool :=
-(*
     System [
       DispString _ "[Prefetcher.isFull]\n"
     ];
-*)
     @Fifo.Ifc.isFull _ outstanding _.
 
   Definition clearTop ty: ActionT ty Void :=
-(*
     System [
       DispString _ "[Prefetcher.clearTop]\n"
     ];
-*)
     Write topReg: TopEntry <-
       STRUCT {
         "vaddr" ::= $0;
@@ -66,11 +62,9 @@ Section Prefetch.
     : ActionT ty Bool :=
     (* Read top: TopEntry <- topReg; *)
     (* LETA ftop: Maybe PrefetcherFifoEntry <- @Fifo.Ifc.first _ fifo _; *)
-(*
     System [
       DispString _ "[Prefetcher.isNotComplete]\n"
     ];
-*)
     Ret ((top @% "upper" @% "valid")
            && !(top @% "lower" @% "valid")
            && !(isCompressed (top @% "upper" @% "data"))
@@ -96,18 +90,33 @@ Section Prefetch.
     ];
     Read top: TopEntry <- topReg;
     LETA isEmp: Bool <- @Fifo.Ifc.isEmpty _ fifo _;
+    System [
+      DispString _ "[Prefetcher.transfer] top: ";
+      DispHex #top;
+      DispString _ "\n";
+      DispString _ "[Prefetcher.transfer] is empty: ";
+      DispHex #isEmp;
+      DispString _ "\n"
+    ];
     If !(#top @% "upper" @% "valid") && !#isEmp
     then (
       LETA deqValM: Maybe PrefetcherFifoEntry <- @Fifo.Ifc.deq _ fifo _;
       LETA _ <- @Fifo.Ifc.deq _ outstanding _;
       LET deqVal: PrefetcherFifoEntry <- #deqValM @% "data";    
-      Write topReg: TopEntry <-
-        STRUCT {
-          "vaddr" ::= #deqVal @% "vaddr";
-          "info"  ::= #deqVal @% "info";
-          "noErr" ::= #deqVal @% "inst" @% "valid";
-          "upper" ::= Valid (UniBit (TruncMsb _ _) (#deqVal @% "inst" @% "data"));
-          "lower" ::= Valid (UniBit (TruncLsb _ _) (#deqVal @% "inst" @% "data"))};
+      LET topEntry
+        :  TopEntry
+        <- STRUCT {
+             "vaddr" ::= #deqVal @% "vaddr";
+             "info"  ::= #deqVal @% "info";
+             "noErr" ::= #deqVal @% "inst" @% "valid";
+             "upper" ::= Valid (UniBit (TruncMsb _ _) (#deqVal @% "inst" @% "data"));
+             "lower" ::= Valid (UniBit (TruncLsb _ _) (#deqVal @% "inst" @% "data"))};
+      System [
+        DispString _ "[Prefetcher.notCompleteDeq] wrote to topReg topEntry: ";
+        DispHex #topEntry;
+        DispString _ "\n"
+      ];
+      Write topReg: TopEntry <- #topEntry;
       Retv );
     Retv.
 
@@ -125,6 +134,11 @@ Section Prefetch.
               "info"  ::= #reordererRes @% "info";
               "inst"  ::= (#reordererRes @% "inst": Maybe Inst @# ty)
             };
+       System [
+         DispString _ "[Prefetcher.memCallback] write to the prefetcher fifo: \n";
+         DispHex #entryData;
+         DispString _ "\n"
+       ];
        LETA _ <- @Fifo.Ifc.enq _ fifo _ entryData;
        Retv.
 
@@ -148,21 +162,17 @@ Section Prefetch.
       DispString _ "[Prefetcher.fetchInstruction]\n"
     ];
     Read top: TopEntry <- topReg;
-(*
     System [
       DispString _ "[Prefetcher.fetchInstruction] top:\n";
       DispHex #top;
       DispString _ "\n"
     ];
-*)
     LETA ftop: Maybe PrefetcherFifoEntry <- (@Fifo.Ifc.first _ fifo _);
-(*
     System [
       DispString _ "[Prefetcher.fetchInstruction] ftop:\n";
       DispHex #ftop;
       DispString _ "\n"
     ];
-*)
     LET topInfo: immResK <- #top @% "info";
     LET topNoErr: Bool <- #top @% "noErr";
     LET topShortAddr: ShortVAddr <- #top @% "vaddr";
@@ -191,13 +201,11 @@ Section Prefetch.
     LET completedInst: Inst <- {< #ftopLowerInst, #upperInst >};
 
     LETA notComplete : Bool <- isNotComplete #top #ftop;
-(*
     System [
       DispString _ "[Prefetcher.fetchInstruction] not complete?:\n";
       DispHex #notComplete;
       DispString _ "\n"
     ];
-*)
     LET retAddr: VAddr <-
       (IF isErr #topInfo || !#topNoErr
        then toFullVAddr #topShortAddr
@@ -208,6 +216,12 @@ Section Prefetch.
                    else (IF #notComplete
                          then toFullVAddr (#topShortAddr + $1)
                          else (toFullVAddr #topShortAddr) + $2))));
+
+    System [
+      DispString _ "[Prefetcher.fetchInstruction] top addr: ";
+      DispHex #topShortAddr;
+      DispString _ "\n"
+    ];
 
     LET retInst: Inst <-
       (IF #lowerValid
@@ -221,13 +235,13 @@ Section Prefetch.
       ((isErr #topInfo || !#topNoErr) ||
        (#lowerValid && !#lowerCompressed) ||
        (!#lowerValid && !#notComplete));
-(*
+
     System [
       DispString _ "[Prefetcher.fetchInstruction] doDeq?:\n";
       DispHex #doDeq;
       DispString _ "\n"
     ];
-*)
+
     If #doDeq
     then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
           @Fifo.Ifc.deq _ outstanding _);
@@ -251,13 +265,13 @@ Section Prefetch.
                                                                      "data"  ::= #upperInst } ;
                                                 "lower" ::= STRUCT { "valid" ::= $$false ;
                                                                      "data"  ::= #lowerInst } });
-(*
+
     System [
       DispString _ "[Prefetcher.fetchInstruction] new top entry:\n";
       DispHex #newTopEntry;
       DispString _ "\n"
     ];
-*)
+
     Write topReg: TopEntry <- #newTopEntry;
 
     LET straddle: Bool <- (IF #lowerValid
@@ -285,13 +299,13 @@ Section Prefetch.
                                 "compressed?" ::= isCompressed (UniBit (TruncLsb compInstSz compInstSz) #retInst);
                                 "errUpper?" ::= #isErrUpper;
                                 "inst"  ::= #retInst};
-(*
+
     System [
       DispString _ "[Prefetcher.fetchInstruction] deq result:\n";
       DispHex #ret;
       DispString _ "\n"
     ];
-*)
+
     Ret (STRUCT {
            "valid" ::= #upperValid;
            "data"  ::=  #ret }: Maybe DeqRes @# ty).
