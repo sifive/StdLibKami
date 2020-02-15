@@ -71,6 +71,12 @@ Section Prefetcher.
          "inst"  :: Inst 
        }.
 
+  Definition FullFetch := STRUCT_TYPE {
+                              "deqRes" :: Maybe DeqRes;
+                              "topReg" :: TopEntry;
+                              "doDeq"  :: Bool
+                            }.
+  
   Class Prefetcher: Type :=
     {
       regs: list RegInitT;
@@ -79,7 +85,8 @@ Section Prefetcher.
       isFull: forall {ty}, ActionT ty Bool;
       doPrefetch ty (memReq: ty PrefetcherReq -> ActionT ty Bool): ty PrefetcherReq -> ActionT ty Bool;
       memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
-      fetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
+      deqFetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
+      firstFetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
       clearTop: forall {ty}, ActionT ty Void;
 
       notCompleteDeqRule: forall {ty}, ActionT ty Void;

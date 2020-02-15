@@ -157,7 +157,7 @@ Section Prefetch.
 *)
        Ret #retval.
 
-  Definition fetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+  Definition getFullFetchInstruction ty: ActionT ty FullFetch :=
     System [
       DispString _ "[Prefetcher.fetchInstruction]\n"
     ];
@@ -242,10 +242,6 @@ Section Prefetch.
       DispString _ "\n"
     ];
 
-    If #doDeq
-    then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
-          @Fifo.Ifc.deq _ outstanding _);
-
     LET newTopEntry: TopEntry <- (IF #doDeq
                                   then STRUCT { "vaddr" ::= #ftopShortAddr ;
                                                 "info"  ::= #ftopInfo ;
@@ -271,8 +267,6 @@ Section Prefetch.
       DispHex #newTopEntry;
       DispString _ "\n"
     ];
-
-    Write topReg: TopEntry <- #newTopEntry;
 
     LET straddle: Bool <- (IF #lowerValid
                            then $$ false
@@ -306,10 +300,29 @@ Section Prefetch.
       DispString _ "\n"
     ];
 
-    Ret (STRUCT {
-           "valid" ::= #upperValid;
-           "data"  ::=  #ret }: Maybe DeqRes @# ty).
+    LET deqRes <- (STRUCT {
+                       "valid" ::= #upperValid;
+                       "data"  ::= #ret }: Maybe DeqRes @# ty);
 
+    LET retVal: FullFetch <- STRUCT {
+                            "deqRes" ::= #deqRes;
+                            "topReg" ::= #newTopEntry;
+                            "doDeq"  ::= #doDeq };
+    
+    Ret #retVal.
+    
+  Definition deqFetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+    LETA res <- getFullFetchInstruction _;
+    If #res @% "doDeq"
+    then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
+          @Fifo.Ifc.deq _ outstanding _);
+
+    Write topReg: TopEntry <- #res @% "topReg";
+    Ret (#res @% "deqRes").
+    
+  Definition firstFetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+    LETA res <- getFullFetchInstruction _;
+    Ret (#res @% "deqRes").
     
   Open Scope kami_scope.
 
@@ -328,7 +341,8 @@ Section Prefetch.
                                         Prefetcher.Ifc.isFull := isFull;
                                         Prefetcher.Ifc.doPrefetch := doPrefetch;
                                         Prefetcher.Ifc.memCallback := memCallback;
-                                        Prefetcher.Ifc.fetchInstruction := fetchInstruction;
+                                        Prefetcher.Ifc.deqFetchInstruction := deqFetchInstruction;
+                                        Prefetcher.Ifc.firstFetchInstruction := firstFetchInstruction;
                                         Prefetcher.Ifc.clearTop := clearTop;
                                         Prefetcher.Ifc.notCompleteDeqRule := notCompleteDeqRule;
                                         Prefetcher.Ifc.transferRule := transferRule; |}.
