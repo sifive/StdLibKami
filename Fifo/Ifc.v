@@ -9,7 +9,7 @@ Section FifoInterface.
   Section fifoParams.
     Context (fifoParams: FifoParams). 
 
-    Class Fifo: Type :=
+    Record Fifo: Type :=
       {
         getLen: nat;
         regs: list RegInitT;

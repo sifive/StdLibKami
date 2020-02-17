@@ -9,7 +9,7 @@ Class PrefetcherParams :=
     compInstSz : nat;
     immResK : Kind;
     isCompressed: forall ty, Bit compInstSz @# ty -> Bool @# ty;
-    isErr: forall ty, immResK @# ty -> Bool @# ty
+    isErr: forall ty, immResK @# ty -> Bool @# ty;
   }.
 
 Section Prefetcher.
@@ -60,7 +60,7 @@ Section Prefetcher.
        }.
 
   (* if inst contains a compressed instruction the upper 16 bit contain arbitrary data. *)
-  Definition DeqRes
+  Definition PrefetcherDeqRes
     := STRUCT_TYPE {
          "notComplete" :: Bool;
          "vaddr" :: VAddr;
@@ -72,12 +72,12 @@ Section Prefetcher.
        }.
 
   Definition FullFetch := STRUCT_TYPE {
-                              "deqRes" :: Maybe DeqRes;
+                              "deqRes" :: Maybe PrefetcherDeqRes;
                               "topReg" :: TopEntry;
                               "doDeq"  :: Bool
                             }.
   
-  Class Prefetcher: Type :=
+  Record Prefetcher: Type :=
     {
       regs: list RegInitT;
       regFiles : list RegFileBase;
@@ -85,8 +85,8 @@ Section Prefetcher.
       isFull: forall {ty}, ActionT ty Bool;
       doPrefetch ty (memReq: ty PrefetcherReq -> ActionT ty Bool): ty PrefetcherReq -> ActionT ty Bool;
       memCallback: forall {ty}, ty PrefetcherRes -> ActionT ty Void;
-      deqFetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
-      firstFetchInstruction: forall {ty}, ActionT ty (Maybe DeqRes);
+      deqFetchInstruction: forall {ty}, ActionT ty (Maybe PrefetcherDeqRes);
+      firstFetchInstruction: forall {ty}, ActionT ty (Maybe PrefetcherDeqRes);
       clearTop: forall {ty}, ActionT ty Void;
 
       notCompleteDeqRule: forall {ty}, ActionT ty Void;

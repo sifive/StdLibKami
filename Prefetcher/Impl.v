@@ -3,29 +3,22 @@ Require Import StdLibKami.Fifo.Ifc.
 Require Import StdLibKami.Prefetcher.Ifc.
 
 Section Prefetch.
-  Context `{prefetcherParams: PrefetcherParams}.
-  Instance fifoParams
-    :  StdLibKami.Fifo.Ifc.FifoParams
-    := {|
-         StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".fifo")%string;
-         StdLibKami.Fifo.Ifc.k    := PrefetcherFifoEntry;
-       |}.
-
-  Instance outstandingFifoParams
-    :  StdLibKami.Fifo.Ifc.FifoParams
-    := {|
-         StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".outstandingFifo")%string;
-         StdLibKami.Fifo.Ifc.k    := Void;
-       |}.
-
-  Context (fifo: Fifo.Ifc.Fifo fifoParams).
-  Context (outstanding: Fifo.Ifc.Fifo outstandingFifoParams).
-
-  Class PrefetcherImplParams :=
-    { topReg : string ;
+  Context {ifcParams: PrefetcherParams}.
+      
+  Class ImplParams :=
+    { fifo: Fifo.Ifc.Fifo {|
+                StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".fifo")%string;
+                StdLibKami.Fifo.Ifc.k    := PrefetcherFifoEntry;
+              |};
+      outstanding: Fifo.Ifc.Fifo {|
+                       StdLibKami.Fifo.Ifc.name := (StdLibKami.Prefetcher.Ifc.name ++ ".outstandingFifo")%string;
+                       StdLibKami.Fifo.Ifc.k    := Void;
+                     |};
       lenMatches : @Fifo.Ifc.getLen _ fifo = @Fifo.Ifc.getLen _ outstanding }.
 
-  Context (prefetcherImplParams: PrefetcherImplParams).
+  Local Definition topReg := (StdLibKami.Prefetcher.Ifc.name ++ ".topReg")%string.
+
+  Context (implParams: ImplParams).
 
   Local Definition PAddr    := Bit pAddrSz.
   Local Definition VAddr    := Bit vAddrSz.
@@ -36,13 +29,13 @@ Section Prefetch.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Definition isFull ty: ActionT ty Bool :=
+  Local Definition isFull ty: ActionT ty Bool :=
     System [
       DispString _ "[Prefetcher.isFull]\n"
     ];
     @Fifo.Ifc.isFull _ outstanding _.
 
-  Definition clearTop ty: ActionT ty Void :=
+  Local Definition clearTop ty: ActionT ty Void :=
     System [
       DispString _ "[Prefetcher.clearTop]\n"
     ];
@@ -55,7 +48,7 @@ Section Prefetch.
         "lower" ::= (Invalid: Maybe CompInst @# ty)};
       Retv.
 
-  Definition isNotComplete
+  Local Definition isNotComplete
     ty
     (top : TopEntry @# ty)
     (ftop : Maybe PrefetcherFifoEntry @# ty)
@@ -70,7 +63,7 @@ Section Prefetch.
            && !(isCompressed (top @% "upper" @% "data"))
            && (!(ftop @%"valid") || ((top @% "vaddr" + $1) != ftop @% "data" @% "vaddr"))).
 
-  Definition notCompleteDeqRule ty: ActionT ty Void :=
+  Local Definition notCompleteDeqRule ty: ActionT ty Void :=
     System [
       DispString _ "[Prefetcher.notCompleteDeq]\n"
     ];
@@ -84,7 +77,7 @@ Section Prefetch.
     );
     Retv.       
 
-  Definition transferRule ty: ActionT ty Void :=
+  Local Definition transferRule ty: ActionT ty Void :=
     System [
       DispString _ "[Prefetcher.transfer]\n"
     ];
@@ -120,7 +113,7 @@ Section Prefetch.
       Retv );
     Retv.
 
-  Definition memCallback ty (reordererRes: ty PrefetcherRes)
+  Local Definition memCallback ty (reordererRes: ty PrefetcherRes)
     :  ActionT ty Void
     := System [
          DispString _ "[Prefetcher.memCallback] reordererRes: \n";
@@ -142,7 +135,7 @@ Section Prefetch.
        LETA _ <- @Fifo.Ifc.enq _ fifo _ entryData;
        Retv.
 
-  Definition doPrefetch ty (memReq : ty PrefetcherReq -> ActionT ty Bool) (prefetcherReq: ty PrefetcherReq)
+  Local Definition doPrefetch ty (memReq : ty PrefetcherReq -> ActionT ty Bool) (prefetcherReq: ty PrefetcherReq)
     : ActionT ty Bool
     := System [
          DispString _ "[Prefetcher.doPrefetch]\n"
@@ -157,7 +150,7 @@ Section Prefetch.
 *)
        Ret #retval.
 
-  Definition getFullFetchInstruction ty: ActionT ty FullFetch :=
+  Local Definition getFullFetchInstruction ty: ActionT ty FullFetch :=
     System [
       DispString _ "[Prefetcher.fetchInstruction]\n"
     ];
@@ -286,7 +279,7 @@ Section Prefetch.
                                    else $$ false)
                              else $$false);
 
-    LET ret: DeqRes <- STRUCT { "notComplete" ::= #notComplete;
+    LET ret: PrefetcherDeqRes <- STRUCT { "notComplete" ::= #notComplete;
                                 "vaddr" ::= #retAddr;
                                 "info"  ::= (IF #isErrUpper then #ftopInfo else #topInfo);
                                 "noErr" ::= (IF #isErrUpper then #ftopNoErr else #topNoErr);
@@ -302,7 +295,7 @@ Section Prefetch.
 
     LET deqRes <- (STRUCT {
                        "valid" ::= #upperValid;
-                       "data"  ::= #ret }: Maybe DeqRes @# ty);
+                       "data"  ::= #ret }: Maybe PrefetcherDeqRes @# ty);
 
     LET retVal: FullFetch <- STRUCT {
                             "deqRes" ::= #deqRes;
@@ -311,7 +304,7 @@ Section Prefetch.
     
     Ret #retVal.
     
-  Definition deqFetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+  Local Definition deqFetchInstruction ty : ActionT ty (Maybe PrefetcherDeqRes) :=
     LETA res <- getFullFetchInstruction _;
     If #res @% "doDeq"
     then (LETA _ <- @Fifo.Ifc.deq _ fifo _;
@@ -320,13 +313,13 @@ Section Prefetch.
     Write topReg: TopEntry <- #res @% "topReg";
     Ret (#res @% "deqRes").
     
-  Definition firstFetchInstruction ty : ActionT ty (Maybe DeqRes) :=
+  Local Definition firstFetchInstruction ty : ActionT ty (Maybe PrefetcherDeqRes) :=
     LETA res <- getFullFetchInstruction _;
     Ret (#res @% "deqRes").
     
   Open Scope kami_scope.
 
-  Definition regs
+  Local Definition regs
     := (makeModule_regs
          (Register topReg : TopEntry <- getDefaultConst TopEntry)) ++
        (@Fifo.Ifc.regs _ fifo ++
@@ -334,9 +327,9 @@ Section Prefetch.
 
   Close Scope kami_scope.
 
-  Definition regFiles := @Fifo.Ifc.regFiles _ fifo ++ @Fifo.Ifc.regFiles _ outstanding.
+  Local Definition regFiles := @Fifo.Ifc.regFiles _ fifo ++ @Fifo.Ifc.regFiles _ outstanding.
 
-  Instance prefetcher: Prefetcher := {| Prefetcher.Ifc.regs := regs;
+  Definition prefetcher: Prefetcher := {| Prefetcher.Ifc.regs := regs;
                                         Prefetcher.Ifc.regFiles := regFiles;
                                         Prefetcher.Ifc.isFull := isFull;
                                         Prefetcher.Ifc.doPrefetch := doPrefetch;
