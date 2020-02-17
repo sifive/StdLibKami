@@ -6,30 +6,23 @@ Require Import Kami.AllNotations.
 Require Import Kami.Utila.
 Require Import StdLibKami.FreeList.Ifc.
 
-Section arrayFreeList.
+Section array.
   Context {freeListParams : FreeListParams}.
 
   Local Definition arrayRegName := (name ++ ".data")%string.
 
-(*
-  Class ArrayFreeListParams
-    := {
-         len : nat;
-         arrayRegName : string;
-       }.
-*)
-  Section arrayFreeListParams.
+  Section arrayParams.
     Local Definition len := Nat.pow 2 tagSz.
-    Definition Tag := Bit tagSz.
+    Local Definition Tag := Bit tagSz.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    Definition initialize ty: ActionT ty Void :=
+    Local Definition initialize ty: ActionT ty Void :=
       Write arrayRegName: Array len Bool <- BuildArray (fun _ => $$false);
       Retv.
 
-    Definition nextToAlloc ty: ActionT ty (Maybe Tag) := 
+    Local Definition nextToAlloc ty: ActionT ty (Maybe Tag) := 
       Read freeArray: Array len Bool <- arrayRegName;
       Ret (fold_left
              (fun (tag : Maybe Tag @# ty) (index : nat)
@@ -42,20 +35,20 @@ Section arrayFreeList.
                    (seq 0 len)
              Invalid).
   
-    Definition alloc ty (tag: ty Tag): ActionT ty Bool := 
+    Local Definition alloc ty (tag: ty Tag): ActionT ty Bool := 
       Read freeArray: Array len Bool <- arrayRegName;
       LET res: Bool <- #freeArray@[#tag];
       Write arrayRegName: Array len Bool <- #freeArray@[#tag <- $$true];
       Ret !#res.
   
-    Definition free ty (tag: ty Tag): ActionT ty Void :=
+    Local Definition free ty (tag: ty Tag): ActionT ty Void :=
       Read freeArray: Array len Bool <- arrayRegName;                                                        
       Write arrayRegName: Array len Bool <- #freeArray@[#tag <- $$false];
       Retv.
 
-    Definition regs: list RegInitT := makeModule_regs ( Register arrayRegName: Array len Bool <- Default )%kami.
+    Local Definition regs: list RegInitT := makeModule_regs ( Register arrayRegName: Array len Bool <- Default )%kami.
 
-    Instance arrayFreeList: FreeList :=
+    Definition arrayFreeList: FreeList :=
       {|
         FreeList.Ifc.regs := regs;
         FreeList.Ifc.regFiles := nil;
@@ -69,5 +62,5 @@ Section arrayFreeList.
     Local Close Scope kami_action.
     Local Close Scope kami_expr.
 
-  End arrayFreeListParams.
-End arrayFreeList.
+  End arrayParams.
+End array.

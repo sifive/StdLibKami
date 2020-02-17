@@ -20,30 +20,30 @@ Section AsyncFifo.
     Local Definition fastModLen ty (w : Bit (fifoLogSz + 1) @# ty): Bit fifoLogSz @# ty :=
       UniBit (TruncLsb fifoLogSz 1) w.
 
-    Definition isEmpty ty: ActionT ty Bool :=
+    Local Definition isEmpty ty: ActionT ty Bool :=
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
       Ret (#deq == #enq).
   
-    Definition isFull ty: ActionT ty Bool :=
+    Local Definition isFull ty: ActionT ty Bool :=
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
       Ret ((#deq + $len) == #enq).
     
-    Definition first ty: ActionT ty (Maybe k) := 
+    Local Definition first ty: ActionT ty (Maybe k) := 
       LETA empty: Bool <- isEmpty ty;
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       LET idx: Bit fifoLogSz <- (fastModLen #deq);
       ReadRf dat: k <- fifoReadName(#idx: Bit fifoLogSz);
       Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe k @# ty).
 
-    Definition deq ty: ActionT ty (Maybe k) :=
+    Local Definition deq ty: ActionT ty (Maybe k) :=
       LETA data: Maybe k <- first ty;
       Read deq: Bit (fifoLogSz + 1) <- fifoDeqRegName;
       Write fifoDeqRegName: Bit (fifoLogSz + 1) <- #deq + (IF #data @% "valid" then $1 else $0);
       Ret #data.
 
-    Definition enq ty (new: ty k): ActionT ty Bool :=
+    Local Definition enq ty (new: ty k): ActionT ty Bool :=
       Read enq: Bit (fifoLogSz + 1) <- fifoEnqRegName;
       LET idx: Bit fifoLogSz <- (fastModLen #enq);
       LETA full: Bool <- isFull ty;
@@ -54,15 +54,15 @@ Section AsyncFifo.
         );
       Ret !#full.
       
-    Definition flush ty: ActionT ty Void :=
+    Local Definition flush ty: ActionT ty Void :=
       Write fifoDeqRegName: Bit (fifoLogSz + 1) <- $0;
       Write fifoEnqRegName: Bit (fifoLogSz + 1) <- $0;
       Retv.
 
-    Definition regs: list RegInitT := makeModule_regs ( Register fifoDeqRegName: Bit (fifoLogSz + 1) <- Default ++
+    Local Definition regs: list RegInitT := makeModule_regs ( Register fifoDeqRegName: Bit (fifoLogSz + 1) <- Default ++
                                                         Register fifoEnqRegName: Bit (fifoLogSz + 1) <- Default )%kami.
 
-    Definition regFiles: list RegFileBase
+    Local Definition regFiles: list RegFileBase
       := [
            @Build_RegFileBase false 1 fifoDataRegName
              (Async [fifoReadName]) fifoWriteName len k (@RFNonFile _ _ None)

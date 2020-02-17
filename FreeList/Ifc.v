@@ -5,23 +5,20 @@ Section Freelist.
     := {
          name  : string;
          tagSz : nat;
-         (* len   := Nat.pow 2 tagSz; *)
-         
        }.
 
   Section freelistParams.
     Context {freeListParams : FreeListParams}.
 
-    Let k := Bit tagSz. (* (Nat.log2_up len). *)
-    Class FreeList: Type :=
+    Record FreeList: Type :=
       {
         regs: list RegInitT;
         regFiles: list RegFileBase;
         length: nat;
         initialize: forall {ty}, ActionT ty Void;
-        nextToAlloc: forall {ty}, ActionT ty (Maybe k);
-        alloc: forall {ty}, ty k -> ActionT ty Bool;
-        free: forall {ty}, ty k -> ActionT ty Void;
+        nextToAlloc: forall {ty}, ActionT ty (Maybe (Bit tagSz));
+        alloc: forall {ty}, ty (Bit tagSz) -> ActionT ty Bool;
+        free: forall {ty}, ty (Bit tagSz) -> ActionT ty Void;
       }.
   End freelistParams.
 End Freelist.
