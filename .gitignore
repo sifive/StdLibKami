@@ -26,4 +26,4 @@ signature
 .*.swn
 .*.swo
 .*.swp
-
+.Makefile.coq.all.d
