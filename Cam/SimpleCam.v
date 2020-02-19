@@ -30,7 +30,7 @@ Section cam.
 
     Local Open Scope kami_scope.
 
-    Instance SimpleCam : Cam camParamsInst
+    Definition SimpleCam : Cam camParamsInst
       := {| 
            regs
              := makeModule_regs

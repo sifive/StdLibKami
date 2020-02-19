@@ -12,9 +12,9 @@ Section interface.
   Section policyParams.
     Context {policyParams : PolicyParams}.
 
-    Definition Index := Bit (Nat.log2_up num).
+    Local Definition Index := Bit (Nat.log2_up num).
 
-    Class ReplacementPolicy
+    Record ReplacementPolicy
       := {
            getVictim : forall ty, ActionT ty Index;
            access : forall ty, Index @# ty -> ActionT ty Void

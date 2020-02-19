@@ -19,7 +19,7 @@ Section cam.
   Section interface.
     Variable camParams : CamParams.
   
-    Class Cam
+    Definition Cam
       := {
            regs: list RegInitT;
            read: forall ty, keyK @# ty -> readCtxtK @# ty -> ActionT ty (Maybe dataK);
