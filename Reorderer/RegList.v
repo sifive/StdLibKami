@@ -101,7 +101,7 @@ Section Reorderer.
              else Ret (STRUCT { "valid" ::= $$true;
                                 "data"  ::= $$(getDefaultConst immResK)})
              as res;
-             If #res @% "valid"
+             If #res @% "valid" || isError (#res @% "data")
              then
                Write enqPtr <- #enqPFull + $1;
                LET dataVal : ReordererStorage <- STRUCT { "vaddr" ::= #req @% "vaddr" ;
