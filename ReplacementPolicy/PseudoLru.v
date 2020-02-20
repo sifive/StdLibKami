@@ -9,45 +9,45 @@ Section lru.
 
   (* Variable params: PseudoLruParams. *)
   
-  Definition State := Array (num - 1) Bool.
-  Definition IndexWidth := Nat.log2_up num.
-  Definition Index := Bit IndexWidth.
-  Definition PathWidth := IndexWidth.
-  Definition Path := Index.
-  Definition TreeIndexWidth := IndexWidth.
-  Definition TreeIndex := Index.
-  Definition Depth := IndexWidth.
+  Local Definition State := Array (num - 1) Bool.
+  Local Definition IndexWidth := Nat.log2_up num.
+  Local Definition Index := Bit IndexWidth.
+  Local Definition PathWidth := IndexWidth.
+  Local Definition Path := Index.
+  Local Definition TreeIndexWidth := IndexWidth.
+  Local Definition TreeIndex := Index.
+  Local Definition Depth := IndexWidth.
     
   Section ty.
     Variable ty : Kind -> Type.
     
-    Definition leftOverNum := num - Nat.pow 2 (Nat.log2 num).
-    Definition twiceLeftOverNum := 2*leftOverNum.
+    Local Definition leftOverNum := num - Nat.pow 2 (Nat.log2 num).
+    Local Definition twiceLeftOverNum := 2*leftOverNum.
 
     Local Open Scope kami_expr.
     Local Open Scope kami_action.
 
-    Definition mul2 n (v: Bit n @# ty) := (v << ($1: Bit 1 @# ty)).
-    Definition div2 n (v: Bit n @# ty) := (v >> ($1: Bit 1 @# ty)). 
-    Definition mod2 n (v: Bit n @# ty) := (v .& $1).
+    Local Definition mul2 n (v: Bit n @# ty) := (v << ($1: Bit 1 @# ty)).
+    Local Definition div2 n (v: Bit n @# ty) := (v >> ($1: Bit 1 @# ty)). 
+    Local Definition mod2 n (v: Bit n @# ty) := (v .& $1).
 
-    Definition getPathFromIndex (i: Index @# ty) := match leftOverNum with
-                                                    | 0 => i
-                                                    | _ => (IF i < $twiceLeftOverNum
-                                                            then i
-                                                            else mul2 (i - $leftOverNum))
-                                                    end.
+    Local Definition getPathFromIndex (i: Index @# ty) := match leftOverNum with
+                                                          | 0 => i
+                                                          | _ => (IF i < $twiceLeftOverNum
+                                                                  then i
+                                                                  else mul2 (i - $leftOverNum))
+                                                          end.
 
-    Definition getIndexFromPath (p: Path @# ty) := match leftOverNum with
-                                                   | 0 => p
-                                                   | _ => (IF p < $twiceLeftOverNum
-                                                           then p
-                                                           else div2 p + $leftOverNum)
-                                                   end.
+    Local Definition getIndexFromPath (p: Path @# ty) := match leftOverNum with
+                                                         | 0 => p
+                                                         | _ => (IF p < $twiceLeftOverNum
+                                                                 then p
+                                                                 else div2 p + $leftOverNum)
+                                                         end.
 
     Section state.
       Variable state: State @# ty.
-      Fixpoint getVictimAux (depth: nat) (i: TreeIndex @# ty) (p: Path @# ty): Path ## ty :=
+      Local Fixpoint getVictimAux (depth: nat) (i: TreeIndex @# ty) (p: Path @# ty): Path ## ty :=
         match depth with
         | 0 => RetE p
         | S m => (IfE i >= $(num-1)
@@ -60,13 +60,13 @@ Section lru.
                     RetE #retPath)
         end.
     End state.
-
+    
     Section path.
       Variable path: Path @# ty.
       Local Definition pathToArray: Array PathWidth Bool @# ty := unpack (Array PathWidth Bool) match eq_sym (Nat.mul_1_r PathWidth) in _ = Y return Bit Y @# ty with
                                                                                                 | eq_refl => path
                                                                                                 end.
-      Fixpoint accessAux (depth: nat) (i: TreeIndex @# ty) (s: State @# ty): State ## ty :=
+      Local Fixpoint accessAux (depth: nat) (i: TreeIndex @# ty) (s: State @# ty): State ## ty :=
         match depth with
         | 0 => RetE s
         | S m => (IfE i >= $(num-1)
@@ -84,8 +84,8 @@ Section lru.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
   
-  Instance PseudoLru
-    :  @ReplacementPolicy (* num *) policyParams
+  Definition PseudoLru
+    :  @ReplacementPolicy policyParams
     := {|
         getVictim := (fun ty =>
                         Read state : State <- stateRegName;
