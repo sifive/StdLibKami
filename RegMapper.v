@@ -5,12 +5,12 @@ Import ListNotations.
 
 Section Granule.
   Variable lgGranuleSize : nat.
-  Notation n := (pow2 lgGranuleSize).
+  Notation n := (Nat.pow 2 lgGranuleSize).
   
   Notation divCeil x y := (Nat.div (x + (y - 1)) y).
   Notation div_packn k := (divCeil (size k) n).
   Notation lg_packn k := (Nat.log2_up (divCeil (size k) n)).
-  Notation pow2_packn k := (pow2 (lg_packn k)).
+  Notation pow2_packn k := (Nat.pow 2 (lg_packn k)).
 
   Notation getStartGranule addr := (wordToNat (wsplitr _ _ addr)).
   Notation getFinishGranule addr k := (getStartGranule addr + div_packn k).
@@ -47,7 +47,7 @@ Section Granule.
     Variable ty: Kind -> Type.
     Variable lgMaskSz realAddrSz: nat.
     
-    Local Notation maskSz := (pow2 lgMaskSz).
+    Local Notation maskSz := (Nat.pow 2 lgMaskSz).
     Local Notation addrSz := (realAddrSz + lgMaskSz).
     Local Notation dataSz := (maskSz * n).
 
