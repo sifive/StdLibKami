@@ -121,7 +121,7 @@ Section tests.
        fun (state: State @# type) (expected : word IndexWidth) =>
          (evalLetExpr (LETE path : Path <- getVictimAux state Depth $0 $0;
                          RetE (getIndexFromPath (Var _ (SyntaxKind _) path))) = expected).
-
+  Open Scope word.
   Goal testGetVictim (num := 3) (ARRAY {R; R}) $2. Proof. reflexivity. Qed.
   Goal testGetVictim (num := 3) (ARRAY {R; L}) $2. Proof. reflexivity. Qed.
   Goal testGetVictim (num := 3) (ARRAY {L; R}) $1. Proof. reflexivity. Qed.
@@ -140,7 +140,7 @@ Section tests.
   Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; R}) $3. Proof. reflexivity. Qed.
   Goal testGetVictim (num := 7) (ARRAY {L; R; R; R; R; L}) $3. Proof. reflexivity. Qed.
   Goal testGetVictim (num := 7) (ARRAY {L; R; L; R; R; R}) $3. Proof. reflexivity. Qed.
-
+  Close Scope word.
   Definition evalArray
     (k : Kind)
     (n : nat)
