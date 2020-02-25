@@ -12,7 +12,7 @@ Section Granule.
   Notation lg_packn k := (Nat.log2_up (divCeil (size k) n)).
   Notation pow2_packn k := (pow2 (lg_packn k)).
 
-  Notation getStartGranule addr := (wordToNat (split1 _ _ addr)).
+  Notation getStartGranule addr := (wordToNat (wsplitr _ _ addr)).
   Notation getFinishGranule addr k := (getStartGranule addr + div_packn k).
   Notation getFinishPacket addr k maskSz :=
     (divCeil (getFinishGranule addr k) maskSz).
@@ -48,7 +48,7 @@ Section Granule.
     Variable lgMaskSz realAddrSz: nat.
     
     Local Notation maskSz := (pow2 lgMaskSz).
-    Local Notation addrSz := (lgMaskSz + realAddrSz).
+    Local Notation addrSz := (realAddrSz + lgMaskSz).
     Local Notation dataSz := (maskSz * n).
 
     (* For tile-link, addr, mask and size should all be compatible,
@@ -178,8 +178,9 @@ Section Granule.
 
     Local Open Scope kami_action.
     Local Open Scope kami_expr.
+    
     Definition readWriteGranules_Gen (x: SimpleRegGroup): list GenRegField :=
-      map (fun y => {| grf_addr  := (split2 _ realAddrSz (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word ;
+      map (fun y => {| grf_addr  := (wsplitl realAddrSz _ (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word ;
                        grf_mask  := ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y ;
                        grf_read  :=
                          fun rm =>

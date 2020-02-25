@@ -144,10 +144,16 @@ Ltac goal_consumer1 :=
     - hyp_consumer1; goal_consumer1.
     - hyp_consumer1; extract_in_map'; goal_consumer2; eauto.
       Unshelve.
-         all : clear; repeat econstructor.
-         all : repeat (match goal with
-                       |[ |- ?f ?K] => induction K; simpl; repeat econstructor; eauto
-                       end).
+      all : repeat econstructor; eauto.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
+         clear.
+         induction (Maybe immResK); simpl; repeat econstructor; eauto.
+         instantiate (1 := 0%Z); apply Zmod_0_l.
   Qed.
 
   (* Inductive disj_union : list RegsT -> Prop := *)
