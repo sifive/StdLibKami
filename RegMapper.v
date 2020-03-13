@@ -93,7 +93,7 @@ Section Granule.
                                    else Ret ($$ (natToWord dataSz 0))
                                     as retVal;
                                      Ret #retVal) ls) as listVals;
-                 Ret (CABit Bor listVals)
+                 Ret (Kor listVals)
           else GatherActions (map (fun x =>
                                      If (rq @% "data" @% "info" @% "addr") ==
                                      ($$ (grf_addr x))
