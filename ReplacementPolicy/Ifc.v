@@ -1,28 +1,14 @@
 Require Import Kami.AllNotations.
 
-Section interface.
-  Open Scope kami_expr.
-  Open Scope kami_action.
+Section Ifc.
+  Class Params := { name : string;
+                    size  : nat;
+                    Index := Bit (Nat.log2_up size) }.
 
-  Class PolicyParams := {
-    name : string;
-    num  : nat;
-  }.
+  Context {params: Params}.
 
-  Section policyParams.
-    Context {policyParams : PolicyParams}.
-
-    Local Definition Index := Bit (Nat.log2_up num).
-
-    Record ReplacementPolicy
-      := {
-           getVictim : forall ty, ActionT ty Index;
-           access : forall ty, Index @# ty -> ActionT ty Void
-         }.
-
-  End policyParams.
-
-  Close Scope kami_action.
-  Close Scope kami_expr.
-
-End interface.
+  Record Ifc := { regs: list RegInitT;
+                  regFiles: list RegFileBase;
+                  getVictim : forall ty, ActionT ty Index;
+                  access : forall ty, Index @# ty -> ActionT ty Void }.
+End Ifc.

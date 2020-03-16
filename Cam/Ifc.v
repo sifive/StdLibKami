@@ -1,11 +1,7 @@
-(* Content Addressable Memory *)
 Require Import Kami.AllNotations.
 
-Section cam.
-  Open Scope kami_expr.
-  Open Scope kami_action.
-
-  Class CamParams
+Section Ifc.
+  Class Params
     := {
          name : string;
          keyK : Kind;
@@ -16,21 +12,15 @@ Section cam.
          matchClear: forall ty, keyK @# ty -> clearCtxtK @# ty -> keyK @# ty -> dataK @# ty -> Bool @# ty
     }.
 
-  Section interface.
-    Variable camParams : CamParams.
+  Context {params : Params}.
   
-    Record Cam
-      := {
-           regs: list RegInitT;
-           read: forall ty, keyK @# ty -> readCtxtK @# ty -> ActionT ty (Maybe dataK);
-           write: forall ty, keyK @# ty -> dataK @# ty -> ActionT ty Void;
-           flush: forall ty, ActionT ty Void;
-           clear: forall ty, keyK @# ty -> clearCtxtK @# ty -> ActionT ty Void
+  Record Ifc
+    := {
+        regs: list RegInitT;
+        regFiles: list RegFileBase;
+        read: forall ty, keyK @# ty -> readCtxtK @# ty -> ActionT ty (Maybe dataK);
+        write: forall ty, keyK @# ty -> dataK @# ty -> ActionT ty Void;
+        flush: forall ty, ActionT ty Void;
+        clear: forall ty, keyK @# ty -> clearCtxtK @# ty -> ActionT ty Void
       }.
-
-  End interface.
-
-  Close Scope kami_action.
-  Close Scope kami_expr.
-
-End cam.
+End Ifc.

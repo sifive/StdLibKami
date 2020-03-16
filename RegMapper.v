@@ -178,7 +178,6 @@ Section Granule.
 
     Local Open Scope kami_action.
     Local Open Scope kami_expr.
-    
     Definition readWriteGranules_Gen (x: SimpleRegGroup): list GenRegField :=
       map (fun y => {| grf_addr  := (wsplitl realAddrSz _ (srg_addr x) ^+ $(proj1_sig (Fin.to_nat y)))%word ;
                        grf_mask  := ReadArrayConst (makeSplitMask (srg_addr x) (srg_kind x)) y ;

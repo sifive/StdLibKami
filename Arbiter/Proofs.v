@@ -9,7 +9,7 @@ Require Import Coq.Logic.EqdepFacts.
 Require Import Kami.GallinaModules.Relations.
 
 
-Record FreeListCorrect {len} (imp spec: @FreeList len): Type :=
+Record FreeListCorrect {len} (imp spec: @FreeList.Ifc.Ifc len): Type :=
   {
     freeListRegs: list (Attribute FullKind);
     freeListR: RegsT -> RegsT -> Prop;
@@ -21,32 +21,33 @@ Record FreeListCorrect {len} (imp spec: @FreeList len): Type :=
     freeWb: forall input, ActionWb freeListRegs (@free _ imp type input);
   }.
 
-Record ArbiterCorrect `{ArbiterParams} (imp spec: Arbiter): Type :=
+Record ArbiterCorrect `{Arbiter.Ifc.Params} (imp spec: Arbiter.Ifc.Ifc): Type :=
   {
     arbiterRegs: list (Attribute FullKind);
     outerRegs : list (Attribute FullKind);
     arbiterR: RegsT -> RegsT -> Prop;
     sendReqCorrect: forall 
-        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty (Maybe immResK)),
+        (req : forall ty : Kind -> Type, ty OutReq -> ActionT ty (Maybe immResK)),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
-        forall is_err cid creqa , EffectfulRelation arbiterR (@sendReq _ imp is_err req cid type creqa) (@sendReq _ spec is_err req cid type creqa);
+        forall cid creqa , EffectfulRelation arbiterR (@sendReq _ imp req cid type creqa) (@sendReq _ spec req cid type creqa);
     sendReqWb: forall 
-        (req : forall ty : Kind -> Type, ty ArbiterRouterReq -> ActionT ty (Maybe immResK)),
+        (req : forall ty : Kind -> Type, ty OutReq -> ActionT ty (Maybe immResK)),
         (forall reqa, ActionWb outerRegs (@req type reqa)) ->
-        forall is_err cid creqa, ActionWb arbiterRegs (@sendReq _ imp is_err req cid type creqa);
+        forall cid creqa, ActionWb arbiterRegs (@sendReq _ imp req cid type creqa);
     memCallbackCorrect:
-        (forall (reqK resK : Kind) (ac : ArbiterClient reqK resK) cr, ActionWb outerRegs (@clientHandleRes reqK resK ac type cr)) ->
-        forall resp, EffectfulRelation arbiterR (@memCallback _ imp type resp) (@memCallback _ spec type resp);
+        (forall (reqK resK : Kind) (ac : Client reqK resK) cr, ActionWb outerRegs (@clientHandleRes reqK resK ac type cr)) ->
+        forall resp, EffectfulRelation arbiterR (@callback _ imp type resp) (@callback _ spec type resp);
     memCallbackWb: 
-      (forall (reqK resK : Kind) (ac : ArbiterClient reqK resK) cr, ActionWb outerRegs (@clientHandleRes reqK resK ac type cr)) ->
-      forall resp, ActionWb arbiterRegs (@memCallback _ imp type resp);
-    ruleCorrect: EffectfulRelation arbiterR (@arbiterRule _ imp type) (@arbiterRule _ spec type);
-    ruleWb: ActionWb arbiterRegs (@arbiterRule _ imp type);
+      (forall (reqK resK : Kind) (ac : Client reqK resK) cr, ActionWb outerRegs (@clientHandleRes reqK resK ac type cr)) ->
+      forall resp, ActionWb arbiterRegs (@callback _ imp type resp);
+    ruleCorrect: EffectfulRelation arbiterR (@arbiterResetRule _ imp type) (@arbiterResetRule _ spec type);
+    ruleWb: ActionWb arbiterRegs (@arbiterResetRule _ imp type);
   }.
 
+(*
 Section Proofs.
   (** * Common parameters *)
-  Context `{A: ArbiterParams}.
+  Context `{A: Arbiter.Impl.Params}.
   (*
   Context (memReq: forall ty, ty MemReq -> ActionT ty Bool).
   *)
@@ -55,7 +56,7 @@ Section Proofs.
   
 (*  Definition specFreeListParams: FreeListParams := Build_FreeListParams transactionTagSz ArrayName.
   Definition specFreeList := (@specFreeList specFreeListParams).*)
-  Variable (specFreeList implFreeList: @FreeList (@freeListParams A)).
+  Variable (specFreeList implFreeList: @FreeList.Ifc.Ifc (@freeList _ A)).
   Variable (implFreeListCorrect: FreeListCorrect implFreeList specFreeList).
   Variable (outerRegs : list (Attribute FullKind)).
   Definition specParams: ArbiterImplParams := 
@@ -144,16 +145,10 @@ Ltac goal_consumer1 :=
     - hyp_consumer1; goal_consumer1.
     - hyp_consumer1; extract_in_map'; goal_consumer2; eauto.
       Unshelve.
-      all : repeat econstructor; eauto.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         2 : instantiate (1 := 0%Z); apply Zmod_0_l.
-         clear.
-         induction (Maybe immResK); simpl; repeat econstructor; eauto.
-         instantiate (1 := 0%Z); apply Zmod_0_l.
+         all : clear; repeat econstructor.
+         all : repeat (match goal with
+                       |[ |- ?f ?K] => induction K; simpl; repeat econstructor; eauto
+                       end).
   Qed.
 
   (* Inductive disj_union : list RegsT -> Prop := *)
@@ -169,3 +164,4 @@ Ltac goal_consumer1 :=
   (*   disj_union l2 /\ l1 = concat l2 *)
   
 End Proofs.
+*)
