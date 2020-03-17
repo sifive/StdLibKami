@@ -34,7 +34,7 @@ Section Impl.
   Local Definition sendReq
         (memReq : forall ty, ty OutReq -> ActionT ty (Maybe immResK))
         ty
-        (req: ty InReq)
+        (req: ty inReqK)
     :  ActionT ty Bool
     := Read enqPFull: Ptr <- enqPtr;
        Read deqPFull: Ptr <- deqPtr;
@@ -46,10 +46,10 @@ Section Impl.
        :  OutReq
             <- STRUCT {
                    "tag"    ::= #enqP;
-                   "outReq" ::= inReqToOutReq (#req @% "inReq") };
+                   "outReq" ::= inReqToOutReq #req };
        If (#deqPFull + $(Nat.pow 2 lgSize)) != #enqPFull
        then
-         If #req @% "sendReq?"
+         If isSend #req
          then memReq _ outReq
          else Ret (STRUCT { "valid" ::= $$true;
                             "data"  ::= $$(getDefaultConst immResK)})
@@ -57,14 +57,14 @@ Section Impl.
          If #res @% "valid"
          then
            Write enqPtr <- #enqPFull + $1;
-           LET storeVal : Store <- STRUCT { "storeReq" ::= inReqToStoreReq (#req @% "inReq") ;
+           LET storeVal : Store <- STRUCT { "storeReq" ::= inReqToStoreReq #req ;
                                             "immRes"   ::= #res @% "data" };
            LET writeRq <- STRUCT { "addr" ::= #enqP;
                                    "data" ::= #storeVal };
            LETA _ <- write storeArray _ writeRq;
            LET isComplete
              :  Bool
-             <- (IF #req @% "sendReq?"
+             <- (IF isSend #req
                  then isError (#res @% "data")
                  else $$ true);
            Write completedArray: Array size Bool <- #compds@[#enqP <- #isComplete];

@@ -44,10 +44,11 @@ Section Impl.
     (top : TopEntry @# ty)
     (ftop : Maybe InRes @# ty)
     : ActionT ty Bool :=
-    Ret ((top @% "upper" @% "valid")
-           && !(top @% "lower" @% "valid")
-           && !(isCompressed (top @% "upper" @% "data"))
-           && !((ftop @%"valid") && isNextAddr (top @% "vaddr") (ftop @% "data" @% "vaddr"))).
+    Ret (! (isImmErr (top @% "immRes") || isFinalErr (top @% "error"))
+         && (top @% "upper" @% "valid")
+         && !(top @% "lower" @% "valid")
+         && !(isCompressed (top @% "upper" @% "data"))
+         && !((ftop @%"valid") && isNextAddr (top @% "vaddr") (ftop @% "data" @% "vaddr"))).
 
   Local Definition notCompleteDeqRule ty: ActionT ty Void :=
     Read top: TopEntry <- topRegName;
@@ -186,13 +187,16 @@ Section Impl.
     LETA ftopM: Maybe InRes <- (@Fifo.Ifc.first _ fifo _);
     LETA notComplete : Bool <- isNotComplete #top #ftopM;
     LET ftop <- #ftopM @% "data";
-    
+
     LET allowDeq <-
       #top @% "upper" @% "valid" &&
       ((isImmErr (#top @% "immRes") || isFinalErr (#top @% "error")) ||
        (#top @% "lower" @% "valid" && !isCompressed (#top @% "lower" @% "data")) ||
        (!(#top @% "lower" @% "valid") && !#notComplete));
 
+    System [DispString _ "[Fetcher.Ifc.deq] notComplete: "; DispHex #notComplete; DispString _ " allowDeq: ";
+           DispHex #allowDeq; DispString _ "\n"];
+    
     LET newLowerValid <- #ftopM @% "valid" && (isAligned (#ftop @% "vaddr")) && !(isStraddle #top);
 
     LET newTopRegDeq: TopEntry <- STRUCT { "vaddr"  ::= ZeroExtendTruncMsb (vAddrSz - 2) (#ftop @% "vaddr");

@@ -3,7 +3,7 @@ Require Import Kami.AllNotations.
 Class Params :=
   { name : string;
     size : nat;
-    memReqK : Kind;
+    inReqK : Kind;
     vAddrSz : nat;
     compInstSz : nat;
     immResK : Kind;
@@ -31,12 +31,8 @@ Section Ifc.
          "lower"  :: Maybe CompInst
        }.
   
-  Definition OutReq
-    := STRUCT_TYPE {
-         "inReq" :: STRUCT_TYPE { "memReq" :: memReqK;
-                                  "vaddr"    :: VAddr } ;
-         "sendReq?" :: Bool
-       }.
+  Definition OutReq := STRUCT_TYPE { "inReq" :: inReqK;
+                                     "vaddr" :: VAddr }.
 
   Definition InRes
     := STRUCT_TYPE {
