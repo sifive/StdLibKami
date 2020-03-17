@@ -1,6 +1,5 @@
 Require Import Kami.All.
-Require Import StdLibKami.RegArray.RegFile.
-Require Import StdLibKami.RegArray.RegList.
+Require Import StdLibKami.RegArray.Impl.
 Require Import StdLibKami.RegArray.Ifc.
 Require Import StdLibKami.RegArray.Spec.
 Require Import Kami.GallinaModules.AuxLemmas.
@@ -1042,8 +1041,8 @@ Section Proofs.
   }.
 
   Local Notation Idx := (Bit (Nat.log2_up size)).
-  Definition implRegArray := @RegArray.RegList.impl Params.
-  Definition specRegArray := @RegArray.Spec.spec Params.
+  Definition implRegArray := @Impl.impl Params.
+  Definition specRegArray := @Spec.spec Params.
 
   Definition eqVals (r : RegT) (af : Attribute (type (Idx))) : Prop :=
     r = (fst af, existT _ (SyntaxKind (Idx)) (snd af)).
@@ -1056,7 +1055,7 @@ Section Proofs.
       arrayVal : (Fin.t size -> type k);
       HLocalRegsSz : length LocalRegs = size;
       HNameCorrect : forall n (pf : n < size), nth_error LocalRegs n
-                                               = Some (nth_default "" RegList.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf)));
+                                               = Some (nth_default "" Impl.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf)));
       Ho_iCorrect : o_i = LocalRegs;
       Ho_sCorrect : o_s = [(RegArray.Spec.arrayName, existT _ (SyntaxKind (Array size k)) arrayVal)];
       Ho_iNoDup : NoDup (map fst o_i); 
@@ -1080,7 +1079,7 @@ Section Proofs.
                | try (unfold ActionWb; intros; hyp_consumer1; basic_goal_consumer)]
            | assert(forall t,
                        fst t < size ->
-                       snd t = nth_default "" RegList.names (fst t) ->
+                       snd t = nth_default "" Impl.names (fst t) ->
                        ActionWb (getKindAttr (subRegs1 ++ subRegs2)) (f t)) as HBody
              ;[intros
                ;eapply ActionWbExpand with (myRegs1 := getKindAttr subRegs1)
@@ -1092,9 +1091,9 @@ Section Proofs.
   
   Goal RegArrayCorrect implRegArray specRegArray.
     econstructor 1 with (regArrayR := myRegArrayR)
-                        (regArrayRegs := map (fun name => (name, SyntaxKind (Idx))) RegArray.RegList.names).
+                        (regArrayRegs := map (fun name => (name, SyntaxKind (Idx))) Impl.names).
     all : try red; unfold read, write, implRegArray, specRegArray, impl, spec,
-                   RegList.impl, RegList.read, RegList.write,
+                   Impl.impl, Impl.read, Impl.write,
                    Spec.read, Spec.write, Utila.tag; intros; try Record_destruct; repeat split.
   Admitted.
 End Proofs.
