@@ -1028,13 +1028,55 @@ Fixpoint hexStrToNat' (s : string) (acc : nat) : nat :=
 
 Definition hexStrToNat (s : string) := hexStrToNat' s 0.
 
+Lemma decomposeGatherActions k_in (acts : list (ActionT type k_in)) :
+  forall k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out),
+  forall o reads upds calls ret,
+    SemAction o (GatherActions acts as vals; cont vals)%kami_action reads upds calls ret ->
+    exists (fl : list (RegsT * (RegsT * (MethsT * (type k_in))))) reads' upds' calls',
+      reads = concat (map (fun x => fst x) fl) ++ reads' /\
+      upds = concat (map (fun x => fst (snd x)) fl) ++ upds' /\
+      calls = concat (map (fun x => fst (snd (snd x))) fl) ++ calls' /\
+      Forall2 (fun a f => SemAction o a (fst f) (fst (snd f))
+                                    (fst (snd (snd f))) (snd (snd (snd f)))) acts fl /\
+      SemAction o (cont (map (fun x =>
+                                Var type (SyntaxKind k_in) (snd (snd (snd x)))) fl))
+                reads' upds' calls' ret.
+Proof.
+  induction acts; intros.
+  - exists nil, reads, upds, calls; simpl.
+    repeat split; auto.
+  - simpl in H.
+    apply inversionSemAction in H; dest; subst.
+    specialize (IHacts _ _ _ _ _ _ _ H1); dest; subst.
+    exists ((x, (x0, (x1, x5)))::x6), x7, x8, x9; simpl; repeat split
+    ; try rewrite app_assoc; auto.
+Qed.
+
+Lemma zipGatherActions k_in (acts : list (ActionT type k_in)) :
+  forall k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out),
+  forall o reads upds calls ret fl reads' upds' calls',
+      Forall2 (fun a f => SemAction o a (fst f) (fst (snd f))
+                                    (fst (snd (snd f))) (snd (snd (snd f)))) acts fl ->
+      reads = concat (map (fun x => fst x) fl) ++ reads' ->
+      upds = concat (map (fun x => fst (snd x)) fl) ++ upds' ->
+      calls = concat (map (fun x => fst (snd (snd x))) fl) ++ calls' ->
+      SemAction o (cont (map (fun x =>
+                                Var type (SyntaxKind k_in) (snd (snd (snd x)))) fl))
+                reads' upds' calls' ret ->
+      SemAction o (GatherActions acts as vals; cont vals)%kami_action reads upds calls ret.
+Proof.
+  induction 1; simpl; intros; subst; auto.
+  destruct y as [reads'' [upds'' [calls'' vals]]]; simpl in *.
+  econstructor 3.
+Admitted.
+
 Section Proofs.
   Context `{Params : RegArray.Ifc.Params}.
   Record RegArrayCorrect (imp spec: RegArray.Ifc.Ifc): Type :=
   {
     regArrayRegs : list (Attribute FullKind);
     regArrayR : RegsT -> RegsT -> Prop;
-    readCorrect : forall idx, EffectfulRelation regArrayR (@read _ imp type idx) (@read _ spec type idx);
+    readCorrect : forall idx, EffectlessRelation regArrayR (@read _ imp type idx) (@read _ spec type idx);
     readWb : forall idx, ActionWb regArrayRegs (@read _ imp type idx);
     writeCorrect : forall val, EffectfulRelation regArrayR (@write _ imp type val) (@write _ spec type val);
     writeWb : forall val, ActionWb regArrayRegs (@write _ imp type val);
@@ -1048,22 +1090,15 @@ Section Proofs.
   Local Definition f := (fun i => name ++ "_" ++ natToHexStr i)%string.
   Local Definition LocalRegs := valsToRegs k f (list_arr arrayVal).
 
-  (* Definition eqVals (r : RegT) (af : Attribute (type (Idx))) : Prop := *)
-  (*   r = (fst af, existT _ (SyntaxKind (Idx)) (snd af)). *)
+  (* *)
 
   Record myRegArrayR (o_i o_s : RegsT) : Prop :=
     {
-      (* LocalRegs : RegsT; *)
-      (* ArrayReg : RegT; *)
-      (* RegListVals : list (type Idx); *)
-      (* arrayVal : (Fin.t size -> type k); *)
-      (* HLocalRegsSz : length LocalRegs = size; *)
-      (* HNameCorrect : forall n (pf : n < size), nth_error LocalRegs n *)
-      (*                                          = Some (nth_default "" Impl.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf))); *)
+      (* *)
       Ho_iCorrect : o_i = LocalRegs;
       Ho_sCorrect : o_s = [(RegArray.Spec.arrayName,
                             existT _ (SyntaxKind (Array size k)) arrayVal)];
-      (* Ho_iNoDup : NoDup (map fst o_i); *)
+      (* *)
     }.
       
   Ltac Record_destruct :=
@@ -1099,6 +1134,48 @@ Section Proofs.
                         (regArrayRegs := map (fun name => (name, SyntaxKind k)) Impl.names).
     all : try red; unfold read, write, implRegArray, specRegArray, impl, spec,
                    Impl.impl, Impl.read, Impl.write,
-                   Spec.read, Spec.write, Utila.tag; intros; try Record_destruct; repeat split.
+                   Spec.read, Spec.write, Utila.tag; intros; try Record_destruct.
+    - assert (length (rev (list_arr arrayVal)) = size) as P.
+      { rewrite rev_length, <- list_arr_length; reflexivity. }
+      assert (forall n m, f n = f m -> n = m) as P0.
+      { unfold f; intros.
+        repeat rewrite append_remove_prefix in H.
+        apply natToHexStr_inj in H; assumption. }
+      specialize (impl_read_reduction (rev (list_arr arrayVal)) f) as P1.
+      rewrite P, rev_involutive in P1.
+      specialize (P1 idx P0 reads_i upds calls retval).
+      unfold impl_read in P1.
+      rewrite Ho_iCorrect0 in H0.
+      unfold LocalRegs, Impl.names in H0.
+      unfold f, tag in P1.
+      specialize (P1 H0); dest; subst.
+      repeat split; auto.
+      exists [(Spec.arrayName, existT _ (SyntaxKind (Array size k)) arrayVal)].
+      econstructor 5; eauto.
+      + constructor; reflexivity.
+      + econstructor; auto.
+        cbn [evalExpr].
+        rewrite <- list_arr_correct.
+        destruct lt_dec; auto.
+    - split.
+      + exists (filter (fun x : RegT => existsb (String.eqb (fst x)) Impl.names) o).
+        repeat split.
+        * repeat intro.
+          rewrite filter_In in H2; dest; assumption.
+        * admit.
+        * destruct Impl.names; simpl.
+          -- rewrite filter_false; reflexivity.
+          -- admit.
+        * 
+      induction (Impl.names).
+      (* + simpl in H1. *)
+      (*   apply inversionSemAction in H1; dest; subst. *)
+      (*   split; [|apply SubList_refl]. *)
+      (*   exists nil; repeat split; try apply SubList_nil_l; simpl. *)
+      (*   constructor; auto. *)
+      (* + specialize (separate_calls_by_filter o *)
+      (*                (fun x => existsb (String.eqb (fst x)) Impl.names)) as P. *)
+        
+      (* rewrite P in H1. *)
   Admitted.
 End Proofs.
