@@ -42,11 +42,9 @@ Section Fifo1.
 
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     Read val: Bool <- validRegName;
-    If !#val then (
-      Write dataRegName: k <- #new;
-      Write validRegName <- $$(true);
-      Retv
-      );
+    Read dat: k <- dataRegName;
+    Write validRegName: Bool <- $$(true);
+    Write dataRegName: k <- IF !#val then #new else #dat;
     Ret !#val.
 
   Local Definition flush ty: ActionT ty Void :=
