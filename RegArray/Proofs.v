@@ -979,7 +979,7 @@ Proof.
     rewrite H, IHForall2; reflexivity.
 Qed.
 
-Lemma natToHexStr_inj1 :
+Lemma of_pos_inj1 :
   forall s1 s2,
   (forall m, of_pos m s1 = of_pos m s2) ->
   s1 = s2.
@@ -995,9 +995,9 @@ Proof.
     assumption.
 Qed.
 
-Lemma natToHexStr_inj2 :
+Lemma natToHexStr_inj :
   forall n m,
-    (forall s, of_pos m s = of_pos n s) ->
+    natToHexStr n = natToHexStr m ->
     n = m.
 Proof.
 Admitted.
@@ -1044,21 +1044,26 @@ Section Proofs.
   Definition implRegArray := @Impl.impl Params.
   Definition specRegArray := @Spec.spec Params.
 
-  Definition eqVals (r : RegT) (af : Attribute (type (Idx))) : Prop :=
-    r = (fst af, existT _ (SyntaxKind (Idx)) (snd af)).
+  Variable arrayVal : (Fin.t size -> type k).
+  Local Definition f := (fun i => name ++ "_" ++ natToHexStr i)%string.
+  Local Definition LocalRegs := valsToRegs k f (list_arr arrayVal).
+
+  (* Definition eqVals (r : RegT) (af : Attribute (type (Idx))) : Prop := *)
+  (*   r = (fst af, existT _ (SyntaxKind (Idx)) (snd af)). *)
 
   Record myRegArrayR (o_i o_s : RegsT) : Prop :=
     {
-      LocalRegs : RegsT;
-      ArrayReg : RegT;
-      RegListVals : list (type Idx);
-      arrayVal : (Fin.t size -> type k);
-      HLocalRegsSz : length LocalRegs = size;
-      HNameCorrect : forall n (pf : n < size), nth_error LocalRegs n
-                                               = Some (nth_default "" Impl.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf)));
+      (* LocalRegs : RegsT; *)
+      (* ArrayReg : RegT; *)
+      (* RegListVals : list (type Idx); *)
+      (* arrayVal : (Fin.t size -> type k); *)
+      (* HLocalRegsSz : length LocalRegs = size; *)
+      (* HNameCorrect : forall n (pf : n < size), nth_error LocalRegs n *)
+      (*                                          = Some (nth_default "" Impl.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf))); *)
       Ho_iCorrect : o_i = LocalRegs;
-      Ho_sCorrect : o_s = [(RegArray.Spec.arrayName, existT _ (SyntaxKind (Array size k)) arrayVal)];
-      Ho_iNoDup : NoDup (map fst o_i); 
+      Ho_sCorrect : o_s = [(RegArray.Spec.arrayName,
+                            existT _ (SyntaxKind (Array size k)) arrayVal)];
+      (* Ho_iNoDup : NoDup (map fst o_i); *)
     }.
       
   Ltac Record_destruct :=
@@ -1091,7 +1096,7 @@ Section Proofs.
   
   Goal RegArrayCorrect implRegArray specRegArray.
     econstructor 1 with (regArrayR := myRegArrayR)
-                        (regArrayRegs := map (fun name => (name, SyntaxKind (Idx))) Impl.names).
+                        (regArrayRegs := map (fun name => (name, SyntaxKind k)) Impl.names).
     all : try red; unfold read, write, implRegArray, specRegArray, impl, spec,
                    Impl.impl, Impl.read, Impl.write,
                    Spec.read, Spec.write, Utila.tag; intros; try Record_destruct; repeat split.
