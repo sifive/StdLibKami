@@ -1,6 +1,7 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.RegArray.Ifc.
 Require Import StdLibKami.Fifo.Ifc.
+Require Import StdLibKami.Fifo.Fifo1.
 
 Section Impl.
   Context {ifcParams : Ifc.Params}.
