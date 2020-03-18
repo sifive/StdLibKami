@@ -75,7 +75,9 @@ Section Impl.
                                                           ++ RegArray.Ifc.regs regArray.
 
   Definition impl: Ifc :=
-    {|
+    if (size =? 1)%nat then
+      Fifo1.impl else
+      {|
       Ifc.regs := regs;
       Ifc.regFiles := RegArray.Ifc.regFiles regArray;
       Ifc.isEmpty := isEmpty;
