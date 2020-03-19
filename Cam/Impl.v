@@ -28,7 +28,8 @@ Section Impl.
   Definition impl: Ifc
     := {| 
          regs
-           := map (fun i => (array i,
+           := ReplacementPolicy.Ifc.regs policy ++
+              map (fun i => (array i,
                              existT RegInitValT (SyntaxKind (Maybe (Pair keyK dataK)))
                                     (Some (SyntaxConst (getDefaultConst (Maybe (Pair keyK dataK))))))%string)
                   (seq 0 size);
