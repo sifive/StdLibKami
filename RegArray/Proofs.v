@@ -81,6 +81,13 @@ Local Definition SemAction_Effectless {k} o (a : ActionT type k)
     calls = nil /\
     retV = (evalExpr e).
 
+Local Definition SemAction_Effectful {k} o (a : ActionT type k)
+      (upds_calls : RegsT * MethsT):=
+  forall reads upds' calls' retV,
+    SemAction o a reads upds' calls' retV ->
+    upds' = (fst upds_calls) /\
+    calls' = (snd upds_calls).
+
 Lemma SemReturn':
   forall k (e1 e2 : Expr type (SyntaxKind k)),
     evalExpr e1 = evalExpr e2 ->
@@ -123,6 +130,33 @@ Proof.
     apply H0.
     constructor; simpl; auto.
     clear; induction l'; simpl; auto.
+Qed.
+
+Lemma gatherActions_effectful k_in (acts : list (ActionT type k_in)) :
+  forall k_out (f : list (Expr type (SyntaxKind k_in)) -> Expr type (SyntaxKind k_out))
+         o1 reads upds calls retV luc,
+    Forall2 (SemAction_Effectful o1) acts luc ->
+    (forall exprs exprs', Forall2 (fun x y => evalExpr x = evalExpr y) exprs exprs' ->
+                    evalExpr (f exprs) = evalExpr (f exprs')) ->
+    SemAction o1 (gatherActions acts (fun exprs => Return (f exprs))) reads upds calls retV ->
+    upds = (concat (map fst luc)) /\
+    calls = (concat (map snd luc)).
+Proof.
+  induction acts; intros; inv H; simpl in *.
+  - apply inversionSemAction in H1; dest; subst.
+    repeat split; auto.
+  - apply inversionSemAction in H1; dest; subst.
+    specialize (H4 _ _ _ _ H1); destruct y; dest; subst.
+    assert (forall exprs exprs',
+               Forall2 (fun x y => evalExpr x = evalExpr y) exprs
+                       exprs' ->
+               evalExpr ((fun l => f ((Var _ (SyntaxKind k_in) x5) :: l)) exprs) =
+               evalExpr ((fun l => f ((Var _ (SyntaxKind k_in) x5) :: l)) exprs')) as P.
+    { intros; apply H0.
+      constructor; auto. }
+    specialize (IHacts k_out (fun l => f ((Var _ (SyntaxKind k_in) x5) :: l))
+                       _ _ _  _ _ l' H6 P H2); dest; subst.
+    repeat split; auto.
 Qed.
 
 Lemma gatherActions_effectless' k_in (acts : list (ActionT type k_in)) :
@@ -178,6 +212,19 @@ Local Definition impl_read k size size' idx (f : nat -> string) :=
                        else Const type Default))
                  (tag (map f (seq O size))) as vals;
   Ret (Kor vals))%kami_action.
+
+Local Definition impl_write k size size' (writeRq : type (WriteRq (Nat.log2_up size') k))
+      (f : nat -> string) :=
+  (GatherActions map
+                 (fun '(i, reg) =>
+                  Read val : k <- reg;
+                  Write reg : k <-
+                  IF Const type $ (i)%word ==
+                     ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq) F1
+                  then ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq)
+                                  (FS F1)
+                  else Var type _ val; Retv)
+                 (tag (map f (seq O size))) as vals; Retv)%kami_action.
 
 Lemma MaybeReadevalCorrect k :
   forall (x y : Expr type (SyntaxKind (Maybe k))) (i : t 2),
@@ -346,6 +393,12 @@ Definition sparseList {A : Type} (def : A) (l : list A) (n size : nat) :=
 
 Definition sparseList' {A: Type} (def : A) (l : list A) (n : nat) :=
   sparseList def l n (length l).
+
+Definition replace_nth {A : Type} (l : list A) (n : nat) (val : A) :=
+  firstn n l ++ (match hd_error (skipn n l) with
+                 | None => nil
+                 | Some a => [val]
+                 end) ++ tl (skipn n l).
 
 Definition defList {A : Type} (def : A) size :=
   map (fun _ => def) (seq 0 size).
@@ -1163,8 +1216,85 @@ Proof.
               apply (P _ (InSingleton _)).
         -- apply SubList_nil_l.
 Qed.
-             
-              
+
+Lemma replace_nth_n_le {A : Type} (l : list A) n val :
+  length l <= n ->
+  replace_nth l n val = l.
+Proof.
+  intros.
+  unfold replace_nth.
+  rewrite firstn_all2, skipn_all2, hd_error_nil; auto.
+  repeat rewrite app_nil_r; reflexivity.
+Qed.
+
+Lemma replace_nth_n_lt {A : Type} val (l : list A):
+  forall n,
+  n < length l ->
+  replace_nth l n val = (map (fun m => if (m =? n)%nat
+                                       then val
+                                       else nth_default val l m) (seq 0 (length l))).
+Proof.
+  assert (forall l',
+             (map (fun m => nth_default val l' m) (seq 0 (length l'))) = l') as P.
+  { induction l'; simpl; auto.
+    unfold nth_default in *; simpl; f_equal.
+    rewrite <- seq_shift, map_map.
+    simpl; assumption. }
+  induction l; simpl; intros; [lia|].
+  rewrite <- seq_shift, map_map.
+  unfold replace_nth in *.
+  destruct n; simpl; f_equal.
+  - rewrite <- (P l) at 1; unfold nth_default; simpl; reflexivity.
+  - rewrite IHl; [|lia].
+    apply map_ext_in; intros; unfold nth_default; reflexivity.
+Qed.
+
+Lemma firstn_
+
+Lemma impl_write_reduction k (l : list (type k)):
+  forall (f : nat -> string) size size' (writeRq : type (WriteRq (Nat.log2_up size') k)),
+    size <= size' ->
+    size <= length l ->
+    let idx := wordToNat (writeRq F1) in
+    let val := writeRq (FS F1) in
+    (forall n m, f n = f m -> n = m) ->
+    forall reads upds calls retV,
+      SemAction (valsToRegs k f (rev l))
+                (impl_write size size' writeRq f) reads upds calls retV ->
+      upds = (replace_nth (firstn size (valsToRegs k f (rev l)))
+                                  idx (f idx, existT _ (SyntaxKind k) val))
+      /\ calls = nil.
+Proof.
+  intros.
+  assert (forall {A B : Type} (l : list A),
+             l = concat (map fst (map (fun (x : A) => ([x], (nil : list B))) l))) as P.
+  { clear.
+    induction l; simpl; auto.
+    rewrite IHl at 1; reflexivity. }
+  assert (forall {A B : Type} (l : list A),
+             nil = concat (map snd (map (fun (x : A) => ([x], (nil : list B))) l))) as P0.
+  { clear; intros; rewrite map_map.
+    induction l; auto. }
+  rewrite (P _ MethT (replace_nth _ _ _)).
+  rewrite (P0 _ MethT (replace_nth (firstn size (valsToRegs k f (rev l)))
+                                   idx (f idx, existT _ (SyntaxKind k) val))) at 1.
+  unfold impl_write in H1.
+  eapply gatherActions_effectful with (f := (fun x => _)); eauto.
+  destruct (le_lt_dec size idx).
+  - rewrite replace_nth_n_le.
+    + unfold valsToRegs. ; rewrite rev_length, map_map.
+      clear - l0.
+      induction l; [constructor|].
+      cbn [length].
+      rewrite seq_eq, map_app in *.
+      apply Forall2_app.
+  induction l; unfold impl_write; intros.
+  - simpl in H1.
+    apply inversionSemAction in H1; dest; subst.
+    unfold valsToRegs, replace_nth; simpl.
+    rewrite firstn_nil, skipn_nil, hd_error_nil.
+    constructor.
+  - 
 Section Proofs.
   Context `{Params : RegArray.Ifc.Params}.
   Record RegArrayCorrect (imp spec: RegArray.Ifc.Ifc): Type :=
