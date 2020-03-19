@@ -1033,6 +1033,8 @@ Lemma decomposeGatherActions k_in (acts : list (ActionT type k_in)) :
   forall o reads upds calls ret,
     SemAction o (GatherActions acts as vals; cont vals)%kami_action reads upds calls ret ->
     exists (fl : list (RegsT * (RegsT * (MethsT * (type k_in))))) reads' upds' calls',
+      NoDup (map fst (concat (map (fun x => fst (snd x)) fl))) /\
+      DisjKey (concat (map (fun x => fst (snd x)) fl)) upds' /\ 
       reads = concat (map (fun x => fst x) fl) ++ reads' /\
       upds = concat (map (fun x => fst (snd x)) fl) ++ upds' /\
       calls = concat (map (fun x => fst (snd (snd x))) fl) ++ calls' /\
@@ -1045,31 +1047,124 @@ Proof.
   induction acts; intros.
   - exists nil, reads, upds, calls; simpl.
     repeat split; auto.
+    + constructor.
+    + apply DisjKey_nil_l.
   - simpl in H.
     apply inversionSemAction in H; dest; subst.
     specialize (IHacts _ _ _ _ _ _ _ H1); dest; subst.
     exists ((x, (x0, (x1, x5)))::x6), x7, x8, x9; simpl; repeat split
-    ; try rewrite app_assoc; auto.
+    ; try rewrite app_assoc; auto; rewrite DisjKey_app_split_r in H; dest.
+    + rewrite NoDup_app_DisjKey; repeat split; auto.
+      * apply (SemAction_NoDup_u H0).
+    + rewrite DisjKey_app_split_l; split; auto.
 Qed.
 
-Lemma zipGatherActions k_in (acts : list (ActionT type k_in)) :
-  forall k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out),
-  forall o reads upds calls ret fl reads' upds' calls',
-      Forall2 (fun a f => SemAction o a (fst f) (fst (snd f))
-                                    (fst (snd (snd f))) (snd (snd (snd f)))) acts fl ->
-      reads = concat (map (fun x => fst x) fl) ++ reads' ->
-      upds = concat (map (fun x => fst (snd x)) fl) ++ upds' ->
-      calls = concat (map (fun x => fst (snd (snd x))) fl) ++ calls' ->
-      SemAction o (cont (map (fun x =>
-                                Var type (SyntaxKind k_in) (snd (snd (snd x)))) fl))
-                reads' upds' calls' ret ->
-      SemAction o (GatherActions acts as vals; cont vals)%kami_action reads upds calls ret.
+Lemma gatherActionsWb_contWb k_in (acts : list (ActionT type k_in))
+      k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out) myRegs :
+  (forall exprs, ActionWb myRegs (cont exprs)) ->
+  (forall a,
+      In a acts ->
+      ActionWb myRegs a) ->
+  forall (f : list (Expr type (SyntaxKind k_in)) -> list (Expr type (SyntaxKind k_in))),
+    ActionWb myRegs (GatherActions acts as vals; cont (f vals))%kami_action.
 Proof.
-  induction 1; simpl; intros; subst; auto.
-  destruct y as [reads'' [upds'' [calls'' vals]]]; simpl in *.
-  econstructor 3.
-Admitted.
+  induction acts; intros; simpl; auto.
+  unfold ActionWb; intros.
+  apply inversionSemAction in H3; dest; subst.
+  specialize (H0 _ (in_eq _ _)) as P.
+  specialize (P _ _ _ _ _ H1 H2 H4); dest; subst.
+  assert (forall a, In a acts -> ActionWb (getKindAttr x6) a) as P0.
+  { intros; apply H0; right; assumption. }
+  specialize (IHacts H P0 (fun x => f ((Var _ (SyntaxKind k_in)) x5 :: x))).
+  specialize (IHacts _ _ _ _ _ H1 H2 H5); dest.
+  split.
+  specialize (SubList_chain H1 H9 H6 (getKindAttr_map_fst _ _ H13)) as TMP; subst.
+  - exists x6; repeat split; auto.
+    + rewrite SubList_app_l_iff; split; auto.
+    + econstructor; eauto.
+  - rewrite map_app, SubList_app_l_iff; auto.
+Qed.
 
+Corollary gatherActionsWb_contWb_id k_in (acts : list (ActionT type k_in))
+      k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out) myRegs :
+  (forall exprs, ActionWb myRegs (cont exprs)) ->
+  (forall a,
+      In a acts ->
+      ActionWb myRegs a) ->
+    ActionWb myRegs (GatherActions acts as vals; cont vals)%kami_action.
+Proof.
+  intros.
+  specialize (gatherActionsWb_contWb _ cont H H0 (fun x => x)); simpl; auto.
+Qed.
+
+Lemma impl_readWb k size size' idx f :
+  size <= size' ->
+  ActionWb (map (fun x => (f x, SyntaxKind k)) (seq 0 size))
+           (impl_read k size size' idx f).
+Proof.
+  unfold impl_read; intros.
+  apply gatherActionsWb_contWb_id; unfold ActionWb; intros.
+  - apply inversionSemAction in H2; dest; subst.
+    induction size.
+    + split; [|apply SubList_nil_l].
+      exists nil; repeat split; try apply SubList_nil_l.
+      econstructor; eauto.
+    + rewrite seq_eq, map_app in *.
+      rewrite SubList_app_l_iff in H1; dest.
+      specialize (IHsize ltac:(lia) H1); dest.
+      rewrite SubList_map_iff in H2; dest; simpl in *.
+      split; [|apply SubList_nil_l].
+      exists (x ++ x0); rewrite map_app.
+      repeat split.
+      * rewrite SubList_app_l_iff; split; auto.
+      * apply SubList_nil_l.
+      * apply f_equal2; auto.
+      * eapply SemActionExpand; eauto.
+        repeat intro; rewrite in_app_iff; auto.
+  - rewrite in_map_iff in H0; dest; subst; destruct x; simpl in *.
+    induction size.
+    + exfalso; simpl in H4; contradiction.
+    + unfold tag in *.
+      rewrite seq_eq, map_app in *.
+      rewrite tagApp, in_app_iff, map_length, seq_length, Nat.add_0_r in H4.
+      repeat (apply inversionSemAction in H3; dest; subst).
+      rewrite SubList_app_l_iff in H2; dest.
+      destruct H4.
+      * specialize (IHsize ltac:(lia) H4 H2); dest.
+        rewrite SubList_map_iff in H3; dest.
+        split.
+        -- exists (x0 ++ x1); repeat split.
+           ++ rewrite SubList_app_l_iff; split; auto.
+           ++ apply SubList_app_r; assumption.
+           ++ rewrite map_app.
+              apply f_equal2; auto.
+           ++ eapply SemActionExpand; eauto.
+              repeat intro; rewrite in_app_iff; auto.
+        -- apply SubList_nil_l.
+      * rewrite SubList_map_iff in H2, H3; dest.
+        assert (SubList [(s, existT _ (SyntaxKind k) x)] (x1 ++ x0)) as P.
+        { simpl in H4; destruct H4; [|contradiction].
+          inv H4; simpl in H5.
+          assert (SubList [(f n, existT (fullType type) (SyntaxKind k) x)] o) as P.
+          { repeat intro.
+            destruct H4; subst; auto.
+            inv H4. }
+          specialize (SubList_chain H1 H3 P) as P0.
+          rewrite <-fst_getKindAttr in P0.
+          setoid_rewrite H5 in P0.
+          rewrite (P0 ltac:(reflexivity)).
+          repeat intro; rewrite in_app_iff; right; assumption. }
+        split.
+        -- exists (x1 ++ x0); repeat split; auto.
+           ++ rewrite SubList_app_l_iff; auto.
+           ++ rewrite map_app.
+              apply f_equal2; auto.
+           ++ repeat econstructor.
+              apply (P _ (InSingleton _)).
+        -- apply SubList_nil_l.
+Qed.
+             
+              
 Section Proofs.
   Context `{Params : RegArray.Ifc.Params}.
   Record RegArrayCorrect (imp spec: RegArray.Ifc.Ifc): Type :=
@@ -1090,15 +1185,11 @@ Section Proofs.
   Local Definition f := (fun i => name ++ "_" ++ natToHexStr i)%string.
   Local Definition LocalRegs := valsToRegs k f (list_arr arrayVal).
 
-  (* *)
-
   Record myRegArrayR (o_i o_s : RegsT) : Prop :=
     {
-      (* *)
       Ho_iCorrect : o_i = LocalRegs;
       Ho_sCorrect : o_s = [(RegArray.Spec.arrayName,
                             existT _ (SyntaxKind (Array size k)) arrayVal)];
-      (* *)
     }.
       
   Ltac Record_destruct :=
@@ -1132,10 +1223,11 @@ Section Proofs.
   Goal RegArrayCorrect implRegArray specRegArray.
     econstructor 1 with (regArrayR := myRegArrayR)
                         (regArrayRegs := map (fun name => (name, SyntaxKind k)) Impl.names).
-    all : try red; unfold read, write, implRegArray, specRegArray, impl, spec,
+    all : unfold read, write, implRegArray, specRegArray, impl, spec,
                    Impl.impl, Impl.read, Impl.write,
                    Spec.read, Spec.write, Utila.tag; intros; try Record_destruct.
-    - assert (length (rev (list_arr arrayVal)) = size) as P.
+    - red; intros; try Record_destruct.
+      assert (length (rev (list_arr arrayVal)) = size) as P.
       { rewrite rev_length, <- list_arr_length; reflexivity. }
       assert (forall n m, f n = f m -> n = m) as P0.
       { unfold f; intros.
@@ -1157,25 +1249,12 @@ Section Proofs.
         cbn [evalExpr].
         rewrite <- list_arr_correct.
         destruct lt_dec; auto.
-    - split.
-      + exists (filter (fun x : RegT => existsb (String.eqb (fst x)) Impl.names) o).
-        repeat split.
-        * repeat intro.
-          rewrite filter_In in H2; dest; assumption.
-        * admit.
-        * destruct Impl.names; simpl.
-          -- rewrite filter_false; reflexivity.
-          -- admit.
-        * 
-      induction (Impl.names).
-      (* + simpl in H1. *)
-      (*   apply inversionSemAction in H1; dest; subst. *)
-      (*   split; [|apply SubList_refl]. *)
-      (*   exists nil; repeat split; try apply SubList_nil_l; simpl. *)
-      (*   constructor; auto. *)
-      (* + specialize (separate_calls_by_filter o *)
-      (*                (fun x => existsb (String.eqb (fst x)) Impl.names)) as P. *)
-        
-      (* rewrite P in H1. *)
+    - specialize (@impl_readWb k size size idx f (le_n _)) as P.
+      unfold impl_read, f in P.
+      unfold Impl.names.
+      rewrite map_map.
+      apply P.
+    - admit.
+    - admit.
   Admitted.
 End Proofs.
