@@ -12,6 +12,8 @@ Section Spec.
   Context {params : Params}.
 
   Local Definition listName := (name ++ ".list")%string.
+  Local Definition emptyRegName := (name ++ ".isEmptyReg")%string.
+  Local Definition fullRegName := (name ++ ".isFullReg")%string.
 
   Local Notation Natgeb n m := (negb (Nat.ltb n m)).
   
@@ -31,11 +33,13 @@ Section Spec.
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
-    Ret $$(emptyb data).
+    Nondet empty: Bool;
+    Ret ($$(emptyb data) && #empty).
 
   Local Definition isFull ty: ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
-    Ret $$(Natgeb (length data) size).
+    Nondet full: Bool;
+    Ret ($$(Natgeb (length data) size) && #full).
   
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
     ReadN data: nlist ty <- listName;
@@ -43,11 +47,13 @@ Section Spec.
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(negb (emptyb data)); "data" ::= getHead _ data } : Maybe k @# ty).
+    Ret (STRUCT { "valid" ::= $$(negb (emptyb data));
+                  "data" ::= getHead _ data } : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(emptyb data); "data" ::= getHead _ data } : Maybe k @# ty).
+    Ret (STRUCT { "valid" ::= $$(emptyb data);
+                  "data" ::= getHead _ data } : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
@@ -58,7 +64,8 @@ Section Spec.
     WriteN listName: nlist ty <- Var _ (nlist ty) nil;
     Retv.
 
-  Local Definition regs : list RegInitT := makeModule_regs (RegisterNDef listName: list (type k) <- (nil: list (type k)))%kami.
+  Local Definition regs : list RegInitT :=
+    makeModule_regs (RegisterNDef listName: list (type k) <- (nil: list (type k)))%kami.
 
   Definition spec: Ifc :=
     {|
