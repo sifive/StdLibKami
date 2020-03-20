@@ -2,7 +2,7 @@ Require Import Kami.AllNotations.
 Require Import StdLibKami.RegArray.Ifc.
 Require Import StdLibKami.Fifo.Ifc.
 
-Section Spec.
+Section GenSpec.
   Context {ifcParams : Ifc.Params}.
 
   Class Params := { sizePow2 : Nat.pow 2 lgSize = size;
@@ -28,33 +28,37 @@ Section Spec.
     if (Nat.ltb (length ls) size) then snoc a ls else ls.
   
   Local Definition nlist ty := NativeKind (nil : list (ty k)).
-  
-  Local Definition isEmpty ty: ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
-    Ret $$(emptyb data).
 
-  Local Definition isFull ty: ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
-    Ret $$(Natgeb (length data) size).
-  
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
     ReadN data: nlist ty <- listName;
-    Ret $(size - (length data)).
+    Nondet eps: (Bit lgSize);    
+    Ret (IF ($(size - (length data)) < #eps) then $(size - (length data)) else #eps).
+  
+  Local Definition isEmpty ty: ActionT ty Bool :=
+    LETA freeNum: (Bit lgSize) <- numFree ty;
+    Ret (#freeNum == $0).
+
+  Local Definition isFull ty: ActionT ty Bool :=
+    LETA freeNum: (Bit lgSize) <- numFree ty;
+    Ret (#freeNum == $size).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(negb (emptyb data));
+    LETA empty: Bool <- isEmpty ty;
+    Ret (STRUCT { "valid" ::= #empty;
                   "data" ::= getHead _ data } : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(emptyb data);
+    LETA empty: Bool <- isEmpty ty;
+    Ret (STRUCT { "valid" ::= #empty;
                   "data" ::= getHead _ data } : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
+    LETA full: Bool <- isFull ty;
     WriteN listName: nlist ty <- Var _ (nlist ty) (snocInBound ty new data);
-    Ret $$(Nat.ltb (length data) size).
+    Ret #full.
 
   Local Definition flush ty: ActionT ty Void :=
     WriteN listName: nlist ty <- Var _ (nlist ty) nil;
@@ -76,4 +80,4 @@ Section Spec.
       Ifc.flush := flush
     |}.
   
-End Spec.
+End GenSpec.
