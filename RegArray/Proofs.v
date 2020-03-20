@@ -1249,7 +1249,38 @@ Proof.
     apply map_ext_in; intros; unfold nth_default; reflexivity.
 Qed.
 
-Lemma firstn_
+Lemma firstn_map {A B: Type} (l : list A) (f : A -> B):
+  forall n,
+    firstn n (map f l) = map f (firstn n l).
+Proof.
+  induction l; intros.
+  - repeat rewrite firstn_nil; reflexivity.
+  - destruct n; simpl; auto.
+    rewrite IHl; reflexivity.
+Qed.
+
+Lemma firstn_seq_le n :
+  forall m size,
+    n <= size ->
+    firstn n (seq m size) = seq m n.
+Proof.
+  induction n; intros.
+  - rewrite firstn_O; reflexivity.
+  - destruct size;[lia|].
+    simpl; rewrite IHn; auto; lia.
+Qed.
+
+Corollary firstn_seq_le2 n :
+  forall m size,
+    size <= n ->
+    firstn n (seq m size) = seq m size.
+Proof.
+  intros; rewrite firstn_all2; auto.
+  rewrite seq_length; assumption.
+Qed.
+
+(* Lemma seq_split n m size : *)
+
 
 Lemma impl_write_reduction k (l : list (type k)):
   forall (f : nat -> string) size size' (writeRq : type (WriteRq (Nat.log2_up size') k)),
@@ -1280,21 +1311,49 @@ Proof.
                                    idx (f idx, existT _ (SyntaxKind k) val))) at 1.
   unfold impl_write in H1.
   eapply gatherActions_effectful with (f := (fun x => _)); eauto.
+  clear P P0 H2.
   destruct (le_lt_dec size idx).
   - rewrite replace_nth_n_le.
-    + unfold valsToRegs. ; rewrite rev_length, map_map.
-      clear - l0.
-      induction l; [constructor|].
-      cbn [length].
-      rewrite seq_eq, map_app in *.
-      apply Forall2_app.
-  induction l; unfold impl_write; intros.
-  - simpl in H1.
-    apply inversionSemAction in H1; dest; subst.
-    unfold valsToRegs, replace_nth; simpl.
-    rewrite firstn_nil, skipn_nil, hd_error_nil.
-    constructor.
-  - 
+    + unfold valsToRegs.
+      rewrite firstn_map, rev_length, map_map, firstn_seq_le; auto.
+      induction size.
+      * constructor.
+      * unfold tag.
+        rewrite seq_eq, map_app, tagApp.
+        repeat rewrite map_app.
+        apply Forall2_app.
+        -- apply IHsize; lia.
+        -- constructor; [|constructor].
+           unfold SemAction_Effectful; simpl.
+           intros.
+           apply inversionSemAction in H2; dest; subst.
+           apply inversionSemAction in H3; dest; subst.
+           apply inversionSemAction in H5; dest; subst.
+           split; simpl; auto.
+           rewrite in_map_iff in H2; dest.
+           apply inversionPair in H2; dest.
+           rewrite (H1 _ _ H2) in *; EqDep_subst.
+           destruct weq; auto.
+           exfalso.
+           rewrite map_length, seq_length, Nat.add_0_r in e.
+           assert (@wordToNat (Nat.log2_up size') ($ size) = wordToNat (writeRq F1)) as P.
+           { rewrite e; reflexivity. }
+           rewrite wordToNat_natToWord_eqn, Nat.mod_small in P.
+           ++ rewrite P in l0.
+              unfold idx in l0.
+              lia.
+           ++ apply (Nat.lt_le_trans _ size'); [lia|].
+              apply log2_up_pow2.
+    + rewrite firstn_length_le; auto.
+      unfold valsToRegs.
+      rewrite map_length, rev_length, seq_length; assumption.
+  - unfold valsToRegs.
+    rewrite firstn_map.
+    rewrite firstn_seq_le.
+    admit.
+    admit.
+Admitted.
+    
 Section Proofs.
   Context `{Params : RegArray.Ifc.Params}.
   Record RegArrayCorrect (imp spec: RegArray.Ifc.Ifc): Type :=
