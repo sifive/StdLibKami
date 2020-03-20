@@ -224,10 +224,10 @@ Section Impl.
 
   Local Definition regs
     := (makeModule_regs
-         (Register topRegName : TopEntry <- Default)%kami) ++
-       (makeModule_regs
-         (Register outstandingName : Bit lgSize <- Default)%kami) ++
-       (@Fifo.Ifc.regs _ fifo).
+          ((Register topRegName : TopEntry <- Default)
+             ++ (Register outstandingName : Bit lgSize <- Default)
+             ++ (Register clearOutstandingName : Bit lgSize <- Default))%kami ++
+       (@Fifo.Ifc.regs _ fifo)).
 
   Definition impl: Ifc := {| Fetcher.Ifc.regs := regs;
                              Fetcher.Ifc.regFiles := Fifo.Ifc.regFiles fifo;
