@@ -67,14 +67,6 @@ Section Impl.
   Local Definition transferRule ty: ActionT ty Void :=
     LETA isEmp: Bool <- @Fifo.Ifc.isEmpty _ fifo _;
     Read top: TopEntry <- topRegName;
-    System [
-      DispString _ "[Fetcher.transfer] top: ";
-      DispHex #top;
-      DispString _ "\n";
-      DispString _ "[Fetcher.transfer] is empty: ";
-      DispHex #isEmp;
-      DispString _ "\n"
-    ];
     If !(#top @% "upper" @% "valid") && !#isEmp
     then (
       LETA deqValM: Maybe InRes <- @Fifo.Ifc.deq _ fifo _;
@@ -89,21 +81,11 @@ Section Impl.
              "error"  ::= #deqVal @% "error";
              "upper"  ::= Valid (UniBit (TruncMsb _ _) (#deqVal @% "inst"));
              "lower"  ::= #lower};
-      System [
-        DispString _ "[Fetcher.notCompleteDeq] wrote to topRegName topEntry: ";
-        DispHex #topEntry;
-        DispString _ "\n"
-      ];
       Write topRegName: TopEntry <- #topEntry;
       Retv );
     Retv.
 
   Local Definition callback ty (res: ty InRes): ActionT ty Void :=
-    System [
-       DispString _ "[Fetcher.callback] res: \n";
-       DispHex #res;
-       DispString _ "\n"
-    ];
     Read clearOutstanding: Bit lgSize <- clearOutstandingName;
     If #clearOutstanding == $0
     then (LETA _ <- @Fifo.Ifc.enq _ fifo _ res; Retv)
@@ -126,15 +108,6 @@ Section Impl.
     LETA notComplete : Bool <- isNotComplete #top #ftopM;
     LET ftop <- #ftopM @% "data";
 
-    System [
-      DispString _ "[Fetcher.first] top:\n";
-      DispHex #top;
-      DispString _ "\n";
-      DispString _ "[Fetcher.first] ftop:\n";
-      DispHex #ftop;
-      DispString _ "\n"
-      ];
-    
     LET upperTopCompressed <- isCompressed (#top @% "upper" @% "data");
            
     LET retAddr: VAddr <-
@@ -177,15 +150,6 @@ Section Impl.
                                 "errUpper?" ::= #isErrUpper;
                                 "inst"  ::= #retInst};
     
-    System [
-      DispString _ "[Fetcher.first] ret:\n";
-      DispHex #ret;
-      DispString _ "\n";
-      DispString _ "[Fetcher.first] ret valid:\n";
-      DispHex (#top @% "upper" @% "valid");
-      DispString _ "\n"
-      ];
-    
     Ret (STRUCT { "valid" ::= #top @% "upper" @% "valid";
                   "data" ::= #ret}: Maybe OutRes @# ty).
 
@@ -201,9 +165,6 @@ Section Impl.
        (#top @% "lower" @% "valid" && !isCompressed (#top @% "lower" @% "data")) ||
        (!(#top @% "lower" @% "valid") && !#notComplete));
 
-    System [DispString _ "[Fetcher.Ifc.deq] notComplete: "; DispHex #notComplete; DispString _ " allowDeq: ";
-           DispHex #allowDeq; DispString _ "\n"];
-    
     LET newLowerValid <- #ftopM @% "valid" && (isAligned (#ftop @% "vaddr")) && !(isStraddle #top);
 
     LET newTopRegDeq: TopEntry <- STRUCT { "vaddr"  ::= ZeroExtendTruncMsb (vAddrSz - 2) (#ftop @% "vaddr");

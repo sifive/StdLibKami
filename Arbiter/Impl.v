@@ -16,26 +16,13 @@ Section Impl.
     (ty : Kind -> Type)
     (clientReq : ty (ClientReq (clientTagSz (nth_Fin (clientList clients) clientId))))
     :  ActionT ty (Maybe immResK)
-    := System [
-         DispString _ "[Arbiter.sendReq] clientReq: ";
-         DispHex #clientReq;
-         DispString _ "\n"
-       ];
-       Read busy : Bool <- busyName;
+    := Read busy : Bool <- busyName;
        LET tag : (Tag clients) <- STRUCT {
                                       "id"  ::= $(proj1_sig (Fin.to_nat clientId));
                                       "tag" ::= ZeroExtendTruncLsb (maxClientTagSz clients) (#clientReq @% "tag")
                                     };
-       System [
-         DispString _ "[Arbiter.sendReq] tag\n";
-         DispHex #tag;
-         DispString _ "\n"
-       ];
        If !#busy
          then
-           System [
-             DispString _ "[Arbiter.sendReq] sending request.\n"
-           ];
            Write busyName : Bool <- $$true;
            LET outReq : (OutReq clients) <- STRUCT {
                                                 "tag" ::= #tag;
@@ -46,23 +33,13 @@ Section Impl.
          else
            Ret $$(getDefaultConst (Maybe immResK))
          as ret;
-       System [
-         DispString _ "[Arbiter.sendReq] result:";
-         DispHex #ret;
-         DispString _ "\n"
-       ];
        Ret #ret.
 
   Local Definition callback
     (ty: Kind -> Type)
     (res: ty (InRes clients))
     :  ActionT ty Void
-    := System [
-         DispString _ "[Arbiter.memCallback] res: ";
-         DispHex #res;
-         DispString _ "\n"
-       ];
-       LET clientIdTag <- #res @% "tag";
+    := LET clientIdTag <- #res @% "tag";
        GatherActions
          (map
            (fun (clientId: Fin.t (numClients clients))
@@ -74,11 +51,6 @@ Section Impl.
                                                                                            (#clientIdTag @% "tag");
                                                              "res" ::= #res @% "res"
                                                            };
-                    System [
-                      DispString _ "[Arbiter.memCallback] client res: ";
-                      DispHex #clientRes;
-                      DispString _ "\n"
-                    ];
                     clientHandleRes client clientRes;
                 Retv)
            (getFins (numClients clients)))
@@ -86,10 +58,7 @@ Section Impl.
        Retv.
 
   Local Definition resetRule ty : ActionT ty Void
-    := System [
-         DispString _ "[Arbiter.arbiterRule]\n"
-       ];
-       Write busyName : Bool <- $$false;
+    := Write busyName : Bool <- $$false;
        Retv.
 
   Local Definition regs: list RegInitT
