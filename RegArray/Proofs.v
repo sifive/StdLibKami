@@ -1739,6 +1739,26 @@ Section Proofs.
     match goal with
     |[ H : myRegArrayR _ _ |- _] => destruct H
     end.
+
+  Local Lemma NoDup_f m n:
+    NoDup (map f (seq m n)).
+  Proof.
+    induction n; [constructor|].
+    rewrite seq_eq, map_app, NoDup_app_iff; repeat split; auto.
+    - repeat constructor; intro; inv H.
+    - repeat intro; inv H0; [|inv H1].
+      rewrite in_map_iff in H; dest.
+      unfold f in H; repeat rewrite append_remove_prefix in H.
+      rewrite in_seq in H0.
+      apply natToHexStr_inj in H.
+      lia.
+    - repeat intro; inv H; [|inv H1].
+      rewrite in_map_iff in H0; dest.
+      unfold f in H; repeat rewrite append_remove_prefix in H.
+      rewrite in_seq in H0.
+      apply natToHexStr_inj in H.
+      lia.
+  Qed.
   
   Goal RegArrayCorrect implRegArray specRegArray.
     econstructor 1 with (regArrayR := myRegArrayR)
@@ -1837,15 +1857,122 @@ Section Proofs.
                   => rewrite (@doUpdRegs_DisjKey c b);[rewrite (@doUpdRegs_DisjKey c a) |]
                 end.
                 ** rewrite doUpdRegs_idemp.
-                   --- 
-                ** repeat rewrite doUpdRegs_DisjKey.
                    --- apply map_ext_in; intros.
-                       repeat f_equal.
-             admit.
+                       rewrite in_seq in H.
+                       do 2 f_equal.
+                       repeat rewrite <-list_arr_correct.
+                       destruct lt_dec; auto.
+                       destruct weq; auto.
+                       exfalso.
+                       rewrite e, to_nat_of_nat, wordToNat_natToWord_eqn, Nat.mod_small in H;
+                         [simpl in H; lia|].
+                       simpl.
+                       apply (lt_le_trans _ size); auto.
+                       apply log2_up_pow2.
+                   --- rewrite map_map; simpl.
+                       apply NoDup_f.
+               ** repeat intro; rewrite map_map; simpl.
+                  destruct (string_dec
+                              (name ++ String "_" (natToHexStr (wordToNat (val F1)))) k).
+                  --- right; intro.
+                      rewrite in_map_iff in H; dest.
+                      rewrite <- H in e.
+                      repeat rewrite (append_cons "_" (natToHexStr _)) in e.
+                      repeat rewrite append_remove_prefix in e.
+                      apply natToHexStr_inj in e.
+                      rewrite in_seq in H1; lia.
+                  --- left; intro; destruct H; contradiction.
+               ** repeat intro; repeat rewrite map_map; simpl.
+                  destruct (in_dec string_dec k
+                                   (map (fun x => (name ++ String "_" (natToHexStr x))%string)
+                                        (seq 0 (wordToNat (val F1))))).
+                  --- left; intro.
+                      rewrite in_map_iff in i, H; dest.
+                      rewrite <- H in H2.
+                      repeat rewrite (append_cons "_" (natToHexStr _)) in H2.
+                      repeat rewrite append_remove_prefix in H2.
+                      apply natToHexStr_inj in H2.
+                      rewrite in_seq in *.
+                      lia.
+                  --- right; assumption.
+             ++ cbn [map Nat.add].
+                match goal with
+                | [|- doUpdRegs _ (doUpdRegs _ (doUpdRegs ?a ?b)) = _]
+                  => rewrite (@doUpdRegs_DisjKey b a)
+                end.
+                ** unfold doUpdRegs at 2.
+                   cbn [findReg fst snd].
+                   rewrite String.eqb_refl, doUpdReg_doUpdRegs, doUpdReg_notIn.
+                   --- do 3 f_equal.
+                       rewrite <- list_arr_correct.
+                       destruct lt_dec; [destruct weq|]; auto.
+                       +++ exfalso.
+                           apply n.
+                           rewrite to_nat_of_nat; simpl.
+                           rewrite natToWord_wordToNat; reflexivity.
+                       +++ exfalso; contradiction.
+                   --- rewrite map_map; simpl; intro.
+                       rewrite in_map_iff in H; dest.
+                       repeat rewrite (append_cons "_" (natToHexStr _)) in H.
+                       repeat rewrite append_remove_prefix in H.
+                       apply natToHexStr_inj in H.
+                       rewrite in_seq in H1.
+                       lia.
+                ** intro; rewrite map_map; cbn [map fst].
+                   destruct (in_dec string_dec k
+                                    (map (fun x : nat => (name ++ "_" ++ natToHexStr x)%string)
+                                         (seq (S (wordToNat (val F1)))
+                                              (size - S (wordToNat (val F1)))))); auto.
+                   right; intro.
+                   inv H; [|inv H1].
+                   rewrite in_map_iff in i; dest.
+                   repeat rewrite append_remove_prefix in H.
+                   apply natToHexStr_inj in H.
+                   rewrite in_seq in H1.
+                   lia.
+             ++ rewrite Nat.add_0_l.
+                match goal with
+                | [ |- doUpdRegs _ (doUpdRegs _ (doUpdRegs ?a ?a)) = _]
+                    => rewrite (doUpdRegs_idemp a)
+                end.
+                ** rewrite oneUpdRegs_doUpdRegs, oneUpdRegs_notIn.
+                   --- rewrite doUpdRegs_DisjKey.
+                       +++ apply map_ext_in; intros.
+                           do 2 f_equal.
+                           repeat rewrite <- list_arr_correct.
+                           destruct lt_dec; auto.
+                           destruct weq; auto.
+                           exfalso.
+                           rewrite to_nat_of_nat in e.
+                           rewrite e, in_seq in H.
+                           simpl in H; destruct H.
+                           rewrite wordToNat_natToWord_eqn, Nat.mod_small in H; [lia|].
+                           apply (lt_le_trans _ size); auto.
+                           apply log2_up_pow2.
+                       +++ intro; repeat rewrite map_map; cbn [map fst].
+                           destruct (in_dec string_dec k
+                                            (map (fun x => (name ++ "_" ++ natToHexStr x)%string)
+                                                 (seq (S (wordToNat (val F1)))
+                                                      (size - S (wordToNat (val F1)))))); auto.
+                           left; intro.
+                           rewrite in_map_iff in *; dest; subst.
+                           rewrite in_seq in *.
+                           repeat rewrite append_remove_prefix in H.
+                           apply natToHexStr_inj in H.
+                           lia.
+                   --- rewrite map_map; cbn [fst]; intro.
+                       rewrite in_map_iff in *; dest; subst.
+                       rewrite in_seq in *.
+                       repeat rewrite append_remove_prefix in H.
+                       apply natToHexStr_inj in H.
+                       lia.
+                ** rewrite map_map.
+                   cbn [fst].
+                   apply NoDup_f.
           -- simpl; rewrite String.eqb_refl; reflexivity.
     - specialize (@impl_writeWb k _ _ val f (Nat.le_refl _)) as P.
       unfold impl_write, f, Impl.names, tag in *.
       rewrite map_map.
       apply P.
-  Admitted.
+  Qed.
 End Proofs.
