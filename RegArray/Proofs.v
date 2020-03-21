@@ -81,6 +81,14 @@ Local Definition SemAction_Effectless {k} o (a : ActionT type k)
     calls = nil /\
     retV = (evalExpr e).
 
+Local Definition SemAction_Effectful {k} o (a : ActionT type k)
+      (uces : RegsT * (MethsT * Expr type (SyntaxKind k))):=
+  forall reads upds' calls' retV,
+    SemAction o a reads upds' calls' retV ->
+    upds' = (fst uces) /\
+    calls' = (fst (snd uces)) /\
+    retV = evalExpr (snd (snd uces)).
+
 Lemma SemReturn':
   forall k (e1 e2 : Expr type (SyntaxKind k)),
     evalExpr e1 = evalExpr e2 ->
@@ -123,6 +131,37 @@ Proof.
     apply H0.
     constructor; simpl; auto.
     clear; induction l'; simpl; auto.
+Qed.
+
+Lemma gatherActions_effectful k_in (acts : list (ActionT type k_in)) :
+  forall k_out (f : list (Expr type (SyntaxKind k_in)) -> Expr type (SyntaxKind k_out))
+         o1 reads upds calls retV luce,
+    Forall2 (SemAction_Effectful o1) acts luce ->
+    (forall exprs exprs', Forall2 (fun x y => evalExpr x = evalExpr y) exprs exprs' ->
+                    evalExpr (f exprs) = evalExpr (f exprs')) ->
+    SemAction o1 (gatherActions acts (fun exprs => Return (f exprs))) reads upds calls retV ->
+    upds = concat (map fst luce) /\
+    calls = concat (map (fun x => fst (snd x)) luce) /\
+    retV = evalExpr (f (map (fun x => (snd (snd x))) luce)).
+Proof.
+  induction acts; intros; inv H; simpl in *.
+  - apply inversionSemAction in H1; dest; subst.
+    repeat split; auto.
+  - apply inversionSemAction in H1; dest; subst.
+    specialize (H4 _ _ _ _ H1); destruct y, p; dest; simpl in *; subst.
+    assert (forall exprs exprs',
+               Forall2 (fun x y => evalExpr x = evalExpr y) exprs
+                       exprs' ->
+               evalExpr ((fun l => f ((Var _ (SyntaxKind k_in) (evalExpr e)) :: l)) exprs) =
+               evalExpr ((fun l => f ((Var _ (SyntaxKind k_in) (evalExpr e)) :: l)) exprs')) as P.
+    { intros; apply H0.
+      constructor; auto. }
+    specialize (IHacts k_out (fun l => f ((Var _ (SyntaxKind k_in) (evalExpr e)) :: l))
+                       _ _ _  _ _ l' H6 P H2); dest; subst.
+    repeat split; auto.
+    apply H0; constructor; simpl; auto.
+    clear.
+    induction l'; constructor; auto.
 Qed.
 
 Lemma gatherActions_effectless' k_in (acts : list (ActionT type k_in)) :
@@ -178,6 +217,19 @@ Local Definition impl_read k size size' idx (f : nat -> string) :=
                        else Const type Default))
                  (tag (map f (seq O size))) as vals;
   Ret (Kor vals))%kami_action.
+
+Local Definition impl_write k size size' (writeRq : type (WriteRq (Nat.log2_up size') k))
+      (f : nat -> string) :=
+  (GatherActions map
+                 (fun '(i, reg) =>
+                  Read val : k <- reg;
+                  Write reg : k <-
+                  IF Const type $ (i)%word ==
+                     ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq) F1
+                  then ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq)
+                                  (FS F1)
+                  else Var type _ val; Retv)
+                 (tag (map f (seq O size))) as vals; Retv)%kami_action.
 
 Lemma MaybeReadevalCorrect k :
   forall (x y : Expr type (SyntaxKind (Maybe k))) (i : t 2),
@@ -346,6 +398,12 @@ Definition sparseList {A : Type} (def : A) (l : list A) (n size : nat) :=
 
 Definition sparseList' {A: Type} (def : A) (l : list A) (n : nat) :=
   sparseList def l n (length l).
+
+Definition replace_nth {A : Type} (l : list A) (n : nat) (val : A) :=
+  firstn n l ++ (match hd_error (skipn n l) with
+                 | None => nil
+                 | Some a => [val]
+                 end) ++ tl (skipn n l).
 
 Definition defList {A : Type} (def : A) size :=
   map (fun _ => def) (seq 0 size).
@@ -1028,13 +1086,632 @@ Fixpoint hexStrToNat' (s : string) (acc : nat) : nat :=
 
 Definition hexStrToNat (s : string) := hexStrToNat' s 0.
 
+Lemma decomposeGatherActions k_in (acts : list (ActionT type k_in)) :
+  forall k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out),
+  forall o reads upds calls ret,
+    SemAction o (GatherActions acts as vals; cont vals)%kami_action reads upds calls ret ->
+    exists (fl : list (RegsT * (RegsT * (MethsT * (type k_in))))) reads' upds' calls',
+      NoDup (map fst (concat (map (fun x => fst (snd x)) fl))) /\
+      DisjKey (concat (map (fun x => fst (snd x)) fl)) upds' /\ 
+      reads = concat (map (fun x => fst x) fl) ++ reads' /\
+      upds = concat (map (fun x => fst (snd x)) fl) ++ upds' /\
+      calls = concat (map (fun x => fst (snd (snd x))) fl) ++ calls' /\
+      Forall2 (fun a f => SemAction o a (fst f) (fst (snd f))
+                                    (fst (snd (snd f))) (snd (snd (snd f)))) acts fl /\
+      SemAction o (cont (map (fun x =>
+                                Var type (SyntaxKind k_in) (snd (snd (snd x)))) fl))
+                reads' upds' calls' ret.
+Proof.
+  induction acts; intros.
+  - exists nil, reads, upds, calls; simpl.
+    repeat split; auto.
+    + constructor.
+    + apply DisjKey_nil_l.
+  - simpl in H.
+    apply inversionSemAction in H; dest; subst.
+    specialize (IHacts _ _ _ _ _ _ _ H1); dest; subst.
+    exists ((x, (x0, (x1, x5)))::x6), x7, x8, x9; simpl; repeat split
+    ; try rewrite app_assoc; auto; rewrite DisjKey_app_split_r in H; dest.
+    + rewrite NoDup_app_DisjKey; repeat split; auto.
+      * apply (SemAction_NoDup_u H0).
+    + rewrite DisjKey_app_split_l; split; auto.
+Qed.
+
+Lemma gatherActionsWb_contWb k_in (acts : list (ActionT type k_in))
+      k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out) myRegs :
+  (forall exprs, ActionWb myRegs (cont exprs)) ->
+  (forall a,
+      In a acts ->
+      ActionWb myRegs a) ->
+  forall (f : list (Expr type (SyntaxKind k_in)) -> list (Expr type (SyntaxKind k_in))),
+    ActionWb myRegs (GatherActions acts as vals; cont (f vals))%kami_action.
+Proof.
+  induction acts; intros; simpl; auto.
+  unfold ActionWb; intros.
+  apply inversionSemAction in H3; dest; subst.
+  specialize (H0 _ (in_eq _ _)) as P.
+  specialize (P _ _ _ _ _ H1 H2 H4); dest; subst.
+  assert (forall a, In a acts -> ActionWb (getKindAttr x6) a) as P0.
+  { intros; apply H0; right; assumption. }
+  specialize (IHacts H P0 (fun x => f ((Var _ (SyntaxKind k_in)) x5 :: x))).
+  specialize (IHacts _ _ _ _ _ H1 H2 H5); dest.
+  split.
+  specialize (SubList_chain H1 H9 H6 (getKindAttr_map_fst _ _ H13)) as TMP; subst.
+  - exists x6; repeat split; auto.
+    + rewrite SubList_app_l_iff; split; auto.
+    + econstructor; eauto.
+  - rewrite map_app, SubList_app_l_iff; auto.
+Qed.
+
+Corollary gatherActionsWb_contWb_id k_in (acts : list (ActionT type k_in))
+      k_out (cont : list (Expr type (SyntaxKind k_in)) -> ActionT type k_out) myRegs :
+  (forall exprs, ActionWb myRegs (cont exprs)) ->
+  (forall a,
+      In a acts ->
+      ActionWb myRegs a) ->
+    ActionWb myRegs (GatherActions acts as vals; cont vals)%kami_action.
+Proof.
+  intros.
+  specialize (gatherActionsWb_contWb _ cont H H0 (fun x => x)); simpl; auto.
+Qed.
+
+Lemma impl_readWb k size size' idx f :
+  size <= size' ->
+  ActionWb (map (fun x => (f x, SyntaxKind k)) (seq 0 size))
+           (impl_read k size size' idx f).
+Proof.
+  unfold impl_read; intros.
+  apply gatherActionsWb_contWb_id; unfold ActionWb; intros.
+  - apply inversionSemAction in H2; dest; subst.
+    induction size.
+    + split; [|apply SubList_nil_l].
+      exists nil; repeat split; try apply SubList_nil_l.
+      econstructor; eauto.
+    + rewrite seq_eq, map_app in *.
+      rewrite SubList_app_l_iff in H1; dest.
+      specialize (IHsize ltac:(lia) H1); dest.
+      rewrite SubList_map_iff in H2; dest; simpl in *.
+      split; [|apply SubList_nil_l].
+      exists (x ++ x0); rewrite map_app.
+      repeat split.
+      * rewrite SubList_app_l_iff; split; auto.
+      * apply SubList_nil_l.
+      * apply f_equal2; auto.
+      * eapply SemActionExpand; eauto.
+        repeat intro; rewrite in_app_iff; auto.
+  - rewrite in_map_iff in H0; dest; subst; destruct x; simpl in *.
+    induction size.
+    + exfalso; simpl in H4; contradiction.
+    + unfold tag in *.
+      rewrite seq_eq, map_app in *.
+      rewrite tagApp, in_app_iff, map_length, seq_length, Nat.add_0_r in H4.
+      repeat (apply inversionSemAction in H3; dest; subst).
+      rewrite SubList_app_l_iff in H2; dest.
+      destruct H4.
+      * specialize (IHsize ltac:(lia) H4 H2); dest.
+        rewrite SubList_map_iff in H3; dest.
+        split.
+        -- exists (x0 ++ x1); repeat split.
+           ++ rewrite SubList_app_l_iff; split; auto.
+           ++ apply SubList_app_r; assumption.
+           ++ rewrite map_app.
+              apply f_equal2; auto.
+           ++ eapply SemActionExpand; eauto.
+              repeat intro; rewrite in_app_iff; auto.
+        -- apply SubList_nil_l.
+      * rewrite SubList_map_iff in H2, H3; dest.
+        assert (SubList [(s, existT _ (SyntaxKind k) x)] (x1 ++ x0)) as P.
+        { simpl in H4; destruct H4; [|contradiction].
+          inv H4; simpl in H5.
+          assert (SubList [(f n, existT (fullType type) (SyntaxKind k) x)] o) as P.
+          { repeat intro.
+            destruct H4; subst; auto.
+            inv H4. }
+          specialize (SubList_chain H1 H3 P) as P0.
+          rewrite <-fst_getKindAttr in P0.
+          setoid_rewrite H5 in P0.
+          rewrite (P0 ltac:(reflexivity)).
+          repeat intro; rewrite in_app_iff; right; assumption. }
+        split.
+        -- exists (x1 ++ x0); repeat split; auto.
+           ++ rewrite SubList_app_l_iff; auto.
+           ++ rewrite map_app.
+              apply f_equal2; auto.
+           ++ repeat econstructor.
+              apply (P _ (InSingleton _)).
+        -- apply SubList_nil_l.
+Qed.
+
+Lemma replace_nth_n_le {A : Type} (l : list A) n val :
+  length l <= n ->
+  replace_nth l n val = l.
+Proof.
+  intros.
+  unfold replace_nth.
+  rewrite firstn_all2, skipn_all2, hd_error_nil; auto.
+  repeat rewrite app_nil_r; reflexivity.
+Qed.
+
+Lemma replace_nth_n_lt {A : Type} val (l : list A):
+  forall n,
+  n < length l ->
+  replace_nth l n val = (map (fun m => if (m =? n)%nat
+                                       then val
+                                       else nth_default val l m) (seq 0 (length l))).
+Proof.
+  assert (forall l',
+             (map (fun m => nth_default val l' m) (seq 0 (length l'))) = l') as P.
+  { induction l'; simpl; auto.
+    unfold nth_default in *; simpl; f_equal.
+    rewrite <- seq_shift, map_map.
+    simpl; assumption. }
+  induction l; simpl; intros; [lia|].
+  rewrite <- seq_shift, map_map.
+  unfold replace_nth in *.
+  destruct n; simpl; f_equal.
+  - rewrite <- (P l) at 1; unfold nth_default; simpl; reflexivity.
+  - rewrite IHl; [|lia].
+    apply map_ext_in; intros; unfold nth_default; reflexivity.
+Qed.
+
+Lemma firstn_map {A B: Type} (l : list A) (f : A -> B):
+  forall n,
+    firstn n (map f l) = map f (firstn n l).
+Proof.
+  induction l; intros.
+  - repeat rewrite firstn_nil; reflexivity.
+  - destruct n; simpl; auto.
+    rewrite IHl; reflexivity.
+Qed.
+
+Lemma skipn_map {A B: Type} (l : list A) (f : A -> B):
+  forall n,
+    skipn n (map f l) = map f (skipn n l).
+Proof.
+  induction l; intros.
+  - repeat rewrite skipn_nil; reflexivity.
+  - destruct n; simpl; auto.
+Qed.
+
+Lemma firstn_seq_le n :
+  forall m size,
+    n <= size ->
+    firstn n (seq m size) = seq m n.
+Proof.
+  induction n; intros.
+  - rewrite firstn_O; reflexivity.
+  - destruct size;[lia|].
+    simpl; rewrite IHn; auto; lia.
+Qed.
+
+Lemma skipn_seq_le n :
+  forall m size,
+    n <= size ->
+    skipn n (seq m size) = seq (m + n) (size - n).
+Proof.
+  induction n; intros.
+  - rewrite Nat.add_0_r, Nat.sub_0_r; reflexivity.
+  - destruct size;[lia|].
+    simpl; rewrite IHn; try lia.
+    rewrite Nat.add_succ_comm; reflexivity.
+Qed.
+
+Corollary firstn_seq_le2 n :
+  forall m size,
+    size <= n ->
+    firstn n (seq m size) = seq m size.
+Proof.
+  intros; rewrite firstn_all2; auto.
+  rewrite seq_length; assumption.
+Qed.
+
+Corollary skipn_seq_le2 n :
+  forall m size,
+    size <= n ->
+    skipn n (seq m size) = nil.
+Proof.
+  intros; rewrite skipn_all2; auto.
+  rewrite seq_length; assumption.
+Qed.
+
+Lemma tl_map {A B : Type} (l : list A) (f : A -> B) :
+  tl (map f l) = map f (tl l).
+Proof. destruct l; auto. Qed.
+
+Lemma tl_seq n:
+  forall m,
+  tl (seq m n) = (seq (S m) (n - 1)).
+Proof.
+  destruct n; intros; auto.
+  simpl; rewrite Nat.sub_0_r; reflexivity.
+Qed.
+
+Lemma seq_extract1 n:
+  n <> 0 ->
+  forall m,
+    seq m n = m :: seq (S m) (n - 1).
+Proof.
+  destruct n; intros.
+  - contradiction.
+  - simpl; rewrite Nat.sub_0_r; reflexivity.
+Qed.
+
+Lemma impl_write_reduction k (l : list (type k)):
+  forall (f : nat -> string) size size' (writeRq : type (WriteRq (Nat.log2_up size') k)),
+    size <= size' ->
+    size <= length l ->
+    let idx := wordToNat (writeRq F1) in
+    let val := writeRq (FS F1) in
+    (forall n m, f n = f m -> n = m) ->
+    forall reads upds calls retV,
+      SemAction (valsToRegs k f (rev l))
+                (impl_write size size' writeRq f) reads upds calls retV ->
+      upds = (replace_nth (firstn size (valsToRegs k f (rev l)))
+                                  idx (f idx, existT _ (SyntaxKind k) val))
+      /\ calls = nil
+      /\ retV = WO.
+Proof.
+  intros.
+  assert (forall {A B : Type} (l : list A),
+             l = concat (map fst (map (fun (x : A) => ([x], ((nil : list B), (Var type (SyntaxKind Void) WO)))) l))) as P.
+  { clear.
+    induction l; simpl; auto.
+    rewrite IHl at 1; reflexivity. }
+  assert (forall {A B : Type} (l : list A),
+             nil = concat (map (fun x => fst (snd x))
+                               (map (fun (x : A) => ([x], ((nil : list B), (Var type (SyntaxKind Void) WO)))) l))) as P0.
+  { clear; intros; rewrite map_map.
+    induction l; auto. }
+  rewrite (P _ MethT (replace_nth _ _ _)).
+  rewrite (P0 _ MethT (replace_nth (firstn size (valsToRegs k f (rev l)))
+                                   idx (f idx, existT _ (SyntaxKind k) val))) at 1.
+  unfold impl_write in H2.
+  specialize
+    gatherActions_effectful with (f := (fun x => ((Const _ (k := Void) Default)))) as Q.
+  simpl in Q.
+  eapply Q; eauto.
+  clear P P0 H2 Q.
+  destruct (le_lt_dec size idx).
+  - rewrite replace_nth_n_le.
+    + unfold valsToRegs.
+      rewrite firstn_map, rev_length, map_map, firstn_seq_le; auto.
+      induction size.
+      * constructor.
+      * unfold tag.
+        rewrite seq_eq, map_app, tagApp.
+        repeat rewrite map_app.
+        apply Forall2_app.
+        -- apply IHsize; lia.
+        -- constructor; [|constructor].
+           unfold SemAction_Effectful; simpl.
+           intros.
+           apply inversionSemAction in H2; dest; subst.
+           apply inversionSemAction in H3; dest; subst.
+           apply inversionSemAction in H5; dest; subst.
+           split; simpl; auto.
+           rewrite in_map_iff in H2; dest.
+           apply inversionPair in H2; dest.
+           rewrite (H1 _ _ H2) in *; EqDep_subst.
+           destruct weq; auto.
+           exfalso.
+           rewrite map_length, seq_length, Nat.add_0_r in e.
+           assert (@wordToNat (Nat.log2_up size') ($ size) = wordToNat (writeRq F1)) as P.
+           { rewrite e; reflexivity. }
+           rewrite wordToNat_natToWord_eqn, Nat.mod_small in P.
+           ++ rewrite P in l0.
+              unfold idx in l0.
+              lia.
+           ++ apply (Nat.lt_le_trans _ size'); [lia|].
+              apply log2_up_pow2.
+    + rewrite firstn_length_le; auto.
+      unfold valsToRegs.
+      rewrite map_length, rev_length, seq_length; assumption.
+  - unfold valsToRegs.
+    unfold replace_nth.
+    rewrite firstn_map, skipn_map, firstn_seq_le, skipn_seq_le, Nat.add_0_l, tl_map, tl_seq;[| |rewrite rev_length]; try lia.
+    + assert (size - idx <> 0) as P by lia.
+      rewrite (seq_extract1 P idx).
+      cbn [map hd_error].
+      rewrite map_app, firstn_map, firstn_seq_le; [|lia].
+      repeat rewrite map_app; repeat rewrite map_map.
+      rewrite (@seq_app' 0 size idx), (@seq_app' (0 + idx) (size - idx) 1),
+      Nat.add_0_l, Nat.add_1_r; try lia.
+      unfold tag.
+      repeat rewrite map_app.
+      repeat rewrite tagApp.
+      repeat rewrite map_app.
+      rewrite Nat.add_0_r.
+      repeat rewrite map_length, seq_length, Nat.add_1_l.
+      cbn [seq].
+      repeat apply Forall2_app.
+      * assert (idx < size') as P0 by lia.
+        clear - P0 l0 H1.
+        enough (
+            forall n,
+              n <= idx ->
+              Forall2
+                (SemAction_Effectful (valsToRegs k f (rev l)))
+                (map
+                   (fun '(i, reg) =>
+                      (Read val : k <- reg;
+                       Write reg : k <-
+                       IF Const type $ (i)%word ==
+                          ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq)
+                                     F1
+         then ReadStruct (Var type (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq) (FS F1)
+         else Var type (SyntaxKind k) val; Retv)%kami_action) (tagFrom 0 (map f (seq 0 n))))
+                (map
+       (fun x =>
+          ([(f x,
+             existT _ (SyntaxKind k) (nth_default (evalConstT Default) (rev l) x))],
+           ([], Var _ (SyntaxKind Void) WO))) (seq 0 n))).
+        { apply H; auto. }
+        induction n.
+        -- constructor.
+        -- intros;
+             rewrite seq_eq, map_app, tagApp, map_length, seq_length, Nat.add_0_r, Nat.add_0_l.
+           repeat rewrite map_app.
+           apply Forall2_app.
+           ++ apply IHn; lia.
+           ++ constructor; [|constructor].
+              unfold SemAction_Effectful; intros.
+              apply inversionSemAction in H0; dest; subst.
+              apply inversionSemAction in H2; dest; subst.
+              apply inversionSemAction in H4; dest; subst.
+              split; auto; simpl.
+              unfold valsToRegs in H0.
+              rewrite in_map_iff in H0; dest.
+              apply inversionPair in H0; dest; EqDep_subst.
+              rewrite (H1 _ _ H0) in *.
+              destruct weq; simpl; auto.
+              exfalso.
+              assert (@wordToNat (Nat.log2_up size') ($ n) = wordToNat (writeRq F1)) as P.
+              { rewrite e; reflexivity. }
+              rewrite wordToNat_natToWord_eqn, Nat.mod_small in P.
+              ** unfold idx in H.
+                 rewrite P in H; lia.
+              ** apply (Nat.lt_le_trans _ size'); [lia|].
+                 apply log2_up_pow2.
+      * constructor; [|constructor].
+        repeat intro; simpl.
+        apply inversionSemAction in H2; dest; subst.
+        apply inversionSemAction in H3; dest; subst.
+        apply inversionSemAction in H5; dest; subst.
+        split; auto; simpl.
+        destruct weq; auto.
+        exfalso.
+        rewrite map_length, seq_length in n.
+        unfold idx in n.
+        rewrite natToWord_wordToNat in n; contradiction.
+      * simpl; rewrite map_length, seq_length.
+        assert (size - idx - 1 = size - (S idx)) as P0 by lia.
+        rewrite P0; clear P0 P.
+        enough (
+            forall n m,
+              idx < n ->
+              m + n <= size ->
+              Forall2
+                (SemAction_Effectful (valsToRegs k f (rev l)))
+                (map
+                   (fun '(i, reg) =>
+                      (Read val : k <- reg;
+                       Write reg : k <-
+                       IF Const type $ (i)%word ==
+                          ReadStruct (Var _ (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq)
+                                     F1
+         then ReadStruct (Var type (SyntaxKind (WriteRq (Nat.log2_up size') k)) writeRq) (FS F1)
+         else Var type (SyntaxKind k) val; Retv)%kami_action)
+                   (tagFrom n (map f (seq n m))))
+                (map
+                   (fun x =>
+                      ([(f x,
+                         existT _ (SyntaxKind k) (nth_default (evalConstT Default) (rev l) x))],
+                       ([], Var _ (SyntaxKind Void) WO))) (seq n m))) as P.
+        { unfold valsToRegs in P; apply P; lia. }
+        induction m; intros; [constructor|].
+        rewrite seq_eq, map_app, tagApp.
+        repeat rewrite map_app.
+        apply Forall2_app.
+        -- apply IHm; auto.
+           lia.
+        -- constructor; [|constructor].
+           repeat intro.
+           apply inversionSemAction in H4; dest; subst.
+           apply inversionSemAction in H5; dest; subst.
+           apply inversionSemAction in H7; dest; subst.
+           split; auto.
+           simpl.
+           unfold valsToRegs in H4.
+           rewrite in_map_iff in H4; dest.
+           apply inversionPair in H4; dest; EqDep_subst.
+           rewrite (H1 _ _ H4) in *.
+           destruct weq; simpl; auto.
+           exfalso.
+           rewrite map_length, seq_length in e.
+           assert (@wordToNat (Nat.log2_up size') $ (m + n) = wordToNat (writeRq F1)) as P.
+              { rewrite e; reflexivity. }
+              rewrite wordToNat_natToWord_eqn, Nat.mod_small in P.
+              ** unfold idx in H2.
+                 rewrite <- P in H2; lia.
+              ** apply (Nat.lt_le_trans _ size'); [lia|].
+                 apply log2_up_pow2.
+Qed.
+
+Lemma impl_writeWb k size size' writeRq f :
+  size <= size' ->
+  ActionWb (map (fun x => (f x, SyntaxKind k)) (seq 0 size))
+           (@impl_write k size size' writeRq f).
+Proof.
+  intro.
+  unfold impl_write.
+  apply  gatherActionsWb_contWb_id; repeat intro.
+  - apply inversionSemAction in H2; dest; subst.
+    induction size; split.
+    + exists nil; repeat split; try apply SubList_nil_l.
+      econstructor; eauto.
+    + apply SubList_nil_l.
+    + rewrite seq_eq, map_app, SubList_app_l_iff in H1; dest.
+      specialize (IHsize ltac:(lia) H1); dest.
+      apply inversionSemAction in H7; dest; subst.
+      simpl in H2.
+      specialize (H2 _ (InSingleton _)).
+      rewrite in_map_iff in H2; dest.
+      exists (x ++ [x0]).
+      repeat split.
+      * rewrite SubList_app_l_iff; split; auto.
+        repeat intro; inv H12; auto.
+      * apply SubList_nil_l.
+      * rewrite seq_eq; repeat rewrite map_app.
+        f_equal; auto; simpl.
+        rewrite H2; reflexivity.
+      * econstructor; eauto.
+    + apply SubList_nil_l.
+  - rewrite in_map_iff in H0; dest; subst.
+    destruct x.
+    apply inversionSemAction in H3; dest; subst.
+    apply inversionSemAction in H3; dest; subst.
+    apply inversionSemAction in H6; dest; subst.
+    induction size.
+    + exfalso.
+      inv H4.
+    + unfold tag in *.
+      rewrite seq_eq, map_app in *.
+      rewrite tagApp, in_app_iff, Nat.add_0_l, Nat.add_0_r in H4.
+      rewrite SubList_app_l_iff in H2; dest.
+      destruct H4.
+      * specialize (IHsize ltac:(lia) H4 H2); dest.
+        apply inversionSemAction in H11; dest; subst.
+        apply inversionSemAction in H12; dest; subst.
+        apply inversionSemAction in H15; dest; subst.
+        simpl in H6.
+        specialize (H6 _ (InSingleton _)).
+        rewrite in_map_iff in H6; dest.
+        split.
+        -- exists (x0 ++ [x2]); repeat split.
+           ++ rewrite SubList_app_l_iff; split; auto.
+              repeat intro; inv H19; auto.
+              inv H20.
+           ++ repeat intro; rewrite in_app_iff.
+              inv H19; [|inv H20].
+              inv H13; EqDep_subst.
+              left; exact H11.
+           ++ rewrite map_app; f_equal; auto.
+              simpl; rewrite H6; reflexivity.
+           ++ repeat econstructor.
+              ** rewrite in_app_iff.
+                 inv H13; EqDep_subst.
+                 left; exact H11.
+              ** rewrite map_app, in_app_iff.
+                 left; exact H12.
+              ** repeat intro.
+                 inv H19.
+        -- simpl.
+           apply SubList_app_r.
+           rewrite <- H10.
+           repeat intro; inv H19;[| inv H20].
+           exact H12.
+      * simpl in H4; destruct H4; [|contradiction].
+        rewrite map_length, seq_length in H4; inv H4.
+        rewrite SubList_map_iff in H2, H6; dest.
+        split.
+        -- exists (x0 ++ x1).
+           repeat split.
+           ++ rewrite SubList_app_l_iff; split; auto.
+           ++ repeat intro; inv H8; [| inv H9].
+              rewrite in_app_iff.
+              simpl in H7.
+              destruct x1; [discriminate|]; inv H7.
+              destruct x1; [|discriminate].
+              assert (SubList [(f n, existT (fullType type) (SyntaxKind k) x)] o) as P.
+              { repeat intro; inv H7; auto.
+                inv H8. }
+              specialize (SubList_chain H1 H6 P) as P0.
+              simpl in P0; rewrite H9 in P0.
+              rewrite P0; auto; right; left; rewrite H9; reflexivity.
+           ++ rewrite map_app; f_equal; auto.
+           ++ repeat econstructor.
+              ** rewrite in_app_iff.
+                 simpl in H7.
+                 destruct x1; [discriminate|]; inv H7.
+                 destruct x1; [|discriminate].
+                 assert (SubList [(f n, existT (fullType type) (SyntaxKind k) x)] o) as P.
+                 { repeat intro; inv H7; auto.
+                   inv H8. }
+                 specialize (SubList_chain H1 H6 P) as P0.
+                 simpl in P0; rewrite H9 in P0.
+                 rewrite P0; auto; right; left; rewrite H9; reflexivity.
+              ** rewrite map_app, in_app_iff.
+                 right; rewrite H7; simpl; auto.
+              ** repeat intro.
+                 inv H8.
+        -- simpl.
+           repeat intro; inv H8; [|inv H9].
+           rewrite in_app_iff; right; simpl; auto.
+Qed.
+
+Lemma doUpdRegs_idemp o :
+  NoDup (map fst o) ->
+  doUpdRegs o o = o.
+Proof.
+  induction o; auto; intros.
+  inv H; destruct a; simpl.
+  rewrite String.eqb_refl, doUpdRegs_cons_l, doUpdRegs_key_not_In, IHo; auto.
+  rewrite IHo; auto.
+  repeat intro; apply H2.
+  rewrite in_map_iff.
+  exists (s, v); auto.
+Qed.
+
+Lemma doUpdRegs_idemp' o o' :
+  o = o' ->
+  NoDup (map fst o) ->
+  doUpdRegs o o' = o'.
+Proof.
+  intros; subst; apply doUpdRegs_idemp; auto.
+Qed.
+
+Lemma split_seq :
+  forall start i size,
+    i < size ->
+    seq start size = (seq start i) ++ [start + i] ++ (seq (start + (S i)) (size - (S i))).
+Proof.
+  intros.
+  rewrite (@seq_app' start size i), (@seq_app' (start + i) (size - i) 1); try lia.
+  cbn.
+  assert (size - i - 1 = size - S i) as P by lia.
+  rewrite Nat.add_1_r, plus_n_Sm, P; reflexivity.
+Qed.
+
+Lemma replace_nth_map_seq {A : Type} (f : nat -> A) (val : A) :
+  forall start i size,
+    i < size ->
+    replace_nth (map f (seq start size)) i val =
+    (map f (seq start i)) ++ [val] ++ (map f (seq (start + (S i)) (size - (S i)))).
+Proof.
+  intros.
+  rewrite (split_seq start H); repeat rewrite map_app.
+  unfold replace_nth.
+  repeat rewrite firstn_app.
+  repeat rewrite skipn_app.
+  repeat rewrite firstn_map.
+  repeat rewrite skipn_map.
+  repeat rewrite map_length.
+  repeat rewrite seq_length.
+  rewrite diag; simpl.
+  rewrite (@firstn_seq_le i start i (Nat.le_refl _)),
+  (@skipn_seq_le i start i (Nat.le_refl _)),
+  diag, app_nil_r.
+  reflexivity.
+Qed.
+
 Section Proofs.
   Context `{Params : RegArray.Ifc.Params}.
   Record RegArrayCorrect (imp spec: RegArray.Ifc.Ifc): Type :=
   {
     regArrayRegs : list (Attribute FullKind);
     regArrayR : RegsT -> RegsT -> Prop;
-    readCorrect : forall idx, EffectfulRelation regArrayR (@read _ imp type idx) (@read _ spec type idx);
+    readCorrect : forall idx, EffectlessRelation regArrayR (@read _ imp type idx)
+                                                 (@read _ spec type idx);
     readWb : forall idx, ActionWb regArrayRegs (@read _ imp type idx);
     writeCorrect : forall val, EffectfulRelation regArrayR (@write _ imp type val) (@write _ spec type val);
     writeWb : forall val, ActionWb regArrayRegs (@write _ imp type val);
@@ -1044,61 +1721,258 @@ Section Proofs.
   Definition implRegArray := @Impl.impl Params.
   Definition specRegArray := @Spec.spec Params.
 
-  Variable arrayVal : (Fin.t size -> type k).
+  (*Variable arrayVal : (Fin.t size -> type k).*)
   Local Definition f := (fun i => name ++ "_" ++ natToHexStr i)%string.
-  Local Definition LocalRegs := valsToRegs k f (list_arr arrayVal).
-
-  (* Definition eqVals (r : RegT) (af : Attribute (type (Idx))) : Prop := *)
-  (*   r = (fst af, existT _ (SyntaxKind (Idx)) (snd af)). *)
+  (*Local Definition LocalRegs := valsToRegs k f (list_arr arrayVal).*)
 
   Record myRegArrayR (o_i o_s : RegsT) : Prop :=
     {
-      (* LocalRegs : RegsT; *)
-      (* ArrayReg : RegT; *)
-      (* RegListVals : list (type Idx); *)
-      (* arrayVal : (Fin.t size -> type k); *)
-      (* HLocalRegsSz : length LocalRegs = size; *)
-      (* HNameCorrect : forall n (pf : n < size), nth_error LocalRegs n *)
-      (*                                          = Some (nth_default "" Impl.names n, existT _ (SyntaxKind k) (arrayVal (of_nat_lt pf))); *)
+      LocalRegs : RegsT;
+      arrayVal : (Fin.t size -> type k);
+      LocalRegVal : LocalRegs = valsToRegs k f (list_arr arrayVal);
       Ho_iCorrect : o_i = LocalRegs;
       Ho_sCorrect : o_s = [(RegArray.Spec.arrayName,
                             existT _ (SyntaxKind (Array size k)) arrayVal)];
-      (* Ho_iNoDup : NoDup (map fst o_i); *)
     }.
       
   Ltac Record_destruct :=
     match goal with
     |[ H : myRegArrayR _ _ |- _] => destruct H
     end.
-  
-  Ltac extract_gatherActions' subRegs1 subRegs2:=
-    match goal with
-    | [ H : SemAction ?o (gatherActions (map ?f ?l) ?s) _ _ _ _ |- _]
-      => let HCont := fresh "H" in
-         let HBody := fresh "H" in
-         let P := fresh "H" in
-         assert (forall y, ActionWb (getKindAttr (subRegs1++subRegs2)) (s y)) as HCont
-         ; [ intros
-             ; eapply ActionWbExpand with (myRegs1 := getKindAttr subRegs2)
-              ;[ try sublist_sol 
-               | try (unfold ActionWb; intros; hyp_consumer1; basic_goal_consumer)]
-           | assert(forall t,
-                       fst t < size ->
-                       snd t = nth_default "" Impl.names (fst t) ->
-                       ActionWb (getKindAttr (subRegs1 ++ subRegs2)) (f t)) as HBody
-             ;[intros
-               ;eapply ActionWbExpand with (myRegs1 := getKindAttr subRegs1)
-               ;[ sublist_sol
-                | ]
-              |]
-         ]
-    end.
+
+  Local Lemma NoDup_f m n:
+    NoDup (map f (seq m n)).
+  Proof.
+    induction n; [constructor|].
+    rewrite seq_eq, map_app, NoDup_app_iff; repeat split; auto.
+    - repeat constructor; intro; inv H.
+    - repeat intro; inv H0; [|inv H1].
+      rewrite in_map_iff in H; dest.
+      unfold f in H; repeat rewrite append_remove_prefix in H.
+      rewrite in_seq in H0.
+      apply natToHexStr_inj in H.
+      lia.
+    - repeat intro; inv H; [|inv H1].
+      rewrite in_map_iff in H0; dest.
+      unfold f in H; repeat rewrite append_remove_prefix in H.
+      rewrite in_seq in H0.
+      apply natToHexStr_inj in H.
+      lia.
+  Qed.
   
   Goal RegArrayCorrect implRegArray specRegArray.
     econstructor 1 with (regArrayR := myRegArrayR)
                         (regArrayRegs := map (fun name => (name, SyntaxKind k)) Impl.names).
-    all : try red; unfold read, write, implRegArray, specRegArray, impl, spec,
+    all : unfold read, write, implRegArray, specRegArray, impl, spec,
                    Impl.impl, Impl.read, Impl.write,
-                   Spec.read, Spec.write, Utila.tag; intros; try Record_destruct; repeat split.
-  Admitted.
+                   Spec.read, Spec.write, Utila.tag; intros; try Record_destruct.
+    - red; intros; try Record_destruct.
+      assert (length (rev (list_arr arrayVal)) = size) as P.
+      { rewrite rev_length, <- list_arr_length; reflexivity. }
+      assert (forall n m, f n = f m -> n = m) as P0.
+      { unfold f; intros.
+        repeat rewrite append_remove_prefix in H.
+        apply natToHexStr_inj in H; assumption. }
+      specialize (impl_read_reduction (rev (list_arr arrayVal)) f) as P1.
+      rewrite P, rev_involutive in P1.
+      specialize (P1 idx P0 reads_i upds calls retval).
+      unfold impl_read in P1.
+      rewrite Ho_iCorrect, LocalRegVal in H0.
+      unfold Impl.names, valsToRegs in H0.
+      unfold f, tag in P1.
+      specialize (P1 H0); dest; subst.
+      repeat split; auto.
+      exists [(Spec.arrayName, existT _ (SyntaxKind (Array size k)) arrayVal)].
+      econstructor 5; eauto.
+      + constructor; reflexivity.
+      + econstructor; auto.
+        cbn [evalExpr].
+        rewrite <- list_arr_correct.
+        destruct lt_dec; auto.
+    - specialize (@impl_readWb k size size idx f (le_n _)) as P.
+      unfold impl_read, f in P.
+      unfold Impl.names.
+      rewrite map_map.
+      apply P.
+    - red; intros; try Record_destruct.
+      assert (length (rev (list_arr arrayVal)) = size) as P.
+      { rewrite rev_length, <- list_arr_length; reflexivity. }
+      assert (forall n m, f n = f m -> n = m) as P0.
+      { unfold f; intros.
+        repeat rewrite append_remove_prefix in H.
+        apply natToHexStr_inj in H; assumption. }
+      specialize (impl_write_reduction (rev (list_arr arrayVal)) f) as P1.
+      rewrite P, rev_involutive in P1.
+      rewrite Ho_iCorrect, LocalRegVal in H0.
+      unfold Impl.names, valsToRegs in H0.
+      unfold f, tag in P1.
+      specialize (P1 _ _ _ (Nat.le_refl _) (Nat.le_refl _) P0 _ _ _ _ H0); dest; subst.
+      do 2 eexists; split.
+      + repeat econstructor.
+        * repeat intro; inv H.
+      + destruct (le_lt_dec size (wordToNat (val F1))).
+        * econstructor 1 with (arrayVal := arrayVal).
+          -- reflexivity.
+          -- unfold valsToRegs, f.
+             rewrite <- list_arr_length, firstn_all2; [|rewrite map_length, seq_length; auto].
+             rewrite replace_nth_n_le; [|rewrite map_length, seq_length; auto].
+             apply doUpdRegs_idemp.
+             rewrite map_map; simpl.
+             clear - P0; induction size.
+             ++ constructor.
+             ++ rewrite seq_eq, map_app, NoDup_app_iff; repeat split; auto; repeat intro.
+                ** constructor; auto.
+                   constructor.
+                ** inv H0; [|inv H1].
+                   rewrite in_map_iff in H; dest.
+                   specialize (P0 _ _ H).
+                   rewrite in_seq in H0; subst; lia.
+                ** inv H; [|inv H1].
+                   rewrite in_map_iff in H0; dest.
+                   specialize (P0 _ _ H).
+                   rewrite in_seq in H0; subst; lia.
+          -- simpl; rewrite String.eqb_refl.
+             repeat f_equal.
+             apply functional_extensionality; intros.
+             destruct weq; simpl; auto.
+             exfalso.
+             specialize (fin_to_nat_bound x) as P1.
+             rewrite e, wordToNat_natToWord_eqn, Nat.mod_small in l; try lia.
+             apply (lt_le_trans _ size); auto.
+             apply log2_up_pow2.
+        * econstructor 1 with (arrayVal := (fun i =>
+                                              if getBool (weq (val F1) $ (proj1_sig (to_nat i)))
+                                              then val (FS F1)
+                                              else arrayVal i)).
+          -- reflexivity.
+          -- unfold valsToRegs, f.
+             rewrite <- list_arr_length, firstn_all2; [|rewrite map_length, seq_length; auto].
+             rewrite <- list_arr_length.
+             rewrite replace_nth_map_seq, Nat.add_0_l; auto.
+             rewrite (split_seq 0 l); repeat rewrite map_app.
+             repeat rewrite doUpdRegs_app_r; repeat rewrite doUpdRegs_app_l.
+             repeat apply f_equal2.
+             ++ match goal with
+                | [|- doUpdRegs _ (doUpdRegs ?a (doUpdRegs ?b ?c)) = _]
+                  => rewrite (@doUpdRegs_DisjKey c b);[rewrite (@doUpdRegs_DisjKey c a) |]
+                end.
+                ** rewrite doUpdRegs_idemp.
+                   --- apply map_ext_in; intros.
+                       rewrite in_seq in H.
+                       do 2 f_equal.
+                       repeat rewrite <-list_arr_correct.
+                       destruct lt_dec; auto.
+                       destruct weq; auto.
+                       exfalso.
+                       rewrite e, to_nat_of_nat, wordToNat_natToWord_eqn, Nat.mod_small in H;
+                         [simpl in H; lia|].
+                       simpl.
+                       apply (lt_le_trans _ size); auto.
+                       apply log2_up_pow2.
+                   --- rewrite map_map; simpl.
+                       apply NoDup_f.
+               ** repeat intro; rewrite map_map; simpl.
+                  destruct (string_dec
+                              (name ++ String "_" (natToHexStr (wordToNat (val F1)))) k).
+                  --- right; intro.
+                      rewrite in_map_iff in H; dest.
+                      rewrite <- H in e.
+                      repeat rewrite (append_cons "_" (natToHexStr _)) in e.
+                      repeat rewrite append_remove_prefix in e.
+                      apply natToHexStr_inj in e.
+                      rewrite in_seq in H1; lia.
+                  --- left; intro; destruct H; contradiction.
+               ** repeat intro; repeat rewrite map_map; simpl.
+                  destruct (in_dec string_dec k
+                                   (map (fun x => (name ++ String "_" (natToHexStr x))%string)
+                                        (seq 0 (wordToNat (val F1))))).
+                  --- left; intro.
+                      rewrite in_map_iff in i, H; dest.
+                      rewrite <- H in H2.
+                      repeat rewrite (append_cons "_" (natToHexStr _)) in H2.
+                      repeat rewrite append_remove_prefix in H2.
+                      apply natToHexStr_inj in H2.
+                      rewrite in_seq in *.
+                      lia.
+                  --- right; assumption.
+             ++ cbn [map Nat.add].
+                match goal with
+                | [|- doUpdRegs _ (doUpdRegs _ (doUpdRegs ?a ?b)) = _]
+                  => rewrite (@doUpdRegs_DisjKey b a)
+                end.
+                ** unfold doUpdRegs at 2.
+                   cbn [findReg fst snd].
+                   rewrite String.eqb_refl, doUpdReg_doUpdRegs, doUpdReg_notIn.
+                   --- do 3 f_equal.
+                       rewrite <- list_arr_correct.
+                       destruct lt_dec; [destruct weq|]; auto.
+                       +++ exfalso.
+                           apply n.
+                           rewrite to_nat_of_nat; simpl.
+                           rewrite natToWord_wordToNat; reflexivity.
+                       +++ exfalso; contradiction.
+                   --- rewrite map_map; simpl; intro.
+                       rewrite in_map_iff in H; dest.
+                       repeat rewrite (append_cons "_" (natToHexStr _)) in H.
+                       repeat rewrite append_remove_prefix in H.
+                       apply natToHexStr_inj in H.
+                       rewrite in_seq in H1.
+                       lia.
+                ** intro; rewrite map_map; cbn [map fst].
+                   destruct (in_dec string_dec k
+                                    (map (fun x : nat => (name ++ "_" ++ natToHexStr x)%string)
+                                         (seq (S (wordToNat (val F1)))
+                                              (size - S (wordToNat (val F1)))))); auto.
+                   right; intro.
+                   inv H; [|inv H1].
+                   rewrite in_map_iff in i; dest.
+                   repeat rewrite append_remove_prefix in H.
+                   apply natToHexStr_inj in H.
+                   rewrite in_seq in H1.
+                   lia.
+             ++ rewrite Nat.add_0_l.
+                match goal with
+                | [ |- doUpdRegs _ (doUpdRegs _ (doUpdRegs ?a ?a)) = _]
+                    => rewrite (doUpdRegs_idemp a)
+                end.
+                ** rewrite oneUpdRegs_doUpdRegs, oneUpdRegs_notIn.
+                   --- rewrite doUpdRegs_DisjKey.
+                       +++ apply map_ext_in; intros.
+                           do 2 f_equal.
+                           repeat rewrite <- list_arr_correct.
+                           destruct lt_dec; auto.
+                           destruct weq; auto.
+                           exfalso.
+                           rewrite to_nat_of_nat in e.
+                           rewrite e, in_seq in H.
+                           simpl in H; destruct H.
+                           rewrite wordToNat_natToWord_eqn, Nat.mod_small in H; [lia|].
+                           apply (lt_le_trans _ size); auto.
+                           apply log2_up_pow2.
+                       +++ intro; repeat rewrite map_map; cbn [map fst].
+                           destruct (in_dec string_dec k
+                                            (map (fun x => (name ++ "_" ++ natToHexStr x)%string)
+                                                 (seq (S (wordToNat (val F1)))
+                                                      (size - S (wordToNat (val F1)))))); auto.
+                           left; intro.
+                           rewrite in_map_iff in *; dest; subst.
+                           rewrite in_seq in *.
+                           repeat rewrite append_remove_prefix in H.
+                           apply natToHexStr_inj in H.
+                           lia.
+                   --- rewrite map_map; cbn [fst]; intro.
+                       rewrite in_map_iff in *; dest; subst.
+                       rewrite in_seq in *.
+                       repeat rewrite append_remove_prefix in H.
+                       apply natToHexStr_inj in H.
+                       lia.
+                ** rewrite map_map.
+                   cbn [fst].
+                   apply NoDup_f.
+          -- simpl; rewrite String.eqb_refl; reflexivity.
+    - specialize (@impl_writeWb k _ _ val f (Nat.le_refl _)) as P.
+      unfold impl_write, f, Impl.names, tag in *.
+      rewrite map_map.
+      apply P.
+  Qed.
 End Proofs.
