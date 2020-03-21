@@ -31,7 +31,7 @@ Section Impl.
 
   Local Definition canClear ty: ActionT ty Bool :=
     Read clearOutstanding: Bit lgSize <- clearOutstandingName;
-    Ret (#clearOutstanding != $0).
+    Ret (#clearOutstanding == $0).
 
   Local Definition clear ty: ActionT ty Void :=
     LETA _ <- Fifo.Ifc.flush fifo;
