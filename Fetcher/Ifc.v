@@ -65,7 +65,7 @@ Section Ifc.
       deq: forall {ty}, ActionT ty Bool;
       first: forall {ty}, ActionT ty (Maybe OutRes);
 
-      clearTop: forall {ty}, ActionT ty Void;
+      canClear: forall {ty}, ActionT ty Bool;
       clear: forall {ty}, ActionT ty Void;
 
       notCompleteDeqRule: forall {ty}, ActionT ty Void;

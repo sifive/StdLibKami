@@ -17,6 +17,7 @@ Section Impl.
 
   Local Definition topRegName := (Fetcher.Ifc.name ++ ".topReg")%string.
   Local Definition outstandingName := (Fetcher.Ifc.name ++ ".outstanding")%string.
+  Local Definition clearOutstandingName := (Fetcher.Ifc.name ++ ".clearOutstanding")%string.
 
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
@@ -28,13 +29,16 @@ Section Impl.
     LETA numFree <- Fifo.Ifc.numFree fifo;
     Ret (#outstanding < #numFree).
 
-  Local Definition clearTop ty: ActionT ty Void :=
-    Write topRegName: TopEntry <- $$(getDefaultConst TopEntry);
-    Retv.
+  Local Definition canClear ty: ActionT ty Bool :=
+    Read clearOutstanding: Bit lgSize <- clearOutstandingName;
+    Ret (#clearOutstanding != $0).
 
   Local Definition clear ty: ActionT ty Void :=
     LETA _ <- Fifo.Ifc.flush fifo;
-    clearTop _.
+    Read outstanding: Bit lgSize <- outstandingName;
+    Write clearOutstandingName: Bit lgSize <- #outstanding;
+    Write topRegName: TopEntry <- $$(getDefaultConst TopEntry);
+    Retv.
 
   Local Definition isNextAddr ty (topAddr: ShortVAddr @# ty) (ftopAddr: VAddr @# ty) :=
     (topAddr + $1) == (ZeroExtendTruncMsb (vAddrSz - 2) ftopAddr).
@@ -61,8 +65,8 @@ Section Impl.
   Local Definition isAligned ty (vaddr: VAddr @# ty) := ZeroExtendTruncLsb 2 vaddr == $0.
 
   Local Definition transferRule ty: ActionT ty Void :=
-    Read top: TopEntry <- topRegName;
     LETA isEmp: Bool <- @Fifo.Ifc.isEmpty _ fifo _;
+    Read top: TopEntry <- topRegName;
     System [
       DispString _ "[Fetcher.transfer] top: ";
       DispHex #top;
@@ -100,7 +104,10 @@ Section Impl.
        DispHex #res;
        DispString _ "\n"
     ];
-    LETA _ <- @Fifo.Ifc.enq _ fifo _ res;
+    Read clearOutstanding: Bit lgSize <- clearOutstandingName;
+    If #clearOutstanding == $0
+    then (LETA _ <- @Fifo.Ifc.enq _ fifo _ res; Retv)
+    else (Write clearOutstandingName : Bit lgSize <- #clearOutstanding - $1; Retv);
     Read outstanding: Bit (Nat.log2_up size) <- outstandingName;
     Write outstandingName <- #outstanding - $1;
     Retv.
@@ -217,10 +224,10 @@ Section Impl.
 
   Local Definition regs
     := (makeModule_regs
-         (Register topRegName : TopEntry <- Default)%kami) ++
-       (makeModule_regs
-         (Register outstandingName : Bit lgSize <- Default)%kami) ++
-       (@Fifo.Ifc.regs _ fifo).
+          ((Register topRegName : TopEntry <- Default)
+             ++ (Register outstandingName : Bit lgSize <- Default)
+             ++ (Register clearOutstandingName : Bit lgSize <- Default))%kami ++
+       (@Fifo.Ifc.regs _ fifo)).
 
   Definition impl: Ifc := {| Fetcher.Ifc.regs := regs;
                              Fetcher.Ifc.regFiles := Fifo.Ifc.regFiles fifo;
@@ -229,7 +236,7 @@ Section Impl.
                              Fetcher.Ifc.callback := callback;
                              Fetcher.Ifc.deq := deq;
                              Fetcher.Ifc.first := first;
-                             Fetcher.Ifc.clearTop := clearTop;
+                             Fetcher.Ifc.canClear := canClear;
                              Fetcher.Ifc.clear := clear;
                              Fetcher.Ifc.notCompleteDeqRule := notCompleteDeqRule;
                              Fetcher.Ifc.transferRule := transferRule; |}.
