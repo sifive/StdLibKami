@@ -17,20 +17,10 @@ Section Ifc.
   Context {params: Params}.
 
   Definition VAddr    := Bit vAddrSz.
-  Definition ShortVAddr := Bit (vAddrSz - 2).
   Definition CompInst := Bit compInstSz.
   Definition InstSz   := compInstSz + compInstSz.
   Definition Inst     := Bit InstSz.
 
-  Definition TopEntry: Kind
-    := STRUCT_TYPE {
-         "vaddr"  :: ShortVAddr;
-         "immRes" :: immResK;
-         "error"  :: finalErrK;
-         "upper"  :: Maybe CompInst;
-         "lower"  :: Maybe CompInst
-       }.
-  
   Definition OutReq := STRUCT_TYPE { "inReq" :: inReqK;
                                      "vaddr" :: VAddr }.
 

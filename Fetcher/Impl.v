@@ -5,6 +5,17 @@ Require Import StdLibKami.Fetcher.Ifc.
 Section Impl.
   Context {ifcParams: Params}.
       
+  Local Definition ShortVAddr := Bit (vAddrSz - 2).
+
+  Local Definition TopEntry: Kind
+    := STRUCT_TYPE {
+         "vaddr"  :: ShortVAddr;
+         "immRes" :: immResK;
+         "error"  :: finalErrK;
+         "upper"  :: Maybe CompInst;
+         "lower"  :: Maybe CompInst
+       }.
+
   Local Instance fifoParams
     :  Fifo.Ifc.Params
     := {|
@@ -100,7 +111,8 @@ Section Impl.
     Write outstandingName <- #outstanding + IF #retval then $1 else $0;
     Ret #retval.
 
-  Local Definition isStraddle ty (top: TopEntry @# ty) := !(top @% "lower" @% "valid") && !isCompressed (top @% "upper" @% "data").
+  Local Definition isStraddle ty (top: TopEntry @# ty) :=
+    !(top @% "lower" @% "valid") && !isCompressed (top @% "upper" @% "data").
 
   Local Definition first ty: ActionT ty (Maybe OutRes) :=
     Read top: TopEntry <- topRegName;
@@ -112,7 +124,9 @@ Section Impl.
            
     LET retAddr: VAddr <-
       (IF isImmErr (#top @% "immRes") || isFinalErr (#top @% "error")
-       then toVAddr (#top @% "vaddr")
+       then (IF #top @% "lower" @% "valid"
+             then toVAddr (#top @% "vaddr")
+             else (toVAddr (#top @% "vaddr")) + $2)
        else (IF #top @% "lower" @% "valid"
              then toVAddr (#top @% "vaddr")
              else (IF #upperTopCompressed
@@ -136,20 +150,17 @@ Section Impl.
                                   then $$ true
                                   else $$ false));
     
-    LET isErrUpper: Bool <- (IF #straddle
-                             then (IF !(isImmErr (#top @% "immRes") || (isFinalErr (#top @% "error")))
-                                   then $$ true
-                                   else $$ false)
-                             else $$false);
+    LET pickFifo: Bool <- (IF #straddle
+                           then !(isImmErr (#top @% "immRes") || (isFinalErr (#top @% "error")))
+                           else $$false);
 
     LET ret: OutRes <- STRUCT { "notComplete?" ::= #notComplete;
                                 "vaddr" ::= #retAddr;
-                                "immRes" ::= (IF #isErrUpper then #ftop @% "immRes" else #top @% "immRes");
-                                "error" ::= (IF #isErrUpper then #ftop @% "error" else #top @% "error");
+                                "immRes" ::= (IF #pickFifo then #ftop @% "immRes" else #top @% "immRes");
+                                "error" ::= (IF #pickFifo then #ftop @% "error" else #top @% "error");
                                 "compressed?" ::= isCompressed (UniBit (TruncLsb compInstSz compInstSz) #retInst);
-                                "errUpper?" ::= #isErrUpper;
+                                "errUpper?" ::= #pickFifo;
                                 "inst"  ::= #retInst};
-    
     Ret (STRUCT { "valid" ::= #top @% "upper" @% "valid";
                   "data" ::= #ret}: Maybe OutRes @# ty).
 
