@@ -70,8 +70,9 @@ Section Impl.
     Write enqPtrName: Bit (lgSize + 1) <- $0;
     Retv.
 
-  Local Definition regs: list RegInitT := makeModule_regs ( Register deqPtrName: Bit (lgSize + 1) <- Default ++
-                                                            Register enqPtrName: Bit (lgSize + 1) <- Default )%kami
+  Local Definition regs: list RegInitT := makeModule_regs (
+                                          Register deqPtrName: Bit (lgSize + 1) <- Default ++
+                                          Register enqPtrName: Bit (lgSize + 1) <- Default )%kami
                                                           ++ RegArray.Ifc.regs regArray.
 
   Definition impl: Ifc :=
