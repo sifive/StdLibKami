@@ -1,24 +1,19 @@
 Require Import Kami.AllNotations.
-Require Import StdLibKami.Fifo.Ifc.
-Section Freelist.
-  Class FreeListParams
-    := {
-         name  : string;
-         tagSz : nat;
-       }.
 
-  Section freelistParams.
-    Context {freeListParams : FreeListParams}.
+Section Ifc.
+  Class Params := { name : string;
+                    size : nat;
+                    lgSize := Nat.log2_up size }.
+  
+  Context {params : Params}.
 
-    Record FreeList: Type :=
-      {
-        regs: list RegInitT;
-        regFiles: list RegFileBase;
-        length: nat;
-        initialize: forall {ty}, ActionT ty Void;
-        nextToAlloc: forall {ty}, ActionT ty (Maybe (Bit tagSz));
-        alloc: forall {ty}, ty (Bit tagSz) -> ActionT ty Bool;
-        free: forall {ty}, ty (Bit tagSz) -> ActionT ty Void;
-      }.
-  End freelistParams.
-End Freelist.
+  Record Ifc: Type :=
+    {
+      regs: list RegInitT;
+      regFiles: list RegFileBase;
+      initialize: forall {ty}, ActionT ty Void;
+      nextToAlloc: forall {ty}, ActionT ty (Maybe (Bit lgSize));
+      alloc: forall {ty}, ty (Bit lgSize) -> ActionT ty Bool;
+      free: forall {ty}, ty (Bit lgSize) -> ActionT ty Void;
+    }.
+End Ifc.

@@ -1,84 +1,77 @@
-(*
-  Routes multiple concurrent memory requests from Arbiter clients
-  to a device router that can only accept one request at a time
-  and routes the response callback to the correct client response
-  handler.
-*)
 Require Import Kami.AllNotations.
-Require Import StdLibKami.FreeList.Ifc.
 Require Import List.
 
-Section Arbiter.
-  Open Scope kami_expr_scope.
-
-  Record ArbiterClient (reqK resK : Kind)
-    := {
-         clientTagSz : nat;
-         clientTagK := Bit clientTagSz;
-         clientReqK
-           := STRUCT_TYPE {
-                "tag" :: clientTagK;
-                "req" :: reqK
-              };
-         clientResK
-           := STRUCT_TYPE {
-                "tag"  :: clientTagK;
-                "resp" :: Maybe resK
-              };
-         clientHandleRes
-           :  forall {ty}, ty clientResK -> ActionT ty Void
+Section Ifc.
+  Record Client (outResK : Kind)
+    := { clientTagSz : nat;
+         clientResK := STRUCT_TYPE {
+                           "tag" :: Bit clientTagSz;
+                           "res" :: outResK
+                         };
+         clientHandleRes : forall {ty}, ty clientResK -> ActionT ty Void
        }.
 
-  Class ArbiterParams :=
+  Record Clients := { outResK: Kind;
+                      clientList: list (Client outResK) }.
+
+  Class Params :=
     {
       name : string;
-      reqK : Kind;   (* request sent to a memory device - specifically MemDeviceReq *)
-      respK : Kind;  (* data returned by a memory device - specifically Data. *)
-      immResK : Kind; (* immediate response from a memory device - specicially Maybe MemErrorPkt. *)
-      numTransactions: nat;
-      clients : list (ArbiterClient reqK respK)
+      inReqK : Kind;
+      immResK : Kind;
+      isError : forall {ty}, immResK @# ty -> Bool @# ty;
     }.
 
-  Section withParams.
-    Context `{ArbiterParams}.
+  Context {params: Params}.
+  Context (clients : Clients).
 
-    Definition numClients := length clients.
+  Definition numClients := length (clientList clients).
 
-    Definition transactionTagSz := Nat.log2_up numTransactions.
+  Definition clientIdSz := Nat.log2_up numClients.
+  Definition ClientId := Bit clientIdSz.
 
-    Definition TransactionTag: Kind := Bit transactionTagSz.
+  Definition maxClientTagSz
+    := fold_left Nat.max
+         (map
+           (fun client : Client _
+             => clientTagSz client)
+           (clientList clients))
+         0.
 
-    Definition ArbiterRouterReq
-      := STRUCT_TYPE {
-           "tag" :: TransactionTag;
-           "req" :: reqK
-         }.
+  Definition MaxClientTag := Bit maxClientTagSz.
 
-    (* TODO: LLEE: for later - remove the Maybe from respK in all stdlibkami components. *)
-    Definition ArbiterRouterRes
-      := STRUCT_TYPE {
-           "tag" :: TransactionTag;
-           "resp" :: Maybe respK
-         }.
+  Definition Tag
+    := STRUCT_TYPE {
+         "id"  :: ClientId;
+         "tag" :: MaxClientTag
+       }.
+  
+  Definition ClientReq clientTagSz := STRUCT_TYPE {
+                                          "tag" :: Bit clientTagSz;
+                                          "req" :: inReqK
+                                        }.
+  
+  Definition OutReq := STRUCT_TYPE {
+                           "tag" :: Tag;
+                           "req" :: inReqK
+                         }.
 
-    Class Arbiter
-      := {
-           regs : list RegInitT;
-           regFiles : list RegFileBase;
+  Definition InRes := STRUCT_TYPE {
+                          "tag" :: Tag;
+                          "res" :: (outResK clients)
+                        }.
 
-           sendReq
-             (isError : forall {ty}, immResK @# ty -> Bool @# ty)
-             (routerSendReq 
-               : forall {ty},
-                 ty ArbiterRouterReq ->
-                 ActionT ty (Maybe immResK))
-             : forall (clientId : Fin.t numClients) {ty},
-               ty (clientReqK (nth_Fin clients clientId)) ->
-               ActionT ty (Maybe immResK);
+  Record Ifc
+    := {
+         regs : list RegInitT;
+         regFiles : list RegFileBase;
 
-           memCallback : forall {ty}, ty ArbiterRouterRes -> ActionT ty Void;
+         sendReq (send : forall {ty}, ty OutReq -> ActionT ty (Maybe immResK))
+         : forall (clientId : Fin.t numClients) {ty},
+             ty (ClientReq (clientTagSz (nth_Fin (clientList clients) clientId))) -> ActionT ty (Maybe immResK);
 
-           arbiterRule : forall {ty}, ActionT ty Void;
-         }.
-  End withParams.
-End Arbiter.
+         callback : forall {ty}, ty InRes -> ActionT ty Void;
+
+         resetRule : forall {ty}, ActionT ty Void;
+       }.
+End Ifc.
