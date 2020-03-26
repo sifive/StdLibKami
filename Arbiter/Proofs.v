@@ -9,40 +9,40 @@ Require Import Coq.Logic.EqdepFacts.
 Require Import Kami.GallinaModules.Relations.
 
 
-Record FreeListCorrect {len} (imp spec: @FreeList.Ifc.Ifc len): Type :=
-  {
-    freeListRegs: list (Attribute FullKind);
-    freeListR: RegsT -> RegsT -> Prop;
-    nextToAllocCorrect: EffectlessRelation freeListR (@nextToAlloc _ imp type) (@nextToAlloc _ spec type);
-    nextToAllocWb: ActionWb freeListRegs (@nextToAlloc _ imp type);
-    allocCorrect: forall allocand, EffectfulRelation freeListR (@alloc _ imp type allocand) (@alloc _ spec type allocand);
-    allocWb: forall allocand, ActionWb freeListRegs (@alloc _ imp type allocand);
-    freeCorrect: forall input, EffectfulRelation freeListR (@free _ imp type input) (@free _ spec type input);
-    freeWb: forall input, ActionWb freeListRegs (@free _ imp type input);
-  }.
+(* Record FreeListCorrect {len} (imp spec: @FreeList.Ifc.Ifc len): Type := *)
+(*   { *)
+(*     freeListRegs: list (Attribute FullKind); *)
+(*     freeListR: RegsT -> RegsT -> Prop; *)
+(*     nextToAllocCorrect: EffectlessRelation freeListR (@nextToAlloc _ imp type) (@nextToAlloc _ spec type); *)
+(*     nextToAllocWb: ActionWb freeListRegs (@nextToAlloc _ imp type); *)
+(*     allocCorrect: forall allocand, EffectfulRelation freeListR (@alloc _ imp type allocand) (@alloc _ spec type allocand); *)
+(*     allocWb: forall allocand, ActionWb freeListRegs (@alloc _ imp type allocand); *)
+(*     freeCorrect: forall input, EffectfulRelation freeListR (@free _ imp type input) (@free _ spec type input); *)
+(*     freeWb: forall input, ActionWb freeListRegs (@free _ imp type input); *)
+(*   }. *)
 
-Record ArbiterCorrect `{Arbiter.Ifc.Params} clients (imp spec: Arbiter.Ifc.Ifc clients): Type :=
-  {
-    arbiterRegs: list (Attribute FullKind);
-    outerRegs : list (Attribute FullKind);
-    arbiterR: RegsT -> RegsT -> Prop;
-    sendReqCorrect: forall 
-        (req : forall ty : Kind -> Type, ty (OutReq clients) -> ActionT ty (Maybe immResK)),
-        (forall reqa, ActionWb outerRegs (@req type reqa)) ->
-        forall cid creqa , EffectfulRelation arbiterR (@sendReq _ _ imp req cid type creqa) (@sendReq _ _ spec req cid type creqa);
-    sendReqWb: forall 
-        (req : forall ty : Kind -> Type, ty (OutReq clients) -> ActionT ty (Maybe immResK)),
-        (forall reqa, ActionWb outerRegs (@req type reqa)) ->
-        forall cid creqa, ActionWb arbiterRegs (@sendReq _ _ imp req cid type creqa);
-    memCallbackCorrect:
-        (forall (reqK : Kind) (ac : Client reqK) cr, ActionWb outerRegs (@clientHandleRes reqK  ac type cr)) ->
-        forall resp, EffectfulRelation arbiterR (@callback _ _ imp type resp) (@callback _ _ spec type resp);
-    memCallbackWb: 
-      (forall (reqK resK : Kind) (ac : Client reqK) cr, ActionWb outerRegs (@clientHandleRes reqK ac type cr)) ->
-      forall resp, ActionWb arbiterRegs (@callback _ _ imp type resp);
-    (* ruleCorrect: EffectfulRelation arbiterR (@arbiterResetRule _ imp type) (@arbiterResetRule _ spec type); *)
-    (* ruleWb: ActionWb arbiterRegs (@arbiterResetRule _ imp type); *)
-  }.
+(* Record ArbiterCorrect `{Arbiter.Ifc.Params} clients (imp spec: Arbiter.Ifc.Ifc clients): Type := *)
+(*   { *)
+(*     arbiterRegs: list (Attribute FullKind); *)
+(*     outerRegs : list (Attribute FullKind); *)
+(*     arbiterR: RegsT -> RegsT -> Prop; *)
+(*     sendReqCorrect: forall  *)
+(*         (req : forall ty : Kind -> Type, ty (OutReq clients) -> ActionT ty (Maybe immResK)), *)
+(*         (forall reqa, ActionWb outerRegs (@req type reqa)) -> *)
+(*         forall cid creqa , EffectfulRelation arbiterR (@sendReq _ _ imp req cid type creqa) (@sendReq _ _ spec req cid type creqa); *)
+(*     sendReqWb: forall  *)
+(*         (req : forall ty : Kind -> Type, ty (OutReq clients) -> ActionT ty (Maybe immResK)), *)
+(*         (forall reqa, ActionWb outerRegs (@req type reqa)) -> *)
+(*         forall cid creqa, ActionWb arbiterRegs (@sendReq _ _ imp req cid type creqa); *)
+(*     memCallbackCorrect: *)
+(*         (forall (reqK : Kind) (ac : Client reqK) cr, ActionWb outerRegs (@clientHandleRes reqK  ac type cr)) -> *)
+(*         forall resp, EffectfulRelation arbiterR (@callback _ _ imp type resp) (@callback _ _ spec type resp); *)
+(*     memCallbackWb:  *)
+(*       (forall (reqK resK : Kind) (ac : Client reqK) cr, ActionWb outerRegs (@clientHandleRes reqK ac type cr)) -> *)
+(*       forall resp, ActionWb arbiterRegs (@callback _ _ imp type resp); *)
+(*     (* ruleCorrect: EffectfulRelation arbiterR (@arbiterResetRule _ imp type) (@arbiterResetRule _ spec type); *) *)
+(*     (* ruleWb: ActionWb arbiterRegs (@arbiterResetRule _ imp type); *) *)
+(*   }. *)
 
 (*
 Section Proofs.

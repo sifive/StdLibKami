@@ -35,28 +35,35 @@ Section Impl.
          as ret;
        Ret #ret.
 
-  Local Definition callback
-    (ty: Kind -> Type)
-    (res: ty (InRes clients))
-    :  ActionT ty Void
-    := LET clientIdTag <- #res @% "tag";
-       GatherActions
-         (map
-           (fun (clientId: Fin.t (numClients clients))
-             => let client: Client _ := nth_Fin (clientList clients) clientId in 
-                If $(proj1_sig (Fin.to_nat clientId)) == (#clientIdTag @% "id")
-                  then
-                    LET clientRes : clientResK client <- STRUCT {
-                                                             "tag"  ::= ZeroExtendTruncLsb (clientTagSz client)
-                                                                                           (#clientIdTag @% "tag");
-                                                             "res" ::= #res @% "res"
-                                                           };
-                    clientHandleRes client clientRes;
-                Retv)
-           (getFins (numClients clients)))
-         as _;
-       Retv.
-
+  Local Definition hasResps
+        (first: forall {ty}, ActionT ty (Maybe (InRes clients)))
+        (clientId: Fin.t (numClients clients))
+        (ty: Kind -> Type)
+    : ActionT ty Bool
+    := LETA res <- first;
+       let client: Client _ := nth_Fin (clientList clients) clientId in
+       Ret (#res @% "valid" && $(proj1_sig (Fin.to_nat clientId)) == #res @% "data" @% "tag" @% "id").
+         
+  Local Definition getResps
+        (first: forall {ty}, ActionT ty (Maybe (InRes clients)))
+        (deq: forall {ty}, ActionT ty (Maybe (InRes clients)))
+        (clientId: Fin.t (numClients clients))
+        (ty: Kind -> Type)
+    : ActionT ty (Maybe (clientResK (nth_Fin (clientList clients) clientId)))
+    := LETA res <- first;
+       let client: Client _ := nth_Fin (clientList clients) clientId in
+       If (#res @% "valid" && $(proj1_sig (Fin.to_nat clientId)) == #res @% "data" @% "tag" @% "id")
+       then (
+         LETA _ <- deq;
+         LET clientRes : clientResK client <- STRUCT {
+                                                  "tag"  ::= ZeroExtendTruncLsb (clientTagSz client) (#res @% "data" @% "tag" @% "tag");
+                                                  "res" ::= #res @% "data" @% "res"
+                                                };
+         Ret (STRUCT { "valid" ::= $$true;
+                       "data"  ::= #clientRes} : Maybe (clientResK client) @# ty) )
+       else Ret (Invalid: Maybe (clientResK client) @# ty) as res;
+       Ret #res.
+         
   Local Definition resetRule ty : ActionT ty Void
     := Write busyName : Bool <- $$false;
        Retv.
@@ -69,6 +76,7 @@ Section Impl.
     := {| Arbiter.Ifc.regs := regs ;
           Arbiter.Ifc.regFiles := nil ;
           Arbiter.Ifc.sendReq := sendReq ;
-          Arbiter.Ifc.callback := callback ;
+          Arbiter.Ifc.hasResps := hasResps ;
+          Arbiter.Ifc.getResps := getResps ;
           Arbiter.Ifc.resetRule := resetRule |}.
 End Impl.
