@@ -1,137 +1,108 @@
 Require Import Kami.AllNotations.
 Require Import StdLibKami.RegArray.Ifc.
 Require Import StdLibKami.Fifo.Ifc.
+Require Import StdLibKami.Fifo.Impl.
 
 Section DoubleFifo.
+  
   Context {ifcParams : Ifc.Params}.
+  Local Definition ifcParamsL :=
+    Ifc.Build_Params (append name "L") k ((@size ifcParams)/2).
+  Local Definition ifcParamsR :=
+    Ifc.Build_Params (append name "R") k ((@size ifcParams)/2).
 
-  Class Params := { sizePow2: Nat.pow 2 (Nat.log2_up size) = size ;
-                    regArrayL : @RegArray.Ifc.Ifc {| RegArray.Ifc.name := name ++ ".regArrayL" ;
-                                                     RegArray.Ifc.k := k ;
-                                                     RegArray.Ifc.size := size;
-                                                     RegArray.Ifc.init := None |};
-                    regArrayR : @RegArray.Ifc.Ifc {| RegArray.Ifc.name := name ++ ".regArrayR" ;
-                                                     RegArray.Ifc.k := k ;
-                                                     RegArray.Ifc.size := size;
-                                                     RegArray.Ifc.init := None |} }.
+  Class Params := { sizePow2 : Nat.pow 2 (Nat.log2_up size) = size;
+                    sizeGt1 : 1 < size;
+                    fifoL : @Fifo.Ifc.Ifc ifcParamsL;
+                    fifoR : @Fifo.Ifc.Ifc ifcParamsR }.
 
   Context {params: Params}.
 
-  Local Definition twoSize := 2 * size.
-
-  Local Definition deqLPtrName := (name ++ ".deqLPtr")%string.
-  Local Definition enqLPtrName := (name ++ ".enqLPtr")%string.
-  Local Definition deqRPtrName := (name ++ ".deqRPtr")%string.
-  Local Definition enqRPtrName := (name ++ ".enqRPtr")%string.
+  Local Lemma lgSize_double :
+    ((@lgSize ifcParamsL) + 1)%nat = @lgSize ifcParams.
+  Proof.
+    unfold Ifc.lgSize, Ifc.size.
+    cbn [ifcParamsL].
+    rewrite Nat.add_comm.
+    rewrite <- Nat.log2_up_mul_pow2; try lia.
+    - f_equal.
+      rewrite Nat.pow_1_r.
+      assert (Ifc.size mod 2 = 0) as P.
+      + rewrite Nat.mod_divide; [|lia].
+        unfold Nat.divide.
+        specialize sizePow2 as P.
+        specialize sizeGt1 as P0.
+        rewrite <- P.
+        destruct (Nat.log2_up Ifc.size).
+        * exfalso; rewrite <- P in P0; simpl in P0; lia.
+        * cbn [Nat.pow].
+          exists (2^n).
+          apply Nat.mul_comm.
+      + rewrite Nat.mul_comm.
+        rewrite mul_div_exact; auto; try lia.
+    - specialize sizePow2 as P.
+      specialize sizeGt1 as P0.
+      destruct (Nat.log2_up size).
+      + exfalso; rewrite <- P in P0; simpl in P0; lia.
+      + rewrite <- P; cbn[Nat.pow].
+        rewrite mul_div_undo; try lia.
+        specialize (Nat.pow_nonzero 2 n ltac:(lia)) as P1.
+        lia.
+  Qed.
   
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Local Definition fastModSize ty (w : Bit (lgSize + 1) @# ty): Bit lgSize @# ty :=
-    UniBit (TruncLsb lgSize 1) w.
+  Local Definition isEmpty ty: ActionT ty Bool :=
+    LETA emptyL: Bool <- (Ifc.isEmpty fifoL);
+    LETA emptyR: Bool <- (Ifc.isEmpty fifoR);
+    Ret (#emptyL && #emptyR).
 
-  Local Definition isEmptyL ty: ActionT ty Bool :=
-    Read deqL: Bit (lgSize + 1) <- deqLPtrName;
-    Read enqL: Bit (lgSize + 1) <- enqLPtrName;
-    Ret (#deqL == #enqL).
-
-  Local Definition isEmptyR ty: ActionT ty Bool :=
-    Read deqR: Bit (lgSize + 1) <- deqRPtrName;
-    Read enqR: Bit (lgSize + 1) <- enqRPtrName;
-    Ret (#deqR == #enqR).
-
-  Local Definition isFullL ty: ActionT ty Bool :=
-    Read deqL: Bit (lgSize + 1) <- deqLPtrName;
-    Read enqL: Bit (lgSize + 1) <- enqLPtrName;
-    Ret ((#deqL + $size) == #enqL).
+  Local Definition isFull ty: ActionT ty Bool :=
+    LETA fullL: Bool <- (Ifc.isFull fifoL);
+    LETA fullR: Bool <- (Ifc.isFull fifoR);
+    Ret (#fullL && #fullR).
   
-  Local Definition isFullR ty: ActionT ty Bool :=
-    Read deqR: Bit (lgSize + 1) <- deqRPtrName;
-    Read enqR: Bit (lgSize + 1) <- enqRPtrName;
-    Ret ((#deqR + $size) == #enqR).
+  Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
+    LETA numL: Bit (@lgSize ifcParamsL) <- (Ifc.numFree fifoL);
+    LETA numR: Bit (@lgSize ifcParamsR) <- (Ifc.numFree fifoR);
+    Ret (castBits lgSize_double (ZeroExtend 1 (#numL + #numR))).
 
-  Local Definition numFreeL ty: ActionT ty (Bit lgSize) :=
-    Read deqL: Bit (lgSize + 1) <- deqLPtrName;
-    Read enqL: Bit (lgSize + 1) <- enqLPtrName;
-    Ret (UniBit (TruncLsb _ 1) ($size - (#enqL - #deqL))).
+  Local Definition first ty: ActionT ty (Maybe k) := first fifoR.
 
-  Local Definition numFreeR ty: ActionT ty (Bit lgSize) :=
-    Read deqR: Bit (lgSize + 1) <- deqRPtrName;
-    Read enqR: Bit (lgSize + 1) <- enqRPtrName;
-    Ret (UniBit (TruncLsb _ 1) ($size - (#enqR - #deqR))).
-  
-  Local Definition firstL ty: ActionT ty (Maybe k) := 
-    LETA emptyL: Bool <- isEmptyL ty;
-    Read deqL: Bit (lgSize + 1) <- deqLPtrName;
-    LET idx: Bit lgSize <- (fastModSize #deqL);
-    LETA dat: k <- read regArrayL ty idx;
-    Ret (STRUCT { "valid" ::= !#emptyL; "data" ::= #dat} : Maybe k @# ty).
-  
-  Local Definition firstR ty: ActionT ty (Maybe k) := 
-    LETA emptyR: Bool <- isEmptyR ty;
-    Read deqR: Bit (lgSize + 1) <- deqLPtrName;
-    LET idx: Bit lgSize <- (fastModSize #deqR);
-    LETA dat: k <- read regArrayR ty idx;
-    Ret (STRUCT { "valid" ::= !#emptyR; "data" ::= #dat} : Maybe k @# ty).
+  Local Definition deq ty: ActionT ty (Maybe k) := deq fifoR.
 
-  Local Definition deqR ty: ActionT ty (Maybe k) :=
-    LETA data: Maybe k <- firstR ty;
-    Read deqR: Bit (lgSize + 1) <- deqRPtrName;
-    Write deqRPtrName: Bit (lgSize + 1) <- #deqR + (IF #data @% "valid" then $1 else $0);
-    Ret #data.
+  Local Definition enq ty (new: ty k): ActionT ty Bool := enq fifoL new.
 
-  Local Definition enqL ty (new: ty k): ActionT ty Bool :=
-    Read enqL: Bit (lgSize + 1) <- enqLPtrName;
-    LET idx: Bit lgSize <- (fastModSize #enqL);
-    LETA fullL: Bool <- isFullL ty;
-    If !#fullL then (
-      LET writeRq <- STRUCT { "addr" ::= #idx; "data" ::= #new };
-      LETA _ <- write regArrayL _ writeRq;
-      Write enqLPtrName: Bit (lgSize + 1) <- #enqL + $1;
-      Retv
-      );
-    Ret !#fullL.
-
-  Local Definition enqR_deqL ty : ActionT ty Void :=
-    Read enqR: Bit (lgSize + 1) <- enqRPtrName;
-    LET idx: Bit lgSize <- (fastModSize #enqR);
-    LETA fullR: Bool <- isFullR ty;
-    LETA data: Maybe k <- firstL ty;
-    Read deqL: Bit (lgSize + 1) <- deqLPtrName;
-    Write deqLPtrName: Bit (lgSize + 1) <- #deqL + (IF #data @% "valid" then $1 else $0);  
-    If (!#fullR && #data @% "valid") then (
-      LET writeRq <- STRUCT { "addr" ::= #idx; "data" ::= #data @% "data" };
-      LETA _ <- write regArrayR _ writeRq;
-      Write enqRPtrName: Bit (lgSize + 1) <- #enqR + $1;
+  Local Definition fillRule ty : ActionT ty Void :=
+    LETA fullR: Bool <- (Ifc.isFull fifoR);
+    LETA emptyL: Bool <- (Ifc.isEmpty fifoL);
+    If !(#fullR && #emptyL) then (
+      LETA val: Maybe k <- (Ifc.deq fifoL);
+      LET data <- #val @% "data";
+      LETA _ : Bool <- (Ifc.enq fifoR data);
       Retv
       );
     Retv.
                     
-  Local Definition flush ty: ActionT ty Void :=
-    Write deqLPtrName: Bit (lgSize + 1) <- $0;
-    Write enqLPtrName: Bit (lgSize + 1) <- $0;
-    Write deqRPtrName: Bit (lgSize + 1) <- $0;
-    Write enqRPtrName: Bit (lgSize + 1) <- $0;
-    Retv.
+   Local Definition flush ty: ActionT ty Void :=
+     LETA _ <- (Ifc.flush fifoR);
+     LETA _ <- (Ifc.flush fifoL);
+     Retv.
 
-  Local Definition regs: list RegInitT := makeModule_regs
-                          ( Register deqLPtrName: Bit (lgSize + 1) <- Default ++
-                            Register enqLPtrName: Bit (lgSize + 1) <- Default ++
-                            Register deqRPtrName: Bit (lgSize + 1) <- Default ++
-                            Register enqRPtrName: Bit (lgSize + 1) <- Default )%kami
-                            ++ RegArray.Ifc.regs regArrayL ++ RegArray.Ifc.regs regArrayR.
+   Local Definition regs: list RegInitT := (Ifc.regs fifoL) ++ (Ifc.regs fifoR).                       
 
   Definition impl: Ifc :=
     {|
       Ifc.regs := regs;
-      Ifc.regFiles := RegArray.Ifc.regFiles regArrayL
-                      ++ RegArray.Ifc.regFiles regArrayR;
-      Ifc.isEmpty := isEmptyL;
-      Ifc.isFull := isFullR;
-      Ifc.numFree := numFreeL;
-      Ifc.first := firstR;
-      Ifc.deq := deqR;
-      Ifc.enq := enqL;
+      Ifc.regFiles := (Ifc.regFiles fifoL) ++ (Ifc.regFiles fifoR);
+      Ifc.isEmpty := isEmpty;
+      Ifc.isFull := isFull;
+      Ifc.numFree := numFree;
+      Ifc.first := first;
+      Ifc.deq := deq;
+      Ifc.enq := enq;
       Ifc.flush := flush
     |}.
+  
 End DoubleFifo.
