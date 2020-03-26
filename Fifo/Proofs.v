@@ -1103,11 +1103,16 @@ Section Proofs2'.
     ; repeat (repeat doUpdRegs_simpl
               ; doUpdRegs_red'
               ; repeat normal_solver).
-  (*
-            ; repeat normal_solver
-            ; repeat my_risky_solver
-            ; repeat gka_doUpdReg_red
-            ; repeat normal_solver)*)
+  
+  Ltac resolve_In :=
+    let TMP := fresh "H" in
+    match goal with
+    | [ HNoDup : NoDup (map fst ?o),
+                 H1 : In (?s, ?a) ?o,
+                      H2 : In (?s, ?b) ?o |- _]
+      => specialize (NoDup_map_fst HNoDup H1 H2) as TMP; EqDep_subst; clear H1
+    end.
+  
   Goal FifoCorrect fifoImpl1' fifoImpl2'.
     destruct HRegArrayCorrect.
     rewrite <- Nat.eqb_neq in Hsize1.
@@ -1126,21 +1131,36 @@ Section Proofs2'.
                          Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
     all : unfold regArray1, Impl.isEmpty in *.
     - hyp_consumer1'.
-      basic_goal_consumer.
-    - admit.
+      basic_goal_consumer'.
+    - hyp_consumer1'.
+      apply SubList_map_iff in H1; dest.
+      rewrite <- H5.
+      goal_consumer2.
     - hyp_consumer1'.
       basic_goal_consumer.
-    - admit.
+    - hyp_consumer1'.
+      apply SubList_map_iff in H1; dest.
+      rewrite <- H5.
+      goal_consumer2.
     - hyp_consumer1'.
       basic_goal_consumer.
-    - admit.
+    - hyp_consumer1'.
+      apply SubList_map_iff in H1; dest.
+      rewrite <- H5.
+      goal_consumer2.
     - hyp_consumer1'.
       basic_goal_consumer'; repeat my_simpl_solver'.
-    - admit.
+    - hyp_consumer1'.
+      repeat resolve_In.
+      goal_consumer2.
+      basic_goal_consumer'.
     - hyp_consumer1'.
       basic_goal_consumer'.
       econstructor; eauto; normalize_key_concl'.
-    - admit.
+    - hyp_consumer1'.
+      repeat resolve_In.
+      goal_consumer2.
+      basic_goal_consumer'.
     - hyp_consumer1'.
       + basic_goal_consumer'.
         econstructor; eauto; normalize_key_concl'; repeat rewrite doUpdRegs_preserves_keys;
@@ -1148,14 +1168,20 @@ Section Proofs2'.
         gka_doUpdReg_red; normal_solver; auto.
       + basic_goal_consumer'.
         econstructor; eauto; normalize_key_concl'.
-    - admit.
+    - hyp_consumer1'.
+      + repeat resolve_In.
+        goal_consumer2.
+        basic_goal_consumer'.
+      + repeat resolve_In.
+        rewrite SubList_map_iff in H1; dest.
+        rewrite <- H2.
+        goal_consumer2.
     - hyp_consumer1'.
       cbn [fst] in *.
       basic_goal_consumer'.
       econstructor; eauto; normalize_key_concl'.
       Unshelve.
-      all : eauto.
-      exact nil.
-      exact WO.
-  Admitted.
+      all : eauto; try exact nil; try exact WO.
+  Qed.
+  
 End Proofs2'.
