@@ -12,7 +12,8 @@ Section GenSpec.
   Context {params : Params}.
 
   Local Definition listName := (name ++ ".list")%string.
-
+  Local Definition nonDetName := (name ++ ".nonDet")%string.
+  
   Local Notation Natgeb n m := (negb (Nat.ltb n m)).
   
   Local Open Scope kami_expr.
@@ -24,6 +25,11 @@ Section GenSpec.
     | x :: _ => #x
     end.
 
+  Local Definition nonDet ty: ActionT ty Void :=
+    Nondet eps: (Bit lgSize);
+    Write nonDetName: (Bit lgSize) <- #eps;
+    Retv.
+  
   Local Definition snocInBound ty (a : ty k) (ls : list (ty k)) : list (ty k) :=
     if (Nat.ltb (length ls) size) then snoc a ls else ls.
   
@@ -31,8 +37,8 @@ Section GenSpec.
 
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
     ReadN data: nlist ty <- listName;
-    Nondet eps: (Bit lgSize);    
-    Ret (IF ($(size - (length data)) < #eps) then $(size - (length data)) else #eps).
+    Read eps: (Bit lgSize) <- nonDetName;    
+    Ret (IF (#eps < $(size - (length data))) then #eps else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     LETA freeNum: (Bit lgSize) <- numFree ty;
