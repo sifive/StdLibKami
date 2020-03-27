@@ -69,60 +69,21 @@ Section Proofs1.
                          Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
                          Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
     - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'.
-      Ltac extractGKAs :=
-        let var := fresh "x" in
-        let vfst := fresh "x" in
-        let vsnd := fresh "x" in
-        let p1 := fresh "x" in
-        let p2 := fresh "x" in
-        let Heq := fresh "H" in
-        let HIn := fresh "H" in
-        let Heq1 := fresh "H" in
-        let Heq2 := fresh "H" in
-        match goal with
-        | [HNoDup : NoDup (map fst ?o),
-                    H1 : In (?a, ?b) (map (fun x => (fst x, projT1 (snd x))) ?o) |- _]
-          => rewrite in_map_iff in H1; destruct H1 as [var [Heq HIn]];
-             destruct var as [vfst vsnd]; destruct vsnd as [p1 p2];
-             cbn [fst snd projT1] in Heq;
-             apply inversionPair in Heq;
-             inversion_clear Heq as [Heq1 Heq2]; subst;
-             repeat resolve_In
-        end.
-      repeat extractGKAs.
-      goal_consumer2; eauto.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
-    - hyp_consumer1'.
-      repeat extractGKAs.
-      goal_consumer2; eauto.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
-    - hyp_consumer1'.
-      repeat extractGKAs.
-      goal_consumer2; eauto.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
-    - hyp_consumer1'.
-      repeat extractGKAs.
-      goal_consumer2.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
-      econstructor; basic_goal_consumer.
-    - hyp_consumer1'.
-      repeat extractGKAs.
-      goal_consumer2.
-    - hyp_consumer1'.
-      cbn [fst] in *.
-      basic_goal_consumer'.
-      econstructor; basic_goal_consumer.
-    - hyp_consumer1'.
-      repeat extractGKAs.
-      goal_consumer2.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
-      econstructor; basic_goal_consumer.
+    - hyp_consumer1'. goal_consumer2; eauto.
+    - hyp_consumer1'; basic_goal_consumer'.
+    - hyp_consumer1'; goal_consumer2; eauto.
+    - hyp_consumer1'; basic_goal_consumer'.
+    - hyp_consumer1'; goal_consumer2; eauto.
+    - hyp_consumer1'; basic_goal_consumer'.
+    - hyp_consumer1'; goal_consumer2.
+    - hyp_consumer1'; basic_goal_consumer'.
+      econstructor; repeat normal_solver; repeat my_risky_solver.
+    - hyp_consumer1'; goal_consumer2.
+    - hyp_consumer1'; cbn [fst] in *; basic_goal_consumer'.
+      econstructor; repeat normal_solver; repeat my_risky_solver.
+    - hyp_consumer1'; goal_consumer2.
+    - hyp_consumer1'; basic_goal_consumer'.
+      econstructor; repeat normal_solver; repeat my_risky_solver.
   Qed.
 End Proofs1.
 
@@ -179,52 +140,32 @@ Section Proofs2.
                          Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
                          Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
     all : unfold regArray1, Impl.isEmpty in *.
+    - hyp_consumer1'; basic_goal_consumer'.
     - hyp_consumer1'.
+      apply SubList_map_iff in H1; destruct H1 as [y [P P0]]; subst.
+      goal_consumer2.
+    - hyp_consumer1'; basic_goal_consumer.
+    - hyp_consumer1'.
+      SubList_gka_deconstruct.
+      goal_consumer2.
+    - hyp_consumer1'; basic_goal_consumer.
+    - hyp_consumer1'.
+      SubList_gka_deconstruct.
+      goal_consumer2.
+    - hyp_consumer1'; basic_goal_consumer'; repeat my_simpl_solver'.
+    - hyp_consumer1'; repeat SubList_gka_deconstruct; goal_consumer2.
       basic_goal_consumer'.
-    - hyp_consumer1'.
-      apply SubList_map_iff in H1; dest.
-      rewrite <- H5.
-      goal_consumer2.
-    - hyp_consumer1'.
-      basic_goal_consumer.
-    - hyp_consumer1'.
-      apply SubList_map_iff in H1; dest.
-      rewrite <- H5.
-      goal_consumer2.
-    - hyp_consumer1'.
-      basic_goal_consumer.
-    - hyp_consumer1'.
-      apply SubList_map_iff in H1; dest.
-      rewrite <- H5.
-      goal_consumer2.
-    - hyp_consumer1'.
-      basic_goal_consumer'; repeat my_simpl_solver'.
-    - hyp_consumer1'.
-      repeat resolve_In.
-      goal_consumer2.
-      basic_goal_consumer'.
-    - hyp_consumer1'.
-      basic_goal_consumer'.
+    - hyp_consumer1'; basic_goal_consumer'.
       econstructor; eauto; normalize_key_concl'.
-    - hyp_consumer1'.
-      repeat resolve_In.
-      goal_consumer2.
-      basic_goal_consumer'.
-    - hyp_consumer1'.
-      + basic_goal_consumer'.
-        econstructor; eauto; normalize_key_concl'; repeat rewrite doUpdRegs_preserves_keys;
+    - hyp_consumer1'; repeat SubList_gka_deconstruct; goal_consumer2; basic_goal_consumer'.
+    - hyp_consumer1'; basic_goal_consumer'.
+      + econstructor; eauto; normalize_key_concl'; repeat rewrite doUpdRegs_preserves_keys;
           normalize_key_concl'.
         gka_doUpdReg_red; normal_solver; auto.
-      + basic_goal_consumer'.
-        econstructor; eauto; normalize_key_concl'.
+      + econstructor; eauto; normalize_key_concl'.
     - hyp_consumer1'.
-      + repeat resolve_In.
-        goal_consumer2.
-        basic_goal_consumer'.
-      + repeat resolve_In.
-        rewrite SubList_map_iff in H1; dest.
-        rewrite <- H2.
-        goal_consumer2.
+      + goal_consumer2; basic_goal_consumer'.
+      + repeat SubList_gka_deconstruct; goal_consumer2.
     - hyp_consumer1'.
       cbn [fst] in *.
       basic_goal_consumer'.
