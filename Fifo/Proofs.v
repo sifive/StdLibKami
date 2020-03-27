@@ -68,21 +68,21 @@ Section Proofs1.
     all : try rewrite Hsize1; unfold Fifo1.impl, Fifo1.isEmpty,
                          Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
                          Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
-    - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'. goal_consumer2; eauto.
-    - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'; goal_consumer2; eauto.
-    - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'; goal_consumer2; eauto.
-    - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'; goal_consumer2.
-    - hyp_consumer1'; basic_goal_consumer'.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2; eauto.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2; eauto.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2; eauto.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
       econstructor; repeat normal_solver; repeat my_risky_solver.
-    - hyp_consumer1'; goal_consumer2.
-    - hyp_consumer1'; cbn [fst] in *; basic_goal_consumer'.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
       econstructor; repeat normal_solver; repeat my_risky_solver.
-    - hyp_consumer1'; goal_consumer2.
-    - hyp_consumer1'; basic_goal_consumer'.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
       econstructor; repeat normal_solver; repeat my_risky_solver.
   Qed.
 End Proofs1.
@@ -140,36 +140,23 @@ Section Proofs2.
                          Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
                          Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
     all : unfold regArray1, Impl.isEmpty in *.
-    - hyp_consumer1'; basic_goal_consumer'.
-    - hyp_consumer1'.
-      apply SubList_map_iff in H1; destruct H1 as [y [P P0]]; subst.
-      goal_consumer2.
-    - hyp_consumer1'; basic_goal_consumer.
-    - hyp_consumer1'.
-      SubList_gka_deconstruct.
-      goal_consumer2.
-    - hyp_consumer1'; basic_goal_consumer.
-    - hyp_consumer1'.
-      SubList_gka_deconstruct.
-      goal_consumer2.
-    - hyp_consumer1'; basic_goal_consumer'; repeat my_simpl_solver'.
-    - hyp_consumer1'; repeat SubList_gka_deconstruct; goal_consumer2.
-      basic_goal_consumer'.
-    - hyp_consumer1'; basic_goal_consumer'.
-      econstructor; eauto; normalize_key_concl'.
-    - hyp_consumer1'; repeat SubList_gka_deconstruct; goal_consumer2; basic_goal_consumer'.
-    - hyp_consumer1'; basic_goal_consumer'.
-      + econstructor; eauto; normalize_key_concl'; repeat rewrite doUpdRegs_preserves_keys;
-          normalize_key_concl'.
-        gka_doUpdReg_red; normal_solver; auto.
-      + econstructor; eauto; normalize_key_concl'.
-    - hyp_consumer1'.
-      + goal_consumer2; basic_goal_consumer'.
-      + repeat SubList_gka_deconstruct; goal_consumer2.
-    - hyp_consumer1'.
-      cbn [fst] in *.
-      basic_goal_consumer'.
-      econstructor; eauto; normalize_key_concl'.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2.
+    - hyp_consumer; goal_consumer1.
+    - hyp_consumer; goal_consumer2; goal_consumer1.
+    - hyp_consumer; goal_consumer1.
+      econstructor; eauto; normalize_key_concl.
+    - hyp_consumer; goal_consumer2; goal_consumer1.
+    - hyp_consumer; goal_consumer1; econstructor; eauto; normalize_key_concl;
+      repeat rewrite doUpdRegs_preserves_keys; normalize_key_concl.
+      gka_doUpdReg_red; normal_solver; auto.
+    - hyp_consumer; goal_consumer2; goal_consumer1.
+    - hyp_consumer; goal_consumer1.
+      econstructor; eauto; normalize_key_concl.
       Unshelve.
       all : eauto; try exact nil; try exact WO.
   Qed.
