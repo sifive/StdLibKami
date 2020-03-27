@@ -8,11 +8,13 @@ Section Ifc.
       outReqK: Kind;
       storeReqK: Kind;
       immResK: Kind;
-      resK: Kind;
+      inResK: Kind;
+      outResK: Kind;
       inReqToOutReq: forall {ty}, inReqK @# ty -> outReqK @# ty;
       inReqToStoreReq: forall {ty}, inReqK @# ty -> storeReqK @# ty;
       isError: forall {ty}, immResK @# ty -> Bool @# ty;
       isSend: forall {ty}, inReqK @# ty -> Bool @# ty;
+      inToOutRes: forall {ty}, inResK @# ty -> storeReqK @# ty -> outResK @# ty;
     }.
   
   Context {params: Params}.
@@ -24,13 +26,13 @@ Section Ifc.
 
   Definition InRes := STRUCT_TYPE {
                           "tag" :: Bit (Nat.log2_up size) ;
-                          "res" :: resK
+                          "res" :: inResK
                         }.
 
   Definition OutRes := STRUCT_TYPE {
                            "storeReq" :: storeReqK ;
                            "immRes"   :: immResK ;
-                           "res"      :: resK
+                           "res"      :: outResK
                          }.
 
   Definition Store := STRUCT_TYPE {
