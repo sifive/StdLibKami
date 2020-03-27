@@ -8,7 +8,6 @@ Section Ifc.
                            "tag" :: Bit clientTagSz;
                            "res" :: outResK
                          };
-         clientHandleRes : forall {ty}, ty clientResK -> ActionT ty Void
        }.
 
   Record Clients := { outResK: Kind;
@@ -70,7 +69,14 @@ Section Ifc.
          : forall (clientId : Fin.t numClients) {ty},
              ty (ClientReq (clientTagSz (nth_Fin (clientList clients) clientId))) -> ActionT ty (Maybe immResK);
 
-         callback : forall {ty}, ty InRes -> ActionT ty Void;
+         hasResps (first: forall {ty}, ActionT ty (Maybe InRes))
+         : forall (clientId: Fin.t numClients) {ty},
+             ActionT ty Bool;
+
+         getResps (first: forall {ty}, ActionT ty (Maybe InRes))
+                  (deq: forall {ty}, ActionT ty (Maybe InRes))
+         : forall (clientId: Fin.t numClients) {ty},
+             ActionT ty (Maybe (clientResK (nth_Fin (clientList clients) clientId)));
 
          resetRule : forall {ty}, ActionT ty Void;
        }.

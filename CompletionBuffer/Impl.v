@@ -11,7 +11,7 @@ Section Impl.
                                                      RegArray.Ifc.size := size;
                                                      RegArray.Ifc.init := None |} ;
                     resArray: @RegArray.Ifc.Ifc {| RegArray.Ifc.name := name ++ ".resArray";
-                                                   RegArray.Ifc.k := resK;
+                                                   RegArray.Ifc.k := inResK;
                                                    RegArray.Ifc.size := size;
                                                    RegArray.Ifc.init := None |};
                     freeList: @FreeList.Ifc.Ifc {| FreeList.Ifc.name := name ++ ".freeList";
@@ -92,14 +92,14 @@ Section Impl.
        Read enqPFull: Ptr <- enqPtr;
        Read compds: Array size Bool <- completedArray;
        LET deqP: Tag <- UniBit (TruncLsb _ 1) #deqPFull;
-       LETA resVal: resK <- read resArray _ deqP;
+       LETA resVal: inResK <- read resArray _ deqP;
        LETA storeVal: Store <- read storeArray _ deqP;
        LET res
        :  OutRes
           <- STRUCT {
                  "storeReq" ::= #storeVal @% "storeReq" ;
                  "immRes"   ::= #storeVal @% "immRes" ;
-                 "res"      ::= #resVal
+                 "res"      ::= inToOutRes #resVal (#storeVal @% "storeReq")
                };
        If (#deqPFull != #enqPFull) && (#compds@[#deqP])
        then
