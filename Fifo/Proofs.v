@@ -7,7 +7,19 @@ Require Import Kami.GallinaModules.Relations.
 Require Import Kami.GallinaModules.AuxLemmas.
 Require Import Kami.GallinaModules.AuxTactics.
 Require Import StdLibKami.RegArray.Proofs.
-  
+
+Lemma MaybeEvalPointwise {k} (e1 e2 : Expr type (SyntaxKind (Maybe k))) :
+  evalExpr (e1 @% "valid")%kami_expr = evalExpr (e2 @% "valid")%kami_expr ->
+  evalExpr (e1 @% "data")%kami_expr = evalExpr (e2 @% "data")%kami_expr ->
+  evalExpr e1 = evalExpr e2.
+Proof.
+  simpl; intros.
+  apply functional_extensionality_dep; intros.
+  fin_dep_destruct x; auto.
+  fin_dep_destruct y; auto.
+  inv y.
+Qed.
+
 Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
   {
     fifoRegs : list (Attribute FullKind);
@@ -162,3 +174,97 @@ Section Proofs2.
   Qed.
   
 End Proofs2.
+
+Section Proofs3.
+  
+  Context {ifcParams' : Fifo.Ifc.Params}.
+  Variable implParams : Impl.Params.
+  Local Definition fifoImpl := @Fifo.Impl.impl ifcParams' implParams.
+  Local Definition fifoSpec := @Fifo.Spec.spec ifcParams'.
+
+  Section Size1.
+    Variable Hsize1 : size = 1.
+
+    Record myFifoR  (o_i o_s : RegsT) : Prop :=
+      {
+        implRegs : RegsT;
+        specRegs : RegsT;
+        fifo1_bval : bool;
+        fifo1_dval : type k;
+        implRegVal : implRegs = [(Fifo1.validRegName,
+                                  existT _ (SyntaxKind Bool) fifo1_bval);
+                                (Fifo1.dataRegName,
+                                 existT _ (SyntaxKind k) fifo1_dval)];
+        specRegVal : specRegs = [(Spec.listName,
+                                  existT (fullType type) (Spec.nlist type) (if fifo1_bval
+                                                                            then [fifo1_dval]
+                                                                            else nil))];
+        Ho_iCorrect1 : o_i = implRegs;
+        Ho_sCorrect1 : o_s = specRegs;
+        Ho_iNoDup1' : NoDup (map fst o_i);
+      }.
+
+    Ltac Record_destruct :=
+      match goal with
+      |[ H : myFifoR _ _ |- _] => destruct H
+      end.
+    
+    Goal FifoCorrect fifoImpl fifoSpec.
+      rewrite <- Nat.eqb_eq in Hsize1.
+      all : econstructor 1 with (fifoR := myFifoR)
+                                (fifoRegs := [(Fifo1.validRegName,
+                                               SyntaxKind Bool);
+                                              (Fifo1.dataRegName,
+                                               SyntaxKind k)]).
+      all : red; unfold fifoImpl, fifoSpec, impl, spec, regArray,
+                 isEmpty, flush, enq, deq, numFree, isFull, first,
+                 Impl.isEmpty, Impl.flush, Impl.enq, Impl.deq, Impl.numFree,
+                 Impl.isFull, Impl.first,
+                 Spec.isEmpty, Spec.flush, Spec.enq, Spec.deq, Spec.numFree,
+                 Spec.isFull, Spec.first.
+      all : try rewrite Hsize1; unfold Fifo1.impl, Fifo1.isEmpty,
+                                Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
+                                Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
+      all : rewrite Nat.eqb_eq in Hsize1.
+      - hyp_consumer; goal_consumer1.
+        destruct x; auto.
+      - hyp_consumer; goal_consumer2; eauto.
+      - hyp_consumer; goal_consumer1.
+        destruct x; simpl; symmetry.
+        + rewrite negb_true_iff, Nat.ltb_ge.
+          lia.
+        + rewrite negb_false_iff, Nat.ltb_lt.
+          lia.
+      - hyp_consumer; goal_consumer2; eauto.
+      - hyp_consumer; goal_consumer1.
+        destruct x; simpl; rewrite Hsize1; arithmetizeWord; auto.
+      - hyp_consumer; goal_consumer2; eauto.
+      - hyp_consumer; goal_consumer1.
+        destruct x; cbn[Spec.getHead emptyb negb]; apply functional_extensionality_dep; intros;
+          fin_dep_destruct x; auto; fin_dep_destruct y; auto.
+      - hyp_consumer; goal_consumer2.
+      - hyp_consumer; goal_consumer1.
+        +  destruct x; cbn[Spec.getHead emptyb negb]; apply functional_extensionality_dep; intros;
+             fin_dep_destruct x; auto; fin_dep_destruct y; auto.
+        + econstructor; eauto; normalize_key_concl.
+          destruct x; simpl; auto.
+      - hyp_consumer; goal_consumer2.
+      - hyp_consumer; goal_consumer1.
+        + destruct x; simpl; symmetry.
+          * rewrite Nat.ltb_ge; lia.
+          * rewrite Nat.ltb_lt; lia.
+        + econstructor; eauto; normalize_key_concl.
+          destruct x; cbv[Spec.snocInBound]; rewrite Hsize1; simpl; reflexivity.
+      - hyp_consumer; goal_consumer2.
+      - hyp_consumer; goal_consumer1.
+        econstructor; eauto; normalize_key_concl.
+    Qed.
+  
+  End Size1.
+
+  Section SizeGT1.
+    Variable Hsize1 : size <> 1.
+    
+  End SizeGT1.
+
+End Proofs3.

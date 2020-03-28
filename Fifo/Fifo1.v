@@ -32,13 +32,15 @@ Section Fifo1.
   Local Definition first ty: ActionT ty (Maybe k) :=
     Read val: Bool <- validRegName;
     Read dat: k <- dataRegName;
-    Ret (STRUCT { "valid" ::= #val; "data" ::= #dat} : Maybe k @# ty).
+    Ret (STRUCT { "valid" ::= #val; "data" ::= IF #val then #dat else (Const _ Default)}
+     : Maybe k @# ty).
   
   Local Definition deq ty: ActionT ty (Maybe k) :=
     Read val: Bool <- validRegName;
     Read dat: k <- dataRegName;
     Write validRegName: Bool <- $$(false);
-    Ret (STRUCT { "valid" ::= #val; "data" ::= #dat} : Maybe k @# ty).
+    Ret (STRUCT { "valid" ::= #val; "data" ::= IF #val then #dat else (Const _ Default)}
+     : Maybe k @# ty).
 
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     Read val: Bool <- validRegName;
@@ -67,4 +69,5 @@ Section Fifo1.
       Ifc.enq := enq;
       Ifc.flush := flush
     |}.
+  
 End Fifo1.

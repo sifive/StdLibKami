@@ -47,7 +47,8 @@ Section Spec.
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(emptyb data); "data" ::= getHead _ data } : Maybe k @# ty).
+    WriteN listName: nlist ty <- Var _ (nlist ty) (tl data);
+    Ret (STRUCT { "valid" ::= $$(negb (emptyb data)); "data" ::= getHead _ data } : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
