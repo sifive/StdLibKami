@@ -6,7 +6,7 @@ Section Spec.
   Context {ifcParams : Ifc.Params}.
 
   Class Params := { sizePow2 : Nat.pow 2 lgSize = size;
-                    regList : list RegInitT;
+                    (*regList : list RegInitT;*)
                   }.
 
   Context {params : Params}.
