@@ -18,10 +18,9 @@ Section Impl.
         LETA resp: Maybe respK <- (nth_Fin devices dev).(devicePoll);
         LET respDat: respK <- (#resp @% "data");
         If (#resp @% "valid") then (
-            LETA _ <- clientCallback respDat;
-            Write routedReg: Bool <- $$true;
-            Retv
-        );
+          LETA _ <- clientCallback respDat;
+          Write routedReg: Bool <- $$true;
+          Retv );
         Retv
       );
       Retv.
@@ -42,7 +41,7 @@ Section Impl.
   End withTy.
   
   Local Definition pollRules (clientCallback: forall ty, ty respK -> ActionT ty Void) :=
-    (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)) ++ [pollingDone].
+    (map (fun dev ty => pollRuleGenerator ty clientCallback dev) (getFins numDevices)).
 
   Local Definition regs: list RegInitT := makeModule_regs ( Register routedReg: Bool <- false )%kami.
   
@@ -50,6 +49,7 @@ Section Impl.
     := {| Ifc.regs := regs ;
           Ifc.regFiles := nil ;
           Ifc.sendReq := sendReq;
-          Ifc.pollRules := pollRules |}.
+          Ifc.pollRules := pollRules;
+          Ifc.finishRule := pollingDone |}.
 
 End Impl.
