@@ -34,11 +34,12 @@ Section Proofs1.
   Local Definition fifoImpl1 := @Fifo.Impl.impl ifcParams' impl1Params.
   Local Definition fifoImpl2 := @Fifo.Impl.impl ifcParams' impl2Params.
 
-  Record myFifoImpl1R  (o_i o_s : RegsT) : Prop :=
+  Record myFifoImpl1R  (implRegs : RegsT) (fifo1_bval : bool) (fifo1_dval : type k)
+         (o_i o_s : RegsT) : Prop :=
     {
-      implRegs : RegsT;
-      fifo1_bval : bool;
-      fifo1_dval : type k;
+      (* implRegs : RegsT; *)
+      (* fifo1_bval : bool; *)
+      (* fifo1_dval : type k; *)
       implRegVal : implRegs = [(Fifo1.validRegName,
                                 existT _ (SyntaxKind Bool) fifo1_bval);
                               (Fifo1.dataRegName,
@@ -51,12 +52,20 @@ Section Proofs1.
 
   Ltac Record_destruct :=
     match goal with
-    |[ H : myFifoImpl1R _ _ |- _] => destruct H
+    |[ H : exists _ _ _, myFifoImpl1R _ _ _ _ _ |- _] =>
+     let implRegs := fresh "implRegs" in
+     let fifo1_bval := fresh "fifo1_bval" in
+     let fifo1_dval := fresh "fifo1_dval" in
+     let H0 := fresh "H" in
+     destruct H as [implRegs [fifo1_bval [fifo1_dval H0]]]; destruct H0
     end.
 
   Goal FifoCorrect fifoImpl1 fifoImpl2.
     rewrite <- Nat.eqb_eq in Hsize1.
-    all : econstructor 1 with (fifoR := myFifoImpl1R)
+    all : econstructor 1 with (fifoR := (fun o1 o2 =>
+                                           (exists implRegs fifo1_bval fifo1_dval,
+                                               myFifoImpl1R implRegs
+                                                            fifo1_bval fifo1_dval o1 o2)))
                               (fifoRegs := [(Fifo1.validRegName,
                                              SyntaxKind Bool);
                                             (Fifo1.dataRegName,
@@ -99,14 +108,15 @@ Section Proofs2.
   Variable HRegArrayCorrect : RegArrayCorrect regArray1 regArray2.
 
   Record myFifoImplR (regArrayR : RegsT -> RegsT -> Prop) regArrayRegs
-         (o_i o_s : RegsT) : Prop :=
+         (implRegs : RegsT) (enqVal deqVal : word (Fifo.Ifc.lgSize + 1))
+         (regArray1Regs regArray2Regs : RegsT) (o_i o_s : RegsT) : Prop :=
     {   
-      implRegs : RegsT;
-      enqVal : word (Fifo.Ifc.lgSize + 1);
-      deqVal : word (Fifo.Ifc.lgSize + 1);
-      regArray1Regs : RegsT;
-      regArray2Regs : RegsT;
-      implRegVal : implRegs = [(Fifo.Impl.deqPtrName,
+      (* implRegs : RegsT; *)
+      (* enqVal : word (Fifo.Ifc.lgSize + 1); *)
+      (* deqVal : word (Fifo.Ifc.lgSize + 1); *)
+      (* regArray1Regs : RegsT; *)
+      (* regArray2Regs : RegsT; *)
+      implRegVal' : implRegs = [(Fifo.Impl.deqPtrName,
                                 existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) deqVal);
                               (Fifo.Impl.enqPtrName,
                                existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) enqVal)];
@@ -120,13 +130,26 @@ Section Proofs2.
   
   Ltac Record_destruct :=
     match goal with
-    |[ H : myFifoImplR _ _ _ _ |- _] => destruct H
+    |[ H : exists _ _ _ _ _, myFifoImplR _ _ _ _ _ _ _ _ _ |- _] =>
+     let implRegs := fresh "implRegs" in
+     let enqVal := fresh "enqVal" in
+     let deqVal := fresh "deqVal" in
+     let regArray1Regs := fresh "regArray1Regs" in
+     let regArray2Regs := fresh "regArray2Regs" in
+     let H0 := fresh "H" in
+     destruct H as [implRegs [enqVal [deqVal [regArray1Regs [regArray2Regs H0]]]]];
+     destruct H0
     end.
 
   Goal FifoCorrect fifoImpl1' fifoImpl2'.
     destruct HRegArrayCorrect.
     rewrite <- Nat.eqb_neq in Hsize1.
-    all : econstructor 1 with (fifoR := myFifoImplR regArrayR regArrayRegs)
+    all : econstructor 1 with (fifoR := (fun o1 o2 =>
+                                           (exists implRegs enqVal deqVal
+                                                  regArray1Regs regArray2Regs,
+                                               myFifoImplR regArrayR regArrayRegs implRegs
+                                                           enqVal deqVal
+                                                           regArray1Regs regArray2Regs o1 o2)))
                         (fifoRegs := [(Fifo.Impl.deqPtrName,
                                        (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))));
                                       (Fifo.Impl.enqPtrName,
@@ -179,13 +202,14 @@ Section Proofs3.
   Section Size1.
     Variable Hsize1 : size = 1.
 
-    Record myFifoR  (o_i o_s : RegsT) : Prop :=
+    Record myFifoR  (implRegs specRegs : RegsT) (fifo1_bval : bool) (fifo1_dval : type k)
+           (o_i o_s : RegsT) : Prop :=
       {
-        implRegs : RegsT;
-        specRegs : RegsT;
-        fifo1_bval : bool;
-        fifo1_dval : type k;
-        implRegVal : implRegs = [(Fifo1.validRegName,
+        (* implRegs : RegsT; *)
+        (* specRegs : RegsT; *)
+        (* fifo1_bval : bool; *)
+        (* fifo1_dval : type k; *)
+        implRegVal'' : implRegs = [(Fifo1.validRegName,
                                   existT _ (SyntaxKind Bool) fifo1_bval);
                                 (Fifo1.dataRegName,
                                  existT _ (SyntaxKind k) fifo1_dval)];
@@ -193,19 +217,29 @@ Section Proofs3.
                                   existT (fullType type) (Spec.nlist type) (if fifo1_bval
                                                                             then [fifo1_dval]
                                                                             else nil))];
-        Ho_iCorrect1 : o_i = implRegs;
-        Ho_sCorrect1 : o_s = specRegs;
+        Ho_iCorrect1' : o_i = implRegs;
+        Ho_sCorrect1' : o_s = specRegs;
         Ho_iNoDup1' : NoDup (map fst o_i);
       }.
 
     Ltac Record_destruct :=
       match goal with
-      |[ H : myFifoR _ _ |- _] => destruct H
+      |[ H : exists _ _ _ _, myFifoR _ _ _ _ _ _ |- _] =>
+       let implRegs := fresh "implRegs" in
+       let specRegs := fresh "specRegs" in
+       let fifo1_bval := fresh "fifo1_bval" in
+       let fifo1_dval := fresh "fifo1_dval" in
+       let H0 := fresh "H" in
+       destruct H as [implRegs [specRegs [fifo1_bval [fifo1_dval H0]]]]; destruct H0
       end.
     
     Goal FifoCorrect fifoImpl fifoSpec.
       rewrite <- Nat.eqb_eq in Hsize1.
-      all : econstructor 1 with (fifoR := myFifoR)
+      all : econstructor 1 with (fifoR := (fun o1 o2 =>
+                                             (exists implRegs specRegs
+                                                     fifo1_bval fifo1_dval,
+                                                 myFifoR implRegs specRegs
+                                                         fifo1_bval fifo1_dval o1 o2)))
                                 (fifoRegs := [(Fifo1.validRegName,
                                                SyntaxKind Bool);
                                               (Fifo1.dataRegName,
@@ -261,37 +295,52 @@ Section Proofs3.
     Definition listInSpec (len start : nat) (arr : Fin.t size -> type k) :=
       firstn len (rotateList start (convertToList arr)).
 
-    Record myFifoSpecR (o_i o_s : RegsT) : Prop :=
+    Record myFifoSpecR (implRegs specRegs regArray : RegsT) (queueLen : Z)
+           (enqVal deqVal : word (Fifo.Ifc.lgSize + 1)) (arrayVal : Fin.t size -> type k)
+           (o_i o_s : RegsT) : Prop :=
     {   
-      implRegs : RegsT;
-      specRegs : RegsT;
-      regArray : RegsT;
-      queueLen : Z;
-      enqVal : word (Fifo.Ifc.lgSize + 1);
-      deqVal : word (Fifo.Ifc.lgSize + 1);
-      arrayVal : Fin.t size -> type k;
+      (* implRegs : RegsT; *)
+      (* specRegs : RegsT; *)
+      (* regArray : RegsT; *)
+      (* queueLen : Z; *)
+      (* enqVal : word (Fifo.Ifc.lgSize + 1); *)
+      (* deqVal : word (Fifo.Ifc.lgSize + 1); *)
+      (* arrayVal : Fin.t size -> type k; *)
       HqueueLen : queueLen = wordVal _ (enqVal ^- deqVal);
       Hbound : (queueLen <= Z.of_nat size)%Z;
-      implRegVal : implRegs = [(Fifo.Impl.deqPtrName,
+      gt1_implRegVal : implRegs = [(Fifo.Impl.deqPtrName,
                                 existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) deqVal);
                               (Fifo.Impl.enqPtrName,
                                existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) enqVal)];
       regArrayVal : regArray = [((name ++ ".regArray")%string,
                                   existT _ (SyntaxKind (Array size k)) arrayVal)];
-      specRegVal : specRegs = [(Spec.listName,
+      gt_1specRegVal : specRegs = [(Spec.listName,
                                      existT (fullType type) (Fifo.Spec.nlist type)
                                             (listInSpec (Z.to_nat queueLen)
                                                         (Z.to_nat ((wordVal _ deqVal)
                                                          mod (2 ^ Z.of_nat (Nat.log2_up size))))
                                                         arrayVal))];
-      Ho_iCorrect : o_i = implRegs ++ regArray;
-      Ho_sCorrect : o_s = specRegs;
+      gt_Ho_iCorrect : o_i = implRegs ++ regArray;
+      gt_Ho_sCorrect : o_s = specRegs;
       Ho_iNoDup' : NoDup (map fst o_i);
     }.
 
     Ltac Record_destruct :=
       match goal with
-      |[ H : myFifoSpecR _ _ |- _] => destruct H
+      |[ H : exists _ _ _ _ _ _ _,
+           myFifoSpecR _ _ _ _ _ _ _ _ _ |- _] =>
+       let implRegs := fresh "implRegs" in
+       let specRegs := fresh "specRegs" in
+       let regArray := fresh "regArray" in
+       let queueLen := fresh "queueLen" in
+       let enqVal := fresh "enqVal" in
+       let deqVal := fresh "deqVal" in
+       let arrayVal := fresh "arrayVal" in
+       let H0 := fresh "H" in
+       destruct H as [implRegs
+                        [specRegs
+                           [regArray
+                              [queueLen [enqVal [deqVal [arrayVal H0]]]]]]]; destruct H0
       end.
     
     Goal FifoCorrect fifoImpl fifoSpec.
@@ -304,7 +353,12 @@ Section Proofs3.
         simpl in P0; lia.
       }
       rewrite <- Nat.eqb_neq in Hsize1.
-      all : econstructor 1 with (fifoR := myFifoSpecR)
+      all : econstructor 1 with (fifoR := (fun o1 o2 =>
+                                             (exists implRegs specRegs regArray queueLen
+                                                     enqVal deqVal arrayVal,
+                                                 myFifoSpecR implRegs specRegs regArray
+                                                             queueLen enqVal deqVal arrayVal
+                                                             o1 o2)))
                                 (fifoRegs := [(Fifo.Impl.deqPtrName,
                                                SyntaxKind (Bit (Fifo.Ifc.lgSize + 1)));
                                               (Fifo.Impl.enqPtrName,
@@ -335,7 +389,7 @@ Section Proofs3.
           apply neq_wordVal in n; apply n.
           specialize (wordBound _ x) as P2; specialize (wordBound _ x1) as P3.
           rewrite boundProofZIff in *.
-          simpl in Hbound.
+          simpl in Hbound0.
           symmetry in H0.
           assert (0 = Z.to_nat 0) as TMP by lia; rewrite TMP in H0; clear TMP.
           apply Z2Nat.inj in H0; try lia; [|apply Z.mod_pos_bound; lia].
@@ -356,7 +410,7 @@ Section Proofs3.
         destruct weq; simpl; symmetry; unfold listInSpec.
         + rewrite negb_true_iff, Nat.ltb_ge, firstn_length_le;
             [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-          destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+          destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
           exfalso; rewrite <- e in H0; simpl in H0.
           rewrite Zplus_mod_idemp_r, Zplus_mod_idemp_l,
           Zminus_mod_idemp_l, Z.add_simpl_l, Z.mod_small in H0; try lia.
@@ -364,7 +418,7 @@ Section Proofs3.
           rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
         + rewrite negb_false_iff, Nat.ltb_lt, firstn_length_le;
             [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-          destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+          destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
           exfalso.
           apply neq_wordVal in n; apply n; simpl.
           rewrite <- H0, Zplus_mod_idemp_l.
@@ -422,14 +476,14 @@ Section Proofs3.
         + fin_dep_destruct y; auto; unfold Spec.getHead; simpl; destruct weq; unfold listInSpec.
           * rewrite e, Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
           * destruct lt_dec.
-            -- simpl in Hbound.
+            -- simpl in Hbound0.
                specialize (wordBound _ x10) as P1.
                specialize (wordBound _ x6) as P2.
                rewrite boundProofZIff in *.
                cbn [getBool negb].
                assert (x10 <> x6) as n' by auto; clear n.
                apply neq_wordVal in n'.
-               specialize (hdCorrect x19 P1 P2 Hbound pow2 n') as P3.
+               specialize (hdCorrect x19 P1 P2 Hbound0 pow2 n') as P3.
                rewrite hd_error_Some in P3.
                unfold lgSize in *.
                erewrite <- rew_swap; simpl; eauto.
@@ -467,7 +521,7 @@ Section Proofs3.
                apply neq_wordVal in n; apply n.
                specialize (wordBound _ x13) as P2; specialize (wordBound _ x19) as P3.
                rewrite boundProofZIff in *.
-               simpl in Hbound.
+               simpl in Hbound0.
                symmetry in H1.
                assert (0 = Z.to_nat 0) as TMP by lia; rewrite TMP in H1; clear TMP.
                apply Z2Nat.inj in H1; try lia; [|apply Z.mod_pos_bound; lia].
@@ -485,14 +539,14 @@ Section Proofs3.
             unfold listInSpec.
             -- rewrite e, Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
             -- destruct lt_dec.
-               ++ simpl in Hbound.
+               ++ simpl in Hbound0.
                   specialize (wordBound _ x19) as P1.
                   specialize (wordBound _ x13) as P2.
                   rewrite boundProofZIff in *.
                   cbn [getBool negb].
                   assert (x19 <> x13) as n' by auto; clear n.
                   apply neq_wordVal in n'.
-                  specialize (hdCorrect x29 P1 P2 Hbound pow2 n') as P3.
+                  specialize (hdCorrect x29 P1 P2 Hbound0 pow2 n') as P3.
                   rewrite hd_error_Some in P3.
                   unfold lgSize in *.
                   erewrite <- rew_swap; simpl; eauto.
@@ -510,16 +564,16 @@ Section Proofs3.
                                 ltac:(lia)) as P1; lia.
         + econstructor 1; auto; normalize_key_concl; simpl.
           * destruct weq; simpl.
-            -- simpl in Hbound.
+            -- simpl in Hbound0.
                rewrite Zmod_0_l, Z.add_0_r; repeat rewrite Zminus_mod_idemp_r; auto.
-            -- simpl in Hbound.
+            -- simpl in Hbound0.
                rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
                specialize (wordBound _ x13) as P1.
                specialize (wordBound _ x19) as P2.
                rewrite boundProofZIff in *.
                assert (x19 <> x13) as n' by auto.
                apply neq_wordVal in n'.
-               specialize (cutLen_pred P2 P1 Hbound pow2 n') as P3; unfold lgSize in *.
+               specialize (cutLen_pred P2 P1 Hbound0 pow2 n') as P3; unfold lgSize in *.
                rewrite P3; lia.
           * repeat f_equal.
             specialize (wordBound _ x13) as P1.
@@ -533,7 +587,7 @@ Section Proofs3.
                rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
                assert (x19 <> x13) as n' by auto.
                apply neq_wordVal in n'.
-               specialize (cutLen_pred P2 P1 Hbound pow2 n') as P3; unfold lgSize in *.
+               specialize (cutLen_pred P2 P1 Hbound0 pow2 n') as P3; unfold lgSize in *.
                rewrite P3, Z2Nat.inj_sub; try lia.
                rewrite rotateList_periodic at 1.
                unfold convertToList at 1.
@@ -568,7 +622,7 @@ Section Proofs3.
             -- clear H27 H28.
                rewrite Nat.ltb_ge, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-               destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+               destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
                exfalso; rewrite <- e in H4; simpl in H4.
                rewrite Zplus_mod_idemp_r, Zplus_mod_idemp_l,
                Zminus_mod_idemp_l, Z.add_simpl_l, Z.mod_small in H4; try lia.
@@ -577,7 +631,7 @@ Section Proofs3.
             -- clear H27 H28; simpl.
                rewrite Nat.ltb_lt, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-               destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+               destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
                exfalso.
                apply neq_wordVal in n; apply n; simpl.
                rewrite <- H4, Zplus_mod_idemp_l.
@@ -590,7 +644,7 @@ Section Proofs3.
             specialize (wordBound _ x10) as P1.
             specialize (wordBound _ x8) as P2.
             rewrite boundProofZIff in *.
-            simpl in Hbound.
+            simpl in Hbound0.
             assert (((wordVal (Nat.log2_up size + 1) x10 - wordVal (Nat.log2_up size + 1) x8)
                        mod 2 ^ Z.of_nat (Nat.log2_up size + 1))%Z <> Z.of_nat size) as P3.
             { intro; apply n; unfold lgSize in *.
@@ -599,7 +653,7 @@ Section Proofs3.
               rewrite Zplus_minus, Z.mod_small; auto.
             }
             econstructor 1; auto; normalize_key_concl; simpl.
-            -- specialize (cutLen_succ x27 P1 P2 Hbound pow2) as P4; unfold lgSize in *.
+            -- specialize (cutLen_succ x27 P1 P2 Hbound0 pow2) as P4; unfold lgSize in *.
                rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l, P4; lia.
             -- repeat f_equal.
                unfold Spec.snocInBound, listInSpec.
@@ -608,7 +662,7 @@ Section Proofs3.
                     [| unfold convertToList; rewrite rotateLength, <- list_arr_length; lia].
                   unfold lgSize in *.
                   rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l.
-                  rewrite (listSnoc x27 P1 P2 Hbound pow2); auto.
+                  rewrite (listSnoc x27 P1 P2 Hbound0 pow2); auto.
                   repeat f_equal.
                   apply functional_extensionality; intro.
                   apply if_bool_2.
@@ -647,7 +701,7 @@ Section Proofs3.
             destruct weq; symmetry; unfold listInSpec.
             -- rewrite Nat.ltb_ge, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-               destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+               destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
                exfalso; rewrite <- e in H0; simpl in H0.
                rewrite Zplus_mod_idemp_r, Zplus_mod_idemp_l,
                Zminus_mod_idemp_l, Z.add_simpl_l, Z.mod_small in H0; try lia.
@@ -655,7 +709,7 @@ Section Proofs3.
                rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
             -- rewrite Nat.ltb_lt, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
-               destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
+               destruct (Zle_lt_or_eq _ _ Hbound0); simpl in *; try lia.
                exfalso.
                apply neq_wordVal in n; apply n; simpl.
                rewrite <- H0, Zplus_mod_idemp_l.
@@ -666,7 +720,7 @@ Section Proofs3.
             specialize (wordBound _ x10) as P1.
             specialize (wordBound _ x8) as P2.
             rewrite boundProofZIff in *.
-            simpl in Hbound.
+            simpl in Hbound0.
             assert (((wordVal (Nat.log2_up size + 1) x10 - wordVal (Nat.log2_up size + 1) x8)
                        mod 2 ^ Z.of_nat (Nat.log2_up size + 1))%Z = Z.of_nat size) as P3.
             { rewrite <- e; simpl.
