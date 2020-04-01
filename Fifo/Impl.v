@@ -45,7 +45,8 @@ Section Impl.
     Read deq: Bit (lgSize + 1) <- deqPtrName;
     LET idx: Bit lgSize <- (fastModSize #deq);
     LETA dat: k <- read regArray ty idx;
-    Ret (STRUCT { "valid" ::= !#empty; "data" ::= #dat} : Maybe k @# ty).
+Ret (STRUCT { "valid" ::= !#empty; "data" ::= (IF !#empty then #dat else (Const _ Default))}
+                                              : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     LETA data: Maybe k <- first ty;
