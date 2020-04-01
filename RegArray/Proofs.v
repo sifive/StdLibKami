@@ -1236,10 +1236,11 @@ Section Proofs.
 
   Local Definition f := (fun i => name ++ "_" ++ natToHexStr i)%string.
 
-  Record myRegArrayR (o_i o_s : RegsT) : Prop :=
+  Record myRegArrayR (LocalRegs : RegsT) (arrayVal : Fin.t size -> type k)
+         (o_i o_s : RegsT) : Prop :=
     {
-      LocalRegs : RegsT;
-      arrayVal : (Fin.t size -> type k);
+      (* LocalRegs : RegsT; *)
+      (* arrayVal : (Fin.t size -> type k); *)
       LocalRegVal : LocalRegs = valsToRegs k f (list_arr arrayVal);
       Ho_iCorrect : o_i = LocalRegs;
       Ho_sCorrect : o_s = [(RegArray.Spec.arrayName,
@@ -1248,7 +1249,11 @@ Section Proofs.
       
   Ltac Record_destruct :=
     match goal with
-    |[ H : myRegArrayR _ _ |- _] => destruct H
+    |[ H : exists _ _, myRegArrayR _ _ _ _ |- _] =>
+     let LocalRegs := fresh "LocalRegs" in
+     let arrayVal := fresh "arrayVal" in
+     let H0 := fresh "H" in
+     destruct H as [LocalRegs [arrayVal H0]]; destruct H0
     end.
 
   Local Lemma NoDup_f m n:
@@ -1272,11 +1277,13 @@ Section Proofs.
   Qed.
   
   Goal RegArrayCorrect implRegArray specRegArray.
-    econstructor 1 with (regArrayR := myRegArrayR)
+    econstructor 1 with (regArrayR := (fun o1 o2 =>
+                                         (exists LocalRegs arrayVal,
+                                             myRegArrayR LocalRegs arrayVal o1 o2)))
                         (regArrayRegs := map (fun name => (name, SyntaxKind k)) Impl.names).
     all : unfold read, write, implRegArray, specRegArray, impl, spec,
                    Impl.impl, Impl.read, Impl.write,
-                   Spec.read, Spec.write, Utila.tag; intros; try Record_destruct.
+                   Spec.read, Spec.write, Utila.tag; intros.
     - red; intros; try Record_destruct.
       assert (length (rev (list_arr arrayVal)) = size) as P.
       { rewrite rev_length, <- list_arr_length; reflexivity. }
@@ -1288,7 +1295,7 @@ Section Proofs.
       rewrite P, rev_involutive in P1.
       specialize (P1 idx P0 reads_i upds calls retval).
       unfold impl_read in P1.
-      rewrite Ho_iCorrect, LocalRegVal in H0.
+      rewrite Ho_iCorrect0, LocalRegVal0 in H0.
       unfold Impl.names, valsToRegs in H0.
       unfold f, tag in P1.
       specialize (P1 H0); dest; subst.
@@ -1314,7 +1321,7 @@ Section Proofs.
         apply natToHexStr_inj in H; assumption. }
       specialize (impl_write_reduction (rev (list_arr arrayVal)) f) as P1.
       rewrite P, rev_involutive in P1.
-      rewrite Ho_iCorrect, LocalRegVal in H0.
+      rewrite Ho_iCorrect0, LocalRegVal0 in H0.
       unfold Impl.names, valsToRegs in H0.
       unfold f, tag in P1.
       specialize (P1 _ _ _ (Nat.le_refl _) (Nat.le_refl _) P0 _ _ _ _ H0); dest; subst.
@@ -1322,7 +1329,8 @@ Section Proofs.
       + repeat econstructor.
         * repeat intro; inv H.
       + destruct (le_lt_dec size (wordToNat (val F1))).
-        * econstructor 1 with (arrayVal := arrayVal).
+        * do 2 eexists.
+          econstructor 1 with (arrayVal := arrayVal).
           -- reflexivity.
           -- unfold valsToRegs, f.
              rewrite <- list_arr_length, firstn_all2; [|rewrite map_length, seq_length; auto].
@@ -1351,7 +1359,7 @@ Section Proofs.
              rewrite e, wordToNat_natToWord_eqn, Nat.mod_small in l; try lia.
              apply (lt_le_trans _ size); auto.
              apply log2_up_pow2.
-        * econstructor 1 with (arrayVal := (fun i =>
+        * do 2 eexists; econstructor 1 with (arrayVal := (fun i =>
                                               if getBool (weq (val F1) $ (proj1_sig (to_nat i)))
                                               then val (FS F1)
                                               else arrayVal i)).
