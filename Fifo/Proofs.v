@@ -8,50 +8,6 @@ Require Import Kami.GallinaModules.AuxLemmas.
 Require Import Kami.GallinaModules.AuxTactics.
 Require Import StdLibKami.RegArray.Proofs.
 
-Lemma emptyb_true {A : Type} (l : list A) :
-  emptyb l = true <-> l = nil.
-Proof.
-  red; split; destruct l; intros; auto; discriminate.
-Qed.
-
-Lemma emptyb_false {A : Type} (l : list A) :
-  emptyb l = false <-> exists x, In x l.
-Proof.
-  red; split; destruct l; intros; auto; try discriminate.
-  - exists a; left; reflexivity.
-  - dest; inv H.
-Qed.
-
-Lemma emptyb_true_len {A : Type} (l : list A) :
-  emptyb l = true <-> length l = 0.
-Proof.
-  rewrite length_zero_iff_nil; apply emptyb_true.
-Qed.
-
-Lemma emptyb_false_len {A : Type} (l : list A) :
-  emptyb l = false <-> 0 < length l.
-Proof.
-  rewrite emptyb_false; red; split; intros; dest.
-  - destruct l; [inv H| simpl; lia].
-  - destruct l; [simpl in H; lia| exists a; left; reflexivity].
-Qed.
-
-Lemma hd_error_Some {A : Type} (l : list A) (a : A) :
-  hd_error l = Some a <-> l = a :: tl l.
-Proof.
-  red; split; intros.
-  - destruct l; inv H; reflexivity.
-  - rewrite H; reflexivity.
-Qed.
-
-Lemma hd_error_None {A : Type} (l : list A) :
-  hd_error l = None <-> l = nil.
-Proof.
-  red; split; intros.
-  - destruct l; auto; discriminate.
-  - destruct l; auto; discriminate.
-Qed.
-
 Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
   {
     fifoRegs : list (Attribute FullKind);
@@ -303,7 +259,7 @@ Section Proofs3.
   Section SizeGT1.
     Variable Hsize1 : size <> 1.
     Definition listInSpec (len start : nat) (arr : Fin.t size -> type k) :=
-      cutList len (rotateList start (convertToList arr)).
+      firstn len (rotateList start (convertToList arr)).
 
     Record myFifoSpecR (o_i o_s : RegsT) : Prop :=
     {   
@@ -324,7 +280,9 @@ Section Proofs3.
                                   existT _ (SyntaxKind (Array size k)) arrayVal)];
       specRegVal : specRegs = [(Spec.listName,
                                      existT (fullType type) (Fifo.Spec.nlist type)
-                                            (listInSpec (Z.to_nat queueLen) (wordToNat deqVal)
+                                            (listInSpec (Z.to_nat queueLen)
+                                                        (Z.to_nat ((wordVal _ deqVal)
+                                                         mod (2 ^ Z.of_nat (Nat.log2_up size))))
                                                         arrayVal))];
       Ho_iCorrect : o_i = implRegs ++ regArray;
       Ho_sCorrect : o_s = specRegs;
@@ -365,8 +323,8 @@ Section Proofs3.
       - hyp_consumer.
         goal_consumer1; simpl.
         destruct weq; subst; simpl; symmetry; unfold listInSpec.
-        + rewrite Z.sub_diag, Zmod_0_l, cutList_nil_0; reflexivity.
-        + rewrite emptyb_false_len, cutList_length;
+        + rewrite Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
+        + rewrite emptyb_false_len, firstn_length_le;
             [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
           specialize (Nat.le_0_l
                         (Z.to_nat ((wordVal (lgSize + 1) x1
@@ -396,7 +354,7 @@ Section Proofs3.
       - hyp_consumer.
         goal_consumer1; simpl.
         destruct weq; simpl; symmetry; unfold listInSpec.
-        + rewrite negb_true_iff, Nat.ltb_ge, cutList_length;
+        + rewrite negb_true_iff, Nat.ltb_ge, firstn_length_le;
             [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
           destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
           exfalso; rewrite <- e in H0; simpl in H0.
@@ -404,7 +362,7 @@ Section Proofs3.
           Zminus_mod_idemp_l, Z.add_simpl_l, Z.mod_small in H0; try lia.
           unfold lgSize in *.
           rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
-        + rewrite negb_false_iff, Nat.ltb_lt, cutList_length;
+        + rewrite negb_false_iff, Nat.ltb_lt, firstn_length_le;
             [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
           destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
           exfalso.
@@ -415,7 +373,7 @@ Section Proofs3.
       - hyp_consumer.
         goal_consumer2; eauto.
       - hyp_consumer.
-        goal_consumer1; simpl; unfold listInSpec; rewrite cutList_length;
+        goal_consumer1; simpl; unfold listInSpec; rewrite firstn_length_le;
           [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
         arithmetizeWord; destruct x, x1; simpl in *.
         rewrite Zminus_mod_idemp_l.
@@ -437,8 +395,8 @@ Section Proofs3.
         apply functional_extensionality_dep.
         intros; fin_dep_destruct x.
         + simpl; destruct weq; subst; simpl; symmetry; unfold listInSpec.
-          * rewrite negb_false_iff, Z.sub_diag, Zmod_0_l, cutList_nil_0; reflexivity.
-          * rewrite negb_true_iff, emptyb_false_len, cutList_length;
+          * rewrite negb_false_iff, Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
+          * rewrite negb_true_iff, emptyb_false_len, firstn_length_le;
               [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
             specialize (Nat.le_0_l
                           (Z.to_nat ((wordVal (lgSize + 1) x10
@@ -461,12 +419,24 @@ Section Proofs3.
             -- apply Z.gt_lt in P2.
                rewrite Z.lt_le_pred in P2; simpl in P2.
                apply (Z.mul_le_mono_nonneg_r _ _ (Z.of_nat size * 2)) in P2; lia.
-        + fin_dep_destruct y; auto; unfold Spec.getHead; simpl; destruct weq; simpl;
-            unfold listInSpec.
-          * rewrite e, Z.sub_diag, Zmod_0_l, cutList_nil_0; reflexivity.
+        + fin_dep_destruct y; auto; unfold Spec.getHead; simpl; destruct weq; unfold listInSpec.
+          * rewrite e, Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
           * destruct lt_dec.
             -- simpl in Hbound.
-              admit.
+               specialize (wordBound _ x10) as P1.
+               specialize (wordBound _ x6) as P2.
+               rewrite boundProofZIff in *.
+               cbn [getBool negb].
+               assert (x10 <> x6) as n' by auto; clear n.
+               apply neq_wordVal in n'.
+               specialize (hdCorrect x19 P1 P2 Hbound pow2 n') as P3.
+               rewrite hd_error_Some in P3.
+               unfold lgSize in *.
+               erewrite <- rew_swap; simpl; eauto.
+               destruct (firstn _ _); [discriminate|].
+               inv P3; simpl.
+               f_equal.
+               apply of_nat_ext.
             -- exfalso.
                unfold lgSize in *.
                rewrite <- Zpow_of_nat, pow2 in *.
@@ -483,9 +453,9 @@ Section Proofs3.
           intros; fin_dep_destruct x.
           * simpl.
             destruct weq; subst; simpl; symmetry; unfold listInSpec.
-            -- rewrite Z.sub_diag, Zmod_0_l, cutList_nil_0; reflexivity.
+            -- rewrite Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
             -- rewrite negb_true_iff.
-               rewrite emptyb_false_len, cutList_length;
+               rewrite emptyb_false_len, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
                specialize (Nat.le_0_l
                              (Z.to_nat ((wordVal (lgSize + 1) x19
@@ -513,9 +483,23 @@ Section Proofs3.
                   apply (Z.mul_le_mono_nonneg_r _ _ (Z.of_nat size * 2)) in P2; lia.
           * fin_dep_destruct y; auto; unfold Spec.getHead; simpl; destruct weq; simpl;
             unfold listInSpec.
-            -- rewrite e, Z.sub_diag, Zmod_0_l, cutList_nil_0; reflexivity.
+            -- rewrite e, Z.sub_diag, Zmod_0_l, firstn_O; reflexivity.
             -- destruct lt_dec.
-               ++ admit.
+               ++ simpl in Hbound.
+                  specialize (wordBound _ x19) as P1.
+                  specialize (wordBound _ x13) as P2.
+                  rewrite boundProofZIff in *.
+                  cbn [getBool negb].
+                  assert (x19 <> x13) as n' by auto; clear n.
+                  apply neq_wordVal in n'.
+                  specialize (hdCorrect x29 P1 P2 Hbound pow2 n') as P3.
+                  rewrite hd_error_Some in P3.
+                  unfold lgSize in *.
+                  erewrite <- rew_swap; simpl; eauto.
+                  destruct (firstn _ _); [discriminate|].
+                  inv P3; simpl.
+                  f_equal.
+                  apply of_nat_ext.
                ++ exfalso.
                   unfold lgSize in *.
                   rewrite <- Zpow_of_nat, pow2 in *.
@@ -524,7 +508,56 @@ Section Proofs3.
                                 (wordVal (Nat.log2_up size + 1) x13)
                                 (Z.of_nat size)
                                 ltac:(lia)) as P1; lia.
-        + admit.
+        + econstructor 1; auto; normalize_key_concl; simpl.
+          * destruct weq; simpl.
+            -- simpl in Hbound.
+               rewrite Zmod_0_l, Z.add_0_r; repeat rewrite Zminus_mod_idemp_r; auto.
+            -- simpl in Hbound.
+               rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
+               specialize (wordBound _ x13) as P1.
+               specialize (wordBound _ x19) as P2.
+               rewrite boundProofZIff in *.
+               assert (x19 <> x13) as n' by auto.
+               apply neq_wordVal in n'.
+               specialize (cutLen_pred P2 P1 Hbound pow2 n') as P3; unfold lgSize in *.
+               rewrite P3; lia.
+          * repeat f_equal.
+            specialize (wordBound _ x13) as P1.
+            specialize (wordBound _ x19) as P2.
+            rewrite boundProofZIff in *.
+            destruct weq; simpl; subst; unfold listInSpec, lgSize in *.
+            -- rewrite Z.sub_diag, Zmod_0_l, Z.add_0_r.
+               repeat rewrite Zminus_mod_idemp_r.
+               rewrite Z.sub_diag, Zmod_0_l; repeat rewrite firstn_O; reflexivity.
+            -- rewrite tailCorrect; auto.
+               rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
+               assert (x19 <> x13) as n' by auto.
+               apply neq_wordVal in n'.
+               specialize (cutLen_pred P2 P1 Hbound pow2 n') as P3; unfold lgSize in *.
+               rewrite P3, Z2Nat.inj_sub; try lia.
+               rewrite rotateList_periodic at 1.
+               unfold convertToList at 1.
+               rewrite <- list_arr_length.
+               do 2 f_equal.
+               rewrite Zmod_mod', <- Zpow_of_nat, Nat2Z.id, pow2;
+                 [| rewrite <-Zpow_of_nat, pow2; lia
+                  | apply Z.mod_pos_bound; lia].
+               dest.
+               rewrite Nat2Z.inj_add, Z.pow_add_r, <-Zpow_of_nat, pow2, Z.pow_1_r in *; try lia.
+               apply Zlt_le_succ in H7.
+               rewrite <- Z.add_1_r in H7.
+               destruct (Zle_lt_or_eq _ _ H7).
+               ++ rewrite (Z.mod_small (_ + _) _); try lia.
+                  rewrite <- (Nat2Z.id size) at 3;
+                    rewrite <- (Nat2Z.id size) at 5.
+                  repeat rewrite <- Zmod_mod'; try lia.
+                  ** rewrite Z.add_mod_idemp_l; lia.
+                  ** apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
+               ++ rewrite H8, Z_mod_same_full, Nat.mod_0_l; auto.
+                  rewrite <- (Nat2Z.id size) at 3.
+                  rewrite <- Zmod_mod', Zplus_mod_idemp_l, Zmod_mod'
+                  , H8, Z.mul_comm, <- Zmod_mod', Z.mod_mul; try lia.
+                  apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
       - hyp_consumer.
         goal_consumer2.
       - hyp_consumer.
@@ -533,7 +566,7 @@ Section Proofs3.
           * simpl.
             destruct weq; symmetry; unfold listInSpec.
             -- clear H27 H28.
-               rewrite Nat.ltb_ge, cutList_length;
+               rewrite Nat.ltb_ge, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
                destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
                exfalso; rewrite <- e in H4; simpl in H4.
@@ -542,7 +575,7 @@ Section Proofs3.
                unfold lgSize in *.
                rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
             -- clear H27 H28; simpl.
-               rewrite Nat.ltb_lt, cutList_length;
+               rewrite Nat.ltb_lt, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
                destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
                exfalso.
@@ -550,11 +583,69 @@ Section Proofs3.
                rewrite <- H4, Zplus_mod_idemp_l.
                repeat rewrite Zplus_mod_idemp_r.
                rewrite Zplus_minus, (wordBound _ x10); reflexivity.
-          * admit.
+          * simpl in H17; rewrite negb_true_iff in H17.
+            destruct weq; try discriminate; clear H17.
+            apply neq_wordVal in n.
+            simpl in n.
+            specialize (wordBound _ x10) as P1.
+            specialize (wordBound _ x8) as P2.
+            rewrite boundProofZIff in *.
+            simpl in Hbound.
+            assert (((wordVal (Nat.log2_up size + 1) x10 - wordVal (Nat.log2_up size + 1) x8)
+                       mod 2 ^ Z.of_nat (Nat.log2_up size + 1))%Z <> Z.of_nat size) as P3.
+            { intro; apply n; unfold lgSize in *.
+              rewrite <- H4, Zplus_mod_idemp_l;
+                repeat rewrite Zplus_mod_idemp_r.
+              rewrite Zplus_minus, Z.mod_small; auto.
+            }
+            econstructor 1; auto; normalize_key_concl; simpl.
+            -- specialize (cutLen_succ x27 P1 P2 Hbound pow2) as P4; unfold lgSize in *.
+               rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l, P4; lia.
+            -- repeat f_equal.
+               unfold Spec.snocInBound, listInSpec.
+               destruct Nat.ltb eqn:G.
+               ++ rewrite Nat.ltb_lt, firstn_length_le in G;
+                    [| unfold convertToList; rewrite rotateLength, <- list_arr_length; lia].
+                  unfold lgSize in *.
+                  rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l.
+                  rewrite (listSnoc x27 P1 P2 Hbound pow2); auto.
+                  repeat f_equal.
+                  apply functional_extensionality; intro.
+                  apply if_bool_2.
+                  destruct eqb eqn:G0, weq; auto.
+                  ** exfalso.
+                     apply n0.
+                     rewrite eqb_eq in G0; rewrite G0, to_nat_of_nat; simpl.
+                     arithmetizeWord.
+                     destruct x10; simpl.
+                     rewrite Z2Nat.id, Zmod_mod; auto.
+                     apply Z.mod_pos_bound.
+                     rewrite <- Zpow_of_nat, pow2; lia.
+                  ** exfalso.
+                     rewrite Fin_eqb_neq in G0.
+                     apply G0.
+                     arithmetizeWord; destruct x10; simpl in *.
+                     rewrite <- Zpow_of_nat, <- mod_Zmod, <- (Z2Nat.id (wordVal mod _)) in H4
+                     ; try lia.
+                     apply Nat2Z.inj in H4.
+                     rewrite Zmod_mod', Nat2Z.id in H4; try lia.
+                     rewrite (Nat.mod_small (proj1_sig _)) in H4.
+                     --- apply to_nat_inj.
+                         rewrite <- H4, to_nat_of_nat; simpl.
+                         rewrite <- (Nat2Z.id (2 ^ _)), <- Zmod_mod', Zpow_of_nat; try lia.
+                     --- rewrite pow2.
+                         apply fin_to_nat_bound.
+               ++ exfalso.
+                  rewrite Nat.ltb_ge, firstn_length_le in G.
+                  ** apply P3.
+                     apply inj_le in G.
+                     rewrite Z2Nat.id in G; try lia.
+                     apply Z.le_antisymm; auto.
+                  ** unfold convertToList; rewrite rotateLength, <- list_arr_length; lia.
         + goal_consumer1.
           * simpl.
-            destruct weq; symmetry; unfold listInSpec; simpl.
-            -- rewrite Nat.ltb_ge, cutList_length;
+            destruct weq; symmetry; unfold listInSpec.
+            -- rewrite Nat.ltb_ge, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
                destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
                exfalso; rewrite <- e in H0; simpl in H0.
@@ -562,7 +653,7 @@ Section Proofs3.
                Zminus_mod_idemp_l, Z.add_simpl_l, Z.mod_small in H0; try lia.
                unfold lgSize in *.
                rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
-            -- rewrite Nat.ltb_lt, cutList_length;
+            -- rewrite Nat.ltb_lt, firstn_length_le;
                  [|simpl in *; rewrite rotateLength, <- list_arr_length; lia].
                destruct (Zle_lt_or_eq _ _ Hbound); simpl in *; try lia.
                exfalso.
@@ -570,7 +661,27 @@ Section Proofs3.
                rewrite <- H0, Zplus_mod_idemp_l.
                repeat rewrite Zplus_mod_idemp_r.
                rewrite Zplus_minus, (wordBound _ x10); reflexivity.
-          * admit.
+          * simpl in H17; rewrite negb_false_iff in H17.
+            destruct weq; try discriminate; clear H17.
+            specialize (wordBound _ x10) as P1.
+            specialize (wordBound _ x8) as P2.
+            rewrite boundProofZIff in *.
+            simpl in Hbound.
+            assert (((wordVal (Nat.log2_up size + 1) x10 - wordVal (Nat.log2_up size + 1) x8)
+                       mod 2 ^ Z.of_nat (Nat.log2_up size + 1))%Z = Z.of_nat size) as P3.
+            { rewrite <- e; simpl.
+              unfold lgSize in *.
+              rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l, Z.add_simpl_l,
+              <- Zpow_of_nat, Nat.pow_add_r, Nat.pow_1_r, pow2, <- mod_Zmod, Nat.mod_small; lia.
+            }
+            econstructor 1; auto; normalize_key_concl; simpl.
+            repeat f_equal.
+            unfold Spec.snocInBound, listInSpec.
+            destruct Nat.ltb eqn:G; auto.
+            exfalso.
+            rewrite Nat.ltb_lt, firstn_length_le in G;
+              [| unfold convertToList; rewrite rotateLength, <- list_arr_length; lia].
+            unfold lgSize in *; lia.
       - hyp_consumer.
         + goal_consumer2.
         + goal_consumer2; eauto.
@@ -580,10 +691,10 @@ Section Proofs3.
         + simpl; rewrite Zmod_0_l; lia.
         + simpl; doUpdRegs_red; reflexivity.
         + simpl; doUpdRegs_red; unfold listInSpec.
-          rewrite cutList_nil_0; reflexivity.
+          rewrite firstn_O; reflexivity.
         + rewrite doUpdRegs_preserves_keys; normalize_key_concl.
-    Admitted.
-    
+    Qed.
+
   End SizeGT1.
 
 End Proofs3.
