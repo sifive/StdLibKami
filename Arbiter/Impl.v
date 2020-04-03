@@ -46,7 +46,7 @@ Section Impl.
          
   Local Definition getResps
         (first: forall {ty}, ActionT ty (Maybe (InRes clients)))
-        (deq: forall {ty}, ActionT ty (Maybe (InRes clients)))
+        (deq: forall {ty}, ActionT ty Bool)
         (clientId: Fin.t (numClients clients))
         (ty: Kind -> Type)
     : ActionT ty (Maybe (clientResK (nth_Fin (clientList clients) clientId)))

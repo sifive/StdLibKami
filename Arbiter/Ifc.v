@@ -74,7 +74,7 @@ Section Ifc.
              ActionT ty Bool;
 
          getResps (first: forall {ty}, ActionT ty (Maybe InRes))
-                  (deq: forall {ty}, ActionT ty (Maybe InRes))
+                  (deq: forall {ty}, ActionT ty Bool)
          : forall (clientId: Fin.t numClients) {ty},
              ActionT ty (Maybe (clientResK (nth_Fin (clientList clients) clientId)));
 
