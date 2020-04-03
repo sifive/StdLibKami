@@ -12,7 +12,9 @@ Section GenSpec.
   Context {params : Params}.
 
   Local Definition listName := (name ++ ".list")%string.
-  Local Definition nonDetName := (name ++ ".nonDet")%string.
+  Local Definition nonDetLenName := (name ++ ".nonDetLen")%string.
+  Local Definition nonDetEmptyName := (name ++ ".nonDetEmpty")%string.
+  Local Definition nonDetFullName := (name ++ ".nonDetFull")%string.
   
   Local Notation Natgeb n m := (negb (Nat.ltb n m)).
   
@@ -26,8 +28,12 @@ Section GenSpec.
     end.
 
   Local Definition nonDet ty: ActionT ty Void :=
-    Nondet eps: (Bit lgSize);
-    Write nonDetName: (Bit lgSize) <- #eps;
+    Nondet lengthN: (Bit lgSize);
+    Nondet emptyN: Bool;
+    Nondet fullN: Bool;
+    Write nonDetLenName: (Bit lgSize) <- #lengthN;
+    Write nonDetEmptyName: Bool <- #emptyN;
+    Write nonDetFullName: Bool <- #fullN;
     Retv.
   
   Local Definition snocInBound ty (a : ty k) (ls : list (ty k)) : list (ty k) :=
@@ -37,16 +43,18 @@ Section GenSpec.
 
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
     ReadN data: nlist ty <- listName;
-    Read eps: (Bit lgSize) <- nonDetName;    
-    Ret (IF (#eps < $(size - (length data))) then #eps else $(size - (length data))).
+    Read lengthN: (Bit lgSize) <- nonDetLenName;
+    Ret (IF (#lengthN < $(size - (length data))) then #lengthN else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
+    Read emptyN: Bool <- nonDetEmptyName;
     LETA freeNum: (Bit lgSize) <- numFree ty;
-    Ret (#freeNum == $0).
+    Ret (#emptyN || (#freeNum == $size)).
 
   Local Definition isFull ty: ActionT ty Bool :=
+    Read fullN: Bool <- nonDetFullName;
     LETA freeNum: (Bit lgSize) <- numFree ty;
-    Ret (#freeNum == $size).
+    Ret (#fullN || (#freeNum == $0)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist ty <- listName;
@@ -63,7 +71,9 @@ Section GenSpec.
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     ReadN data: nlist ty <- listName;
     LETA full: Bool <- isFull ty;
-    WriteN listName: nlist ty <- Var _ (nlist ty) (snocInBound ty new data);
+    WriteN listName: nlist ty <- (IF !#full
+                                  then Var _ (nlist ty) (snocInBound ty new data)
+                                  else Var _ (nlist ty) data);
     Ret #full.
 
   Local Definition flush ty: ActionT ty Void :=

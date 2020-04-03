@@ -53,20 +53,14 @@ Section DoubleFifo.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Local Definition isEmpty ty: ActionT ty Bool :=
-    LETA emptyL: Bool <- (Ifc.isEmpty fifoL);
-    LETA emptyR: Bool <- (Ifc.isEmpty fifoR);
-    Ret (#emptyL && #emptyR).
+  Local Definition isEmpty ty: ActionT ty Bool := isEmpty fifoL.
 
-  Local Definition isFull ty: ActionT ty Bool :=
-    LETA fullL: Bool <- (Ifc.isFull fifoL);
-    LETA fullR: Bool <- (Ifc.isFull fifoR);
-    Ret (#fullL && #fullR).
+  Local Definition isFull ty: ActionT ty Bool := isFull fifoR.
   
   Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
     LETA numL: Bit (@lgSize ifcParamsL) <- (Ifc.numFree fifoL);
     LETA numR: Bit (@lgSize ifcParamsR) <- (Ifc.numFree fifoR);
-    Ret (castBits lgSize_double (ZeroExtend 1 (#numL + #numR))).
+    Ret (castBits lgSize_double ((ZeroExtend 1 #numL) + (ZeroExtend 1 #numR))).
 
   Local Definition first ty: ActionT ty (Maybe k) := first fifoR.
 
@@ -90,7 +84,7 @@ Section DoubleFifo.
      LETA _ <- (Ifc.flush fifoL);
      Retv.
 
-   Local Definition regs: list RegInitT := (Ifc.regs fifoL) ++ (Ifc.regs fifoR).                       
+   Local Definition regs: list RegInitT := (Ifc.regs fifoL) ++ (Ifc.regs fifoR).
 
   Definition impl: Ifc :=
     {|
@@ -104,5 +98,5 @@ Section DoubleFifo.
       Ifc.enq := enq;
       Ifc.flush := flush
     |}.
-  
+
 End DoubleFifo.
