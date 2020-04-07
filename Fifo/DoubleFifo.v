@@ -6,16 +6,32 @@ Require Import StdLibKami.Fifo.Impl.
 Section DoubleFifo.
   
   Context {ifcParams : Ifc.Params}.
-  Variable sizeL sizeR : nat.
-  Local Definition ifcParamsL :=
-    Ifc.Build_Params (append name "L") k sizeL.
-  Local Definition ifcParamsR :=
-    Ifc.Build_Params (append name "R") k sizeR.
+  (* Variable sizeL sizeR : nat. *)
+  (* Local Definition ifcParamsL := *)
+  (*   Ifc.Build_Params (append name "L") k sizeL. *)
+  (* Local Definition ifcParamsR := *)
+  (*   Ifc.Build_Params (append name "R") k sizeR. *)
 
-  Class Params := { sizeSum : size = sizeL + sizeR;
-                    sizeGt1 : 1 < size;
-                    Lfifo : @Fifo.Ifc.Ifc ifcParamsL;
-                    Rfifo : @Fifo.Ifc.Ifc ifcParamsR }.
+  Class Params := { sizeL : nat;
+                    sizeR : nat;
+                    sizeSum : (@size ifcParams) = sizeL + sizeR;
+                    Lfifo : @Fifo.Ifc.Ifc (Ifc.Build_Params (append (@name ifcParams) "L")
+                                                            (@k ifcParams)
+                                                            sizeL);
+                    Rfifo : @Fifo.Ifc.Ifc (Ifc.Build_Params (append (@name ifcParams) "R")
+                                                            (@k ifcParams)
+                                                            sizeR);
+                    }.
+                   (* ifcParamsL : Ifc.Params; *)
+                   (*  ifcParamsR : Ifc.Params; *)
+                   (*  sizeSum : (@size ifcParams) = (@size ifcParamsL) + (@size ifcParamsR); *)
+                   (*  sameKindL : (@k ifcParams) = (@k ifcParamsL); *)
+                   (*  sameKindR : (@k ifcParams) = (@k ifcParamsR); *)
+                   (*  nameL : (@name ifcParamsL) = (append (@name ifcParams) "L"); *)
+                   (*  nameR : (@name ifcParamsR) = (append (@name ifcParams) "R"); *)
+                   (*  sizeGt1 : 1 < size; *)
+                   (*  Lfifo : @Fifo.Ifc.Ifc ifcParamsL; *)
+                   (*  Rfifo : @Fifo.Ifc.Ifc ifcParamsR }. *)
 
   Context {params: Params}.
   
@@ -52,23 +68,33 @@ Section DoubleFifo.
   (* Qed. *)
 
   Local Lemma lgSize_sumL :
-    (@lgSize ifcParamsL) + (lgSize - (@lgSize ifcParamsL)) = lgSize.
+    (@lgSize (Ifc.Build_Params (append (@name ifcParams) "L")
+                               (@k ifcParams)
+                               sizeL))
+    + (lgSize - (@lgSize (Ifc.Build_Params (append (@name ifcParams) "L")
+                                           (@k ifcParams)
+                                           sizeL))) = lgSize.
   Proof.
     symmetry.
     apply le_plus_minus.
-    unfold lgSize, ifcParamsL.
-    rewrite sizeSum; unfold size.
-    apply Nat.log2_up_le_mono; lia.
+    unfold lgSize.
+    apply Nat.log2_up_le_mono.
+    rewrite sizeSum; unfold size; lia.
   Qed.
 
   Local Lemma lgSize_sumR :
-    (@lgSize ifcParamsR) + (lgSize - (@lgSize ifcParamsR)) = lgSize.
+    (@lgSize (Ifc.Build_Params (append (@name ifcParams) "R")
+                               (@k ifcParams)
+                               sizeR))
+    + (lgSize - (@lgSize (Ifc.Build_Params (append (@name ifcParams) "R")
+                                           (@k ifcParams)
+                                           sizeR))) = lgSize.
   Proof.
     symmetry.
     apply le_plus_minus.
-    unfold lgSize, ifcParamsR.
-    rewrite sizeSum; unfold size.
-    apply Nat.log2_up_le_mono; lia.
+    unfold lgSize.
+    apply Nat.log2_up_le_mono.
+    rewrite sizeSum; unfold size; lia.
   Qed.
   
   Local Open Scope kami_expr.
@@ -79,11 +105,13 @@ Section DoubleFifo.
   Local Definition isFull ty: ActionT ty Bool := isFull Rfifo.
   
   Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
-    LETA numL: Bit (@lgSize ifcParamsL) <- (Ifc.numFree Lfifo);
-    LETA numR: Bit (@lgSize ifcParamsR) <- (Ifc.numFree Rfifo);
-    Ret (castBits lgSize_sumL (ZeroExtend (lgSize - (@lgSize ifcParamsL)) #numL)
-        + castBits lgSize_sumR (ZeroExtend (lgSize - (@lgSize ifcParamsR)) #numR)).
-
+    LETA numL : Bit lgSize <- (Ifc.numFree Lfifo);
+    LETA numR : Bit lgSize <- (Ifc.numFree Rfifo);
+    Ret (IF (#numL < $(sizeL))
+         then (castBits lgSize_sumL (ZeroExtend _ #numL))
+         else (castBits lgSize_sumL (ZeroExtend _ #numL)
+               + castBits lgSize_sumR (ZeroExtend _ #numR))).
+  
   Local Definition first ty: ActionT ty (Maybe k) := first Rfifo.
 
   Local Definition deq ty: ActionT ty (Maybe k) := deq Rfifo.
@@ -101,12 +129,12 @@ Section DoubleFifo.
       );
     Retv.
                     
-   Local Definition flush ty: ActionT ty Void :=
-     LETA _ <- (Ifc.flush Rfifo);
-     LETA _ <- (Ifc.flush Lfifo);
-     Retv.
+  Local Definition flush ty: ActionT ty Void :=
+    LETA _ <- (Ifc.flush Rfifo);
+    LETA _ <- (Ifc.flush Lfifo);
+    Retv.
 
-   Local Definition regs: list RegInitT := (Ifc.regs Lfifo) ++ (Ifc.regs Rfifo).
+  Local Definition regs: list RegInitT := (Ifc.regs Lfifo) ++ (Ifc.regs Rfifo).
 
   Definition impl: Ifc :=
     {|
@@ -120,5 +148,5 @@ Section DoubleFifo.
       Ifc.enq := enq;
       Ifc.flush := flush
     |}.
-
+  
 End DoubleFifo.

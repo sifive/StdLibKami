@@ -21,8 +21,14 @@ Section Proofs.
 
   Local Definition fifoImpl := @Fifo.DoubleFifo.impl ifcParams dblParams.
   Local Definition fifoSpec := @Fifo.GenericSpec.spec ifcParams.
-  Local Definition fifoSpecL := @Fifo.GenericSpec.spec (@Fifo.DoubleFifo.ifcParamsL ifcParams).
-  Local Definition fifoSpecR := @Fifo.GenericSpec.spec (@Fifo.DoubleFifo.ifcParamsR ifcParams).
+  Local Notation ifcParamsL := (Ifc.Build_Params (append (@name ifcParams) "L")
+                                                 (@k ifcParams)
+                                                 sizeL).
+  Local Notation ifcParamsR := (Ifc.Build_Params (append (@name ifcParams) "R")
+                                                 (@k ifcParams)
+                                                 sizeR).
+  Local Definition fifoSpecL := @Fifo.GenericSpec.spec ifcParamsL.
+  Local Definition fifoSpecR := @Fifo.GenericSpec.spec ifcParamsR.
   
   Variable HCorrectL : FifoCorrect Lfifo fifoSpecL.
   Variable HCorrectR : FifoCorrect Rfifo fifoSpecR.
@@ -41,8 +47,8 @@ Section Proofs.
       nonDetEmpVal : bool;
       nonDetEmpValL : bool;
       lenVal : word lgSize;
-      lenValL : word (@lgSize (@Fifo.DoubleFifo.ifcParamsL ifcParams));
-      lenValR : word (@lgSize (@Fifo.DoubleFifo.ifcParamsR ifcParams));
+      lenValL : word (@lgSize ifcParamsL);
+      lenValR : word (@lgSize ifcParamsR);
       HimplRegValL : specRegVals = implRegValL ++ implRegValR;
       HnonDetEmpVal : nonDetEmpVal = nonDetEmpValL;
       Ho_sCorrect : o_s =
@@ -50,9 +56,12 @@ Section Proofs.
                     (GenericSpec.listName, existT _ (GenericSpec.nlist type) specRegVals);
                     (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit lgSize)) lenVal)];
       Ho_s1Correct : o_s1 =
-                    [((@GenericSpec.nonDetEmptyName (@Fifo.DoubleFifo.ifcParamsL ifcParams)), existT _ (SyntaxKind Bool) nonDetEmpVal);
-                    ((@GenericSpec.listName (@Fifo.DoubleFifo.ifcParamsL ifcParams)), existT _ (GenericSpec.nlist type) specRegVals);
-                    ((@GenericSpec.nonDetLenName (@Fifo.DoubleFifo.ifcParamsL ifcParams)), existT _ (SyntaxKind (Bit lgSize)) lenVal)];
+                     [((@GenericSpec.nonDetEmptyName ifcParamsL),
+                       existT _ (SyntaxKind Bool) nonDetEmpVal);
+                     ((@GenericSpec.listName ifcParamsL),
+                      existT _ (GenericSpec.nlist type) implRegValL);
+                     ((@GenericSpec.nonDetLenName ifcParamsL),
+                      existT _ (SyntaxKind (Bit lgSize)) lenValL)];
       Ho_iApp : o_i = o_i1 ++ o_i2;
       HRegs1 : getKindAttr o_i1 = (fifoRegs HCorrectL);
       HRegs2 : getKindAttr o_i2 = (fifoRegs HCorrectR);
@@ -84,8 +93,11 @@ Section Proofs.
     - unfold fifoSpecL, spec, GenericSpec.isEmpty, GenericSpec.numFree in *; cbn [isEmpty] in *.
       hyp_consumer.
       goal_consumer1.
-      unfold GenericSpec.nlist, DoubleFifo.ifcParamsL, k in x1.
-      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x1).
+      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+  (*     hyp_consumer. *)
+  (*     goal_consumer1. *)
+  (*     unfold GenericSpec.nlist, DoubleFifo.ifcParamsL, k in x1. *)
+  (*     rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x1). *)
+  (* Admitted. *)
   Admitted.
-  
 End Proofs.

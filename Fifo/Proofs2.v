@@ -32,7 +32,7 @@ Section Proofs.
                                 (Fifo1.dataRegName,
                                  existT _ (SyntaxKind k) fifo1_dval)];
         specRegVal : specRegs = [(Spec.listName,
-                                  existT (fullType type) (Spec.nlist type) (if fifo1_bval
+                                  existT (fullType type) Spec.nlist (if fifo1_bval
                                                                             then [fifo1_dval]
                                                                             else nil))];
         Ho_iCorrect1' : o_i = implRegs;
@@ -126,7 +126,7 @@ Section Proofs.
       regArrayVal : regArray = [((name ++ ".regArray")%string,
                                   existT _ (SyntaxKind (Array size k)) arrayVal)];
       gt_1specRegVal : specRegs = [(Spec.listName,
-                                     existT (fullType type) (Fifo.Spec.nlist type)
+                                     existT (fullType type) Fifo.Spec.nlist
                                             (listInSpec (Z.to_nat queueLen)
                                                         (Z.to_nat ((wordVal _ deqVal)
                                                          mod (2 ^ Z.of_nat (Nat.log2_up size))))
@@ -299,7 +299,6 @@ Section Proofs.
                specialize (hdCorrect x19 P1 P2 Hbound0 pow2 n') as P3.
                rewrite hd_error_Some in P3.
                unfold lgSize in *.
-               erewrite <- rew_swap; simpl; eauto.
                destruct (firstn _ _); [discriminate|].
                inv P3; simpl.
                f_equal.
@@ -362,7 +361,6 @@ Section Proofs.
                   specialize (hdCorrect x29 P1 P2 Hbound0 pow2 n') as P3.
                   rewrite hd_error_Some in P3.
                   unfold lgSize in *.
-                  erewrite <- rew_swap; simpl; eauto.
                   destruct (firstn _ _); [discriminate|].
                   inv P3; simpl.
                   f_equal.

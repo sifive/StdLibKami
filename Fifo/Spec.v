@@ -11,46 +11,46 @@ Section Spec.
   
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
-  
-  Local Definition getHead ty (ls : list (ty k)): k @# ty :=
-    match ls with
-    | [] => $$(getDefaultConst k)
-    | x :: _ => #x
-    end.
 
-  Local Definition snocInBound ty (a : ty k) (ls : list (ty k)) : list (ty k) :=
+  Local Definition getHead ty (ls : list (type k)) : k @# ty :=
+    FromNative k (Var ty (NativeKind (evalConstT Default)) (hd (evalConstT Default) ls)).
+
+  Local Definition snocInBound (a : type k) (ls : list (type k)) : list (type k) :=
     if (Nat.ltb (length ls) size) then snoc a ls else ls.
   
-  Local Definition nlist ty := NativeKind (nil : list (ty k)).
+  Local Definition nlist := NativeKind (nil : list (type k)).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     Ret $$(emptyb data).
 
   Local Definition isFull ty: ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     Ret $$(Natgeb (length data) size).
   
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     Ret $(size - (length data)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
-    ReadN data: nlist ty <- listName;
-    Ret (STRUCT { "valid" ::= $$(negb (emptyb data)); "data" ::= getHead _ data } : Maybe k @# ty).
+    ReadN data: nlist <- listName;
+    Ret (STRUCT { "valid" ::= $$(negb (emptyb data));
+                  "data" ::= getHead _ data } : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
-    ReadN data: nlist ty <- listName;
-    WriteN listName: nlist ty <- Var _ (nlist ty) (tl data);
-    Ret (STRUCT { "valid" ::= $$(negb (emptyb data)); "data" ::= getHead _ data } : Maybe k @# ty).
+    ReadN data: nlist <- listName;
+    WriteN listName: nlist <- Var _ nlist (tl data);
+    Ret (STRUCT { "valid" ::= $$(negb (emptyb data));
+                  "data" ::= getHead _ data } : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
-    WriteN listName: nlist ty <- Var _ (nlist ty) (snocInBound ty new data);
+    ReadN data: nlist <- listName;
+    LET val <- ToNative #new;
+    WriteN listName: nlist <- Var _ nlist (snocInBound val data);
     Ret $$(Nat.ltb (length data) size).
 
   Local Definition flush ty: ActionT ty Void :=
-    WriteN listName: nlist ty <- Var _ (nlist ty) nil;
+    WriteN listName: nlist <- Var _ nlist nil;
     Retv.
 
   Local Definition regs : list RegInitT := makeModule_regs (RegisterNDef listName: list (type k) <- (nil: list (type k)))%kami.
