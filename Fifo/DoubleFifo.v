@@ -100,17 +100,16 @@ Section DoubleFifo.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Local Definition isEmpty ty: ActionT ty Bool := isEmpty Lfifo.
+  Local Definition isEmpty ty: ActionT ty Bool := isEmpty Rfifo.
 
-  Local Definition isFull ty: ActionT ty Bool := isFull Rfifo.
+  Local Definition isFull ty: ActionT ty Bool := isFull Lfifo.
   
   Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
     LETA numL : Bit lgSize <- (Ifc.numFree Lfifo);
     LETA numR : Bit lgSize <- (Ifc.numFree Rfifo);
     Ret (IF (#numL < $(sizeL))
          then (castBits lgSize_sumL (ZeroExtend _ #numL))
-         else (castBits lgSize_sumL (ZeroExtend _ #numL)
-               + castBits lgSize_sumR (ZeroExtend _ #numR))).
+         else ($sizeL + castBits lgSize_sumR (ZeroExtend _ #numR))).
   
   Local Definition first ty: ActionT ty (Maybe k) := first Rfifo.
 

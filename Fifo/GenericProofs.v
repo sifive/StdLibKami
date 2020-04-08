@@ -46,10 +46,11 @@ Section Proofs.
       specRegVals : list (type k);
       nonDetEmpVal : bool;
       nonDetEmpValL : bool;
+      nonDetEmpValR : bool;
       lenVal : word lgSize;
       lenValL : word (@lgSize ifcParamsL);
       lenValR : word (@lgSize ifcParamsR);
-      HimplRegValL : specRegVals = implRegValL ++ implRegValR;
+      HimplRegVal : specRegVals = implRegValL ++ implRegValR;
       HnonDetEmpVal : nonDetEmpVal = nonDetEmpValL;
       Ho_sCorrect : o_s =
                     [(GenericSpec.nonDetEmptyName, existT _ (SyntaxKind Bool) nonDetEmpVal);
@@ -57,11 +58,18 @@ Section Proofs.
                     (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit lgSize)) lenVal)];
       Ho_s1Correct : o_s1 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsL),
-                       existT _ (SyntaxKind Bool) nonDetEmpVal);
+                       existT _ (SyntaxKind Bool) nonDetEmpValL);
                      ((@GenericSpec.listName ifcParamsL),
                       existT _ (GenericSpec.nlist type) implRegValL);
                      ((@GenericSpec.nonDetLenName ifcParamsL),
                       existT _ (SyntaxKind (Bit lgSize)) lenValL)];
+      Ho_s2Correct : o_s2 =
+                     [((@GenericSpec.nonDetEmptyName ifcParamsR),
+                       existT _ (SyntaxKind Bool) nonDetEmpValR);
+                     ((@GenericSpec.listName ifcParamsR),
+                      existT _ (GenericSpec.nlist type) implRegValR);
+                     ((@GenericSpec.nonDetLenName ifcParamsR),
+                      existT _ (SyntaxKind (Bit lgSize)) lenValR)];
       Ho_iApp : o_i = o_i1 ++ o_i2;
       HRegs1 : getKindAttr o_i1 = (fifoRegs HCorrectL);
       HRegs2 : getKindAttr o_i2 = (fifoRegs HCorrectR);

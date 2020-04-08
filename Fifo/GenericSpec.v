@@ -5,9 +5,7 @@ Require Import StdLibKami.Fifo.Ifc.
 Section GenSpec.
   Context {ifcParams : Ifc.Params}.
 
-  Class Params := { sizePow2 : Nat.pow 2 lgSize = size;
-                    regList : list RegInitT;
-                  }.
+  Class Params := { regList : list RegInitT }.
 
   Context {params : Params}.
 
@@ -21,11 +19,11 @@ Section GenSpec.
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
   
-  Local Definition getHead ty (ls : list (ty k)): k @# ty :=
-    match ls with
-    | [] => $$(getDefaultConst k)
-    | x :: _ => #x
-    end.
+  Local Definition getHead ty (ls : list (type k)) : k @# ty :=
+    FromNative k (Var ty (NativeKind (evalConstT Default)) (hd (evalConstT Default) ls)).
+
+  Local Definition snocInBound (a : type k) (ls : list (type k)) : list (type k) :=
+    if (Nat.ltb (length ls) size) then snoc a ls else ls.
 
   Local Definition nonDet ty: ActionT ty Void :=
     Nondet lengthN: (Bit lgSize);
@@ -36,13 +34,10 @@ Section GenSpec.
     Write nonDetFullName: Bool <- #fullN;
     Retv.
   
-  Local Definition snocInBound ty (a : ty k) (ls : list (ty k)) : list (ty k) :=
-    if (Nat.ltb (length ls) size) then snoc a ls else ls.
-  
-  Local Definition nlist ty := NativeKind (nil : list (ty k)).
+  Local Definition nlist := NativeKind (nil : list (type k)).
 
   Local Definition numFree ty: ActionT ty (Bit lgSize) :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     Read lengthN: (Bit lgSize) <- nonDetLenName;
     Ret (IF (#lengthN < $(size - (length data))) then #lengthN else $(size - (length data))).
   
@@ -57,27 +52,28 @@ Section GenSpec.
     Ret (#fullN || (#freeNum == $0)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     LETA empty: Bool <- isEmpty ty;
     Ret (STRUCT { "valid" ::= #empty;
                   "data" ::= getHead _ data } : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     LETA empty: Bool <- isEmpty ty;
     Ret (STRUCT { "valid" ::= #empty;
                   "data" ::= getHead _ data } : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
-    ReadN data: nlist ty <- listName;
+    ReadN data: nlist <- listName;
     LETA full: Bool <- isFull ty;
-    WriteN listName: nlist ty <- (IF !#full
-                                  then Var _ (nlist ty) (snocInBound ty new data)
-                                  else Var _ (nlist ty) data);
+    LET val <- ToNative #new;
+    WriteN listName: nlist <- (IF !#full
+                                  then Var _ nlist (snocInBound val data)
+                                  else Var _ nlist data);
     Ret #full.
 
   Local Definition flush ty: ActionT ty Void :=
-    WriteN listName: nlist ty <- Var _ (nlist ty) nil;
+    WriteN listName: nlist <- Var _ nlist nil;
     Retv.
 
   Local Definition regs : list RegInitT :=
