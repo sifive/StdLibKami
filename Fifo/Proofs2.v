@@ -104,6 +104,7 @@ Section Proofs.
       - hyp_consumer; goal_consumer2.
       - hyp_consumer; goal_consumer1.
         econstructor; eauto; normalize_key_concl.
+      - hyp_consumer; goal_consumer2; eauto.
     Qed.
   
   End Size1.
@@ -558,6 +559,8 @@ Section Proofs.
         + simpl; doUpdRegs_red; unfold listInSpec.
           rewrite firstn_O; reflexivity.
         + rewrite doUpdRegs_preserves_keys; normalize_key_concl.
+      - hyp_consumer.
+        goal_consumer2; eauto.
     Qed.
 
   End SizeGT1.

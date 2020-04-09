@@ -72,6 +72,7 @@ Section Proofs1.
     - hyp_consumer; goal_consumer2.
     - hyp_consumer; goal_consumer1.
       econstructor; repeat normal_solver; repeat my_risky_solver.
+    - hyp_consumer; goal_consumer2; eauto.
   Qed.
 End Proofs1.
 
@@ -154,6 +155,7 @@ Section Proofs2.
     - hyp_consumer; goal_consumer2; goal_consumer1.
     - hyp_consumer; goal_consumer1.
       econstructor; eauto; normalize_key_concl.
+    - hyp_consumer; goal_consumer2; eauto.
       Unshelve.
       all : eauto; try exact nil; try exact WO.
   Qed.

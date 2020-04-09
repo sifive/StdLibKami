@@ -24,4 +24,5 @@ Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
     enqCorrect : forall val, EffectfulRelation fifoR (@enq _ imp type val) (@enq _ spec type val);
     enqWb : forall val, ActionWb fifoRegs (@enq _ imp type val);
     flushCorrect : EffectfulRelation fifoR (@flush _ imp type) (@flush _ spec type);
+    flushWb : ActionWb fifoRegs (@flush _ imp type);
   }.

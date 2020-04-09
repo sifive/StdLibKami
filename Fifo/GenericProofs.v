@@ -47,19 +47,29 @@ Section Proofs.
       nonDetEmpVal : bool;
       nonDetEmpValL : bool;
       nonDetEmpValR : bool;
+      nonDetFullVal : bool;
+      nonDetFullValL : bool;
+      nonDetFullValR : bool;
       lenVal : word lgSize;
       lenValL : word (@lgSize ifcParamsL);
       lenValR : word (@lgSize ifcParamsR);
-      HlenVal : lenVal = $(wordToNat lenValR + (sizeL - length implRegValL));
+      HlenVal : lenVal = if (wltu lenValL $(sizeL - (length implRegValL))) then
+                           $(wordToNat lenValL) else
+                           if (Nat.eqb (length implRegValL) 0) then
+                             $(sizeL + (wordToNat lenValR)) else
+                             $(sizeL - (length implRegValL));
       HimplRegVal : specRegVals = implRegValL ++ implRegValR;
       HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || negb (emptyb implRegValL));
       Ho_sCorrect : o_s =
                     [(GenericSpec.nonDetEmptyName, existT _ (SyntaxKind Bool) nonDetEmpVal);
+                    (GenericSpec.nonDetFullName, existT _ (SyntaxKind Bool) nonDetFullVal);
                     (GenericSpec.listName, existT _ GenericSpec.nlist specRegVals);
                     (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit lgSize)) lenVal)];
       Ho_s1Correct : o_s1 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsL),
                        existT _ (SyntaxKind Bool) nonDetEmpValL);
+                     ((@GenericSpec.nonDetFullName ifcParamsL),
+                     existT _ (SyntaxKind Bool) nonDetFullValL);
                      ((@GenericSpec.listName ifcParamsL),
                       existT _ GenericSpec.nlist implRegValL);
                      ((@GenericSpec.nonDetLenName ifcParamsL),
@@ -67,6 +77,8 @@ Section Proofs.
       Ho_s2Correct : o_s2 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsR),
                        existT _ (SyntaxKind Bool) nonDetEmpValR);
+                     ((@GenericSpec.nonDetFullName ifcParamsR),
+                     existT _ (SyntaxKind Bool) nonDetFullValR);
                      ((@GenericSpec.listName ifcParamsR),
                       existT _ GenericSpec.nlist implRegValR);
                      ((@GenericSpec.nonDetLenName ifcParamsR),
@@ -98,33 +110,63 @@ Section Proofs.
           DoubleFifo.isEmpty, DoubleFifo.isFull, DoubleFifo.numFree, DoubleFifo.first,
           DoubleFifo.deq, DoubleFifo.enq, DoubleFifo.flush.
     all: intros; try Record_destruct; destruct HCorrectL, HCorrectR;
-      cbn [CorrectDef.fifoRegs CorrectDef.fifoR] in *.
-    - unfold fifoSpecR, spec, GenericSpec.isEmpty, GenericSpec.numFree in *; cbn [isEmpty] in *.
-      hyp_consumer.
-      goal_consumer1.
-      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
-      admit.
+      cbn [CorrectDef.fifoRegs CorrectDef.fifoR] in *;
+      unfold fifoSpecR, fifoSpecL, spec,  GenericSpec.enq, GenericSpec.deq,
+      GenericSpec.first, GenericSpec.isEmpty,
+      GenericSpec.isFull, GenericSpec.flush, GenericSpec.numFree in *;
+      cbn [isEmpty isFull flush enq deq first numFree] in *;
+        unfold GenericSpec.nonDetFullName, GenericSpec.nonDetEmptyName in *.
+    - hyp_consumer.
+      + goal_consumer1.
+        rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+        admit.
+      + exfalso.
+        apply append_remove_prefix in H0; discriminate.
     - hyp_consumer.
       goal_consumer2.
-    - unfold fifoSpecR, fifoSpecL, spec, GenericSpec.isFull, GenericSpec.numFree in *;
-        cbn [isFull] in *.
-      hyp_consumer.
-      goal_consumer1.
+    - hyp_consumer.
       + exfalso.
         unfold GenericSpec.nonDetEmptyName, GenericSpec.nonDetFullName in H0.
         apply append_remove_prefix in H0; discriminate.
-      + rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+      + goal_consumer1.
+        rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
         admit.
     - hyp_consumer.
       goal_consumer2.
-    - unfold fifoSpecR, fifoSpecL, spec, GenericSpec.numFree in *; cbn [numFree] in *.
-      hyp_consumer.
+    - hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x1), (Eqdep.EqdepTheory.UIP_refl _ _ x3); simpl.
-  (*     hyp_consumer. *)
-  (*     goal_consumer1. *)
-  (*     unfold GenericSpec.nlist, DoubleFifo.ifcParamsL, k in x1. *)
-  (*     rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x1). *)
-  (* Admitted. *)
+      repeat rewrite evalExpr_castBits; simpl.
+      admit.
+    - hyp_consumer.
+      goal_consumer2.
+    - hyp_consumer.
+      + goal_consumer1.
+        admit.
+      + exfalso.
+        apply append_remove_prefix in H6; discriminate.
+    - hyp_consumer.
+      goal_consumer2.
+    - hyp_consumer.
+      + goal_consumer1.
+        * admit.
+        * admit.
+      + exfalso.
+        apply append_remove_prefix in H6; discriminate.
+    - hyp_consumer.
+      goal_consumer2.
+    - hyp_consumer.
+      + exfalso.
+        apply append_remove_prefix in H6; discriminate.
+      + goal_consumer1.
+        * admit.
+        * admit.
+    - hyp_consumer.
+      goal_consumer2.
+    - hyp_consumer.
+      goal_consumer1.
+      admit.
+    - hyp_consumer.
+      goal_consumer2.
   Admitted.
 End Proofs.
