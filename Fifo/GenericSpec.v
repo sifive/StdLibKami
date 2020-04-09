@@ -18,7 +18,7 @@ Section GenSpec.
   
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
-  
+
   Local Definition getHead ty (ls : list (type k)) : k @# ty :=
     FromNative k (Var ty (NativeKind (evalConstT Default)) (hd (evalConstT Default) ls)).
 
@@ -43,13 +43,13 @@ Section GenSpec.
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     Read emptyN: Bool <- nonDetEmptyName;
-    LETA freeNum: (Bit lgSize) <- numFree ty;
-    Ret (#emptyN || (#freeNum == $size)).
+    ReadN data: nlist <- listName;
+    Ret (#emptyN || $$(emptyb data)).
 
   Local Definition isFull ty: ActionT ty Bool :=
     Read fullN: Bool <- nonDetFullName;
-    LETA freeNum: (Bit lgSize) <- numFree ty;
-    Ret (#fullN || (#freeNum == $0)).
+    ReadN data: nlist <- listName;
+    Ret (#fullN || $$(Natgeb (length data) size)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist <- listName;

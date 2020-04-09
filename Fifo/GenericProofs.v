@@ -50,24 +50,25 @@ Section Proofs.
       lenVal : word lgSize;
       lenValL : word (@lgSize ifcParamsL);
       lenValR : word (@lgSize ifcParamsR);
+      HlenVal : lenVal = $(wordToNat lenValR + (sizeL - length implRegValL));
       HimplRegVal : specRegVals = implRegValL ++ implRegValR;
-      HnonDetEmpVal : nonDetEmpVal = nonDetEmpValL;
+      HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || negb (emptyb implRegValL));
       Ho_sCorrect : o_s =
                     [(GenericSpec.nonDetEmptyName, existT _ (SyntaxKind Bool) nonDetEmpVal);
-                    (GenericSpec.listName, existT _ (GenericSpec.nlist type) specRegVals);
+                    (GenericSpec.listName, existT _ GenericSpec.nlist specRegVals);
                     (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit lgSize)) lenVal)];
       Ho_s1Correct : o_s1 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsL),
                        existT _ (SyntaxKind Bool) nonDetEmpValL);
                      ((@GenericSpec.listName ifcParamsL),
-                      existT _ (GenericSpec.nlist type) implRegValL);
+                      existT _ GenericSpec.nlist implRegValL);
                      ((@GenericSpec.nonDetLenName ifcParamsL),
                       existT _ (SyntaxKind (Bit lgSize)) lenValL)];
       Ho_s2Correct : o_s2 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsR),
                        existT _ (SyntaxKind Bool) nonDetEmpValR);
                      ((@GenericSpec.listName ifcParamsR),
-                      existT _ (GenericSpec.nlist type) implRegValR);
+                      existT _ GenericSpec.nlist implRegValR);
                      ((@GenericSpec.nonDetLenName ifcParamsR),
                       existT _ (SyntaxKind (Bit lgSize)) lenValR)];
       Ho_iApp : o_i = o_i1 ++ o_i2;
@@ -89,7 +90,7 @@ Section Proofs.
     destruct HCorrectL, HCorrectR.
     econstructor 1 with (fifoR := myGenFifoR)
                         (fifoRegs := fifoRegs ++ fifoRegs0).
-    all : unfold EffectfulRelation, EffectlessRelation,
+    all : unfold EffectfulRelation, EffectlessRelation, ActionWb,
           fifoImpl, fifoSpec, impl, spec,
           isEmpty, isFull, numFree, first, deq, enq, flush,
           GenericSpec.isEmpty, GenericSpec.isFull, GenericSpec.numFree, GenericSpec.first,
@@ -98,10 +99,28 @@ Section Proofs.
           DoubleFifo.deq, DoubleFifo.enq, DoubleFifo.flush.
     all: intros; try Record_destruct; destruct HCorrectL, HCorrectR;
       cbn [CorrectDef.fifoRegs CorrectDef.fifoR] in *.
-    - unfold fifoSpecL, spec, GenericSpec.isEmpty, GenericSpec.numFree in *; cbn [isEmpty] in *.
+    - unfold fifoSpecR, spec, GenericSpec.isEmpty, GenericSpec.numFree in *; cbn [isEmpty] in *.
       hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+      admit.
+    - hyp_consumer.
+      goal_consumer2.
+    - unfold fifoSpecR, fifoSpecL, spec, GenericSpec.isFull, GenericSpec.numFree in *;
+        cbn [isFull] in *.
+      hyp_consumer.
+      goal_consumer1.
+      + exfalso.
+        unfold GenericSpec.nonDetEmptyName, GenericSpec.nonDetFullName in H0.
+        apply append_remove_prefix in H0; discriminate.
+      + rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+        admit.
+    - hyp_consumer.
+      goal_consumer2.
+    - unfold fifoSpecR, fifoSpecL, spec, GenericSpec.numFree in *; cbn [numFree] in *.
+      hyp_consumer.
+      goal_consumer1.
+      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x1), (Eqdep.EqdepTheory.UIP_refl _ _ x3); simpl.
   (*     hyp_consumer. *)
   (*     goal_consumer1. *)
   (*     unfold GenericSpec.nlist, DoubleFifo.ifcParamsL, k in x1. *)
