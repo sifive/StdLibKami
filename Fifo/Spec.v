@@ -28,7 +28,7 @@ Section Spec.
     ReadN data: nlist <- listName;
     Ret $$(Natgeb (length data) size).
   
-  Local Definition numFree ty: ActionT ty (Bit lgSize) :=
+  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     ReadN data: nlist <- listName;
     Ret $(size - (length data)).
   

@@ -36,18 +36,18 @@ Section Impl.
   Local Definition toVAddr ty (a: ShortVAddr @# ty) := ZeroExtendTruncMsb vAddrSz ({< a, $$(natToWord 2 0) >}).
   
   Local Definition isFull ty: ActionT ty Bool :=
-    Read outstanding: Bit lgSize <- outstandingName;
+    Read outstanding: Bit (lgSize + 1) <- outstandingName;
     LETA numFree <- Fifo.Ifc.numFree fifo;
     Ret (#outstanding < #numFree).
 
   Local Definition canClear ty: ActionT ty Bool :=
-    Read clearOutstanding: Bit lgSize <- clearOutstandingName;
+    Read clearOutstanding: Bit (lgSize + 1) <- clearOutstandingName;
     Ret (#clearOutstanding == $0).
 
   Local Definition clear ty: ActionT ty Void :=
     LETA _ <- Fifo.Ifc.flush fifo;
-    Read outstanding: Bit lgSize <- outstandingName;
-    Write clearOutstandingName: Bit lgSize <- #outstanding;
+    Read outstanding: Bit (lgSize + 1) <- outstandingName;
+    Write clearOutstandingName: Bit (lgSize + 1) <- #outstanding;
     Write topRegName: TopEntry <- $$(getDefaultConst TopEntry);
     Retv.
 
@@ -97,17 +97,17 @@ Section Impl.
     Retv.
 
   Local Definition callback ty (res: ty InRes): ActionT ty Void :=
-    Read clearOutstanding: Bit lgSize <- clearOutstandingName;
+    Read clearOutstanding: Bit (lgSize + 1) <- clearOutstandingName;
     If #clearOutstanding == $0
     then (LETA _ <- @Fifo.Ifc.enq _ fifo _ res; Retv)
-    else (Write clearOutstandingName : Bit lgSize <- #clearOutstanding - $1; Retv);
-    Read outstanding: Bit (Nat.log2_up size) <- outstandingName;
+    else (Write clearOutstandingName : Bit (lgSize + 1) <- #clearOutstanding - $1; Retv);
+    Read outstanding: Bit ((Nat.log2_up size) + 1) <- outstandingName;
     Write outstandingName <- #outstanding - $1;
     Retv.
 
   Local Definition sendAddr (sendReq : forall ty, ty OutReq -> ActionT ty Bool) ty (req: ty OutReq) :=
     LETA retval <- sendReq _ req;
-    Read outstanding: Bit (Nat.log2_up size) <- outstandingName;
+    Read outstanding: Bit ((Nat.log2_up size) + 1) <- outstandingName;
     Write outstandingName <- #outstanding + IF #retval then $1 else $0;
     Ret #retval.
 
@@ -197,8 +197,8 @@ Section Impl.
   Local Definition regs
     := (makeModule_regs
           ((Register topRegName : TopEntry <- Default)
-             ++ (Register outstandingName : Bit lgSize <- Default)
-             ++ (Register clearOutstandingName : Bit lgSize <- Default))%kami ++
+             ++ (Register outstandingName : Bit (lgSize + 1) <- Default)
+             ++ (Register clearOutstandingName : Bit (lgSize + 1) <- Default))%kami ++
        (@Fifo.Ifc.regs _ fifo)).
 
   Definition impl: Ifc := {| Fetcher.Ifc.regs := regs;

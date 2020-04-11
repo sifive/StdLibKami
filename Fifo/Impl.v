@@ -35,18 +35,19 @@ Section Impl.
     Read enq: Bit (lgSize + 1) <- enqPtrName;
     Ret ((#deq + $size) == #enq).
   
-  Local Definition numFree ty: ActionT ty (Bit lgSize) :=
+  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     Read deq: Bit (lgSize + 1) <- deqPtrName;
     Read enq: Bit (lgSize + 1) <- enqPtrName;
-    Ret (UniBit (TruncLsb _ 1) ($size - (#enq - #deq))).
+    Ret ($size - (#enq - #deq)).
   
   Local Definition first ty: ActionT ty (Maybe k) := 
     LETA empty: Bool <- isEmpty ty;
     Read deq: Bit (lgSize + 1) <- deqPtrName;
     LET idx: Bit lgSize <- (fastModSize #deq);
     LETA dat: k <- read regArray ty idx;
-Ret (STRUCT { "valid" ::= !#empty; "data" ::= (IF !#empty then #dat else (Const _ Default))}
-                                              : Maybe k @# ty).
+    Ret (STRUCT { "valid" ::= !#empty;
+                  "data" ::= (IF !#empty then #dat else (Const _ Default))}
+         : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     LETA data: Maybe k <- first ty;

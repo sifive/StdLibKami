@@ -47,42 +47,36 @@ Section Proofs.
       nonDetEmpVal : bool;
       nonDetEmpValL : bool;
       nonDetEmpValR : bool;
-      nonDetFullVal : bool;
-      nonDetFullValL : bool;
-      nonDetFullValR : bool;
-      lenVal : word lgSize;
-      lenValL : word (@lgSize ifcParamsL);
-      lenValR : word (@lgSize ifcParamsR);
-      HlenVal : lenVal = if (wltu lenValL $(sizeL - (length implRegValL))) then
-                           $(wordToNat lenValL) else
-                           if (Nat.eqb (length implRegValL) 0) then
-                             $(sizeL + (wordToNat lenValR)) else
-                             $(sizeL - (length implRegValL));
+      lenVal : word (lgSize + 1);
+      lenValL : word ((@lgSize ifcParamsL) + 1);
+      lenValR : word ((@lgSize ifcParamsR) + 1);
+      HlenVal : lenVal = if (wltu lenValL $(sizeL - (length implRegValL)))
+                         then $(wordToNat lenValL)
+                         else (if (Nat.eqb (length implRegValL) sizeL)
+                               then $(sizeL + (if (wltu lenValR $(sizeR - (length implRegValR)))
+                                               then (wordToNat lenValR)
+                                               else (sizeR - (length implRegValR))))
+                               else $(sizeL - (length implRegValL)));
       HimplRegVal : specRegVals = implRegValL ++ implRegValR;
       HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || negb (emptyb implRegValL));
       Ho_sCorrect : o_s =
                     [(GenericSpec.nonDetEmptyName, existT _ (SyntaxKind Bool) nonDetEmpVal);
-                    (GenericSpec.nonDetFullName, existT _ (SyntaxKind Bool) nonDetFullVal);
                     (GenericSpec.listName, existT _ GenericSpec.nlist specRegVals);
-                    (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit lgSize)) lenVal)];
+                    (GenericSpec.nonDetLenName, existT _ (SyntaxKind (Bit (lgSize + 1))) lenVal)];
       Ho_s1Correct : o_s1 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsL),
                        existT _ (SyntaxKind Bool) nonDetEmpValL);
-                     ((@GenericSpec.nonDetFullName ifcParamsL),
-                     existT _ (SyntaxKind Bool) nonDetFullValL);
                      ((@GenericSpec.listName ifcParamsL),
                       existT _ GenericSpec.nlist implRegValL);
                      ((@GenericSpec.nonDetLenName ifcParamsL),
-                      existT _ (SyntaxKind (Bit lgSize)) lenValL)];
+                      existT _ (SyntaxKind (Bit (lgSize + 1))) lenValL)];
       Ho_s2Correct : o_s2 =
                      [((@GenericSpec.nonDetEmptyName ifcParamsR),
                        existT _ (SyntaxKind Bool) nonDetEmpValR);
-                     ((@GenericSpec.nonDetFullName ifcParamsR),
-                     existT _ (SyntaxKind Bool) nonDetFullValR);
                      ((@GenericSpec.listName ifcParamsR),
                       existT _ GenericSpec.nlist implRegValR);
                      ((@GenericSpec.nonDetLenName ifcParamsR),
-                      existT _ (SyntaxKind (Bit lgSize)) lenValR)];
+                      existT _ (SyntaxKind (Bit (lgSize + 1))) lenValR)];
       Ho_iApp : o_i = o_i1 ++ o_i2;
       HRegs1 : getKindAttr o_i1 = (fifoRegs HCorrectL);
       HRegs2 : getKindAttr o_i2 = (fifoRegs HCorrectR);
@@ -91,6 +85,7 @@ Section Proofs.
       Ho_iNoDup1 : NoDup (map fst o_i);
       Ho_sNoDup1 : NoDup (map fst o_s);
     }.
+  
 
   Ltac Record_destruct :=
     match goal with
@@ -115,22 +110,56 @@ Section Proofs.
       GenericSpec.first, GenericSpec.isEmpty,
       GenericSpec.isFull, GenericSpec.flush, GenericSpec.numFree in *;
       cbn [isEmpty isFull flush enq deq first numFree] in *;
-        unfold GenericSpec.nonDetFullName, GenericSpec.nonDetEmptyName in *.
+        unfold GenericSpec.nonDetEmptyName in *.
     - hyp_consumer.
-      + goal_consumer1.
-        rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
-        admit.
-      + exfalso.
-        apply append_remove_prefix in H0; discriminate.
+      goal_consumer1.
+      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+      admit.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
-      + exfalso.
-        unfold GenericSpec.nonDetEmptyName, GenericSpec.nonDetFullName in H0.
-        apply append_remove_prefix in H0; discriminate.
-      + goal_consumer1.
-        rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
-        admit.
+      goal_consumer1.
+      rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+      rewrite sizeSum, app_length.
+      destruct weq, wltu.
+      + subst; destruct weq, wltu; auto.
+        * exfalso; apply n.
+          rewrite wordToNat_natToWord; auto.
+          unfold lgSize, size.
+          rewrite Nat.pow_add_r.
+          admit.
+          (* specialize (pow2_zero (@lgSize ifcParamsL)) as P; lia. *)
+        * exfalso; apply n.
+          admit.
+      + destruct weq, wltu; auto.
+        * destruct Nat.eqb.
+          -- destruct wltu.
+             ++ exfalso; apply n.
+                admit.
+             ++ exfalso; apply n.
+                admit.
+          -- exfalso; apply n.
+             clear n; arithmetizeWord; simpl in H5; unfold lgSize in *; rewrite sizeSum.
+             unfold size in H5.
+             rewrite Zmod_0_l in *.
+             rewrite <- H5.
+             (* Compute (2 ^ (Nat.log2_up 4)). *)
+             (* Compute (evalExpr (UniBit (TruncLsb _ 1) *)
+             (*                           (Var type (SyntaxKind (Bit (2 + 1))) *)
+             (*                                (natToWord 3 4)))). *)
+             (* Z.mod_small. *)
+             (* , Zmod_0_l; auto. *)
+             (* ++ split; [apply Nat2Z.is_nonneg|]. *)
+             (*    rewrite <- Zpow_of_nat. *)
+             (*    apply inj_lt. *)
+                
+             (*    log2_up_pow2 *)
+             (* rewrite Z.mod_small in H5. *)
+          
+             admit.
+        * admit.
+      + admit.
+      + admit.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
@@ -142,25 +171,27 @@ Section Proofs.
       goal_consumer2.
     - hyp_consumer.
       + goal_consumer1.
+        rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0).
         admit.
-      + exfalso.
-        apply append_remove_prefix in H6; discriminate.
+      (* + exfalso. *)
+      (*   apply append_remove_prefix in H6; discriminate. *)
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
       + goal_consumer1.
         * admit.
         * admit.
-      + exfalso.
-        apply append_remove_prefix in H6; discriminate.
+      (* + exfalso. *)
+      (*   apply append_remove_prefix in H6; discriminate. *)
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
       + exfalso.
-        apply append_remove_prefix in H6; discriminate.
-      + goal_consumer1.
-        * admit.
-        * admit.
+        admit.
+      (*   apply append_remove_prefix in H6; discriminate. *)
+      (* + goal_consumer1. *)
+      (*   * admit. *)
+      (*   * admit. *)
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.

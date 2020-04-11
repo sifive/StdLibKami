@@ -12,7 +12,6 @@ Section GenSpec.
   Local Definition listName := (name ++ ".list")%string.
   Local Definition nonDetLenName := (name ++ ".nonDetLen")%string.
   Local Definition nonDetEmptyName := (name ++ ".nonDetEmpty")%string.
-  Local Definition nonDetFullName := (name ++ ".nonDetFull")%string.
   
   Local Notation Natgeb n m := (negb (Nat.ltb n m)).
   
@@ -31,14 +30,13 @@ Section GenSpec.
     Nondet fullN: Bool;
     Write nonDetLenName: (Bit lgSize) <- #lengthN;
     Write nonDetEmptyName: Bool <- #emptyN;
-    Write nonDetFullName: Bool <- #fullN;
     Retv.
   
   Local Definition nlist := NativeKind (nil : list (type k)).
 
-  Local Definition numFree ty: ActionT ty (Bit lgSize) :=
+  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit lgSize) <- nonDetLenName;
+    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
     Ret (IF (#lengthN < $(size - (length data))) then #lengthN else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
@@ -47,21 +45,25 @@ Section GenSpec.
     Ret (#emptyN || $$(emptyb data)).
 
   Local Definition isFull ty: ActionT ty Bool :=
-    Read fullN: Bool <- nonDetFullName;
     ReadN data: nlist <- listName;
-    Ret (#fullN || $$(Natgeb (length data) size)).
+    LETA free: (Bit (lgSize + 1)) <- numFree ty;
+    Ret (#free == $0).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist <- listName;
     LETA empty: Bool <- isEmpty ty;
     Ret (STRUCT { "valid" ::= #empty;
-                  "data" ::= getHead _ data } : Maybe k @# ty).
+                  "data" ::= (IF !#empty
+                              then getHead _ data
+                              else Const ty Default )} : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     ReadN data: nlist <- listName;
     LETA empty: Bool <- isEmpty ty;
     Ret (STRUCT { "valid" ::= #empty;
-                  "data" ::= getHead _ data } : Maybe k @# ty).
+                  "data" ::= (IF !#empty
+                              then getHead _ data
+                              else Const ty Default)} : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     ReadN data: nlist <- listName;

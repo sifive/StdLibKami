@@ -22,78 +22,36 @@ Section DoubleFifo.
                                                             (@k ifcParams)
                                                             sizeR);
                     }.
-                   (* ifcParamsL : Ifc.Params; *)
-                   (*  ifcParamsR : Ifc.Params; *)
-                   (*  sizeSum : (@size ifcParams) = (@size ifcParamsL) + (@size ifcParamsR); *)
-                   (*  sameKindL : (@k ifcParams) = (@k ifcParamsL); *)
-                   (*  sameKindR : (@k ifcParams) = (@k ifcParamsR); *)
-                   (*  nameL : (@name ifcParamsL) = (append (@name ifcParams) "L"); *)
-                   (*  nameR : (@name ifcParamsR) = (append (@name ifcParams) "R"); *)
-                   (*  sizeGt1 : 1 < size; *)
-                   (*  Lfifo : @Fifo.Ifc.Ifc ifcParamsL; *)
-                   (*  Rfifo : @Fifo.Ifc.Ifc ifcParamsR }. *)
 
   Context {params: Params}.
-  
-  (* Local Lemma lgSize_double : *)
-  (*   ((@lgSize ifcParamsL) + 1)%nat = @lgSize ifcParams. *)
-  (* Proof. *)
-  (*   unfold Ifc.lgSize, Ifc.size. *)
-  (*   cbn [ifcParamsL]. *)
-  (*   rewrite Nat.add_comm. *)
-  (*   rewrite <- Nat.log2_up_mul_pow2; try lia. *)
-  (*   - f_equal. *)
-  (*     rewrite Nat.pow_1_r. *)
-  (*     assert (Ifc.size mod 2 = 0) as P. *)
-  (*     + rewrite Nat.mod_divide; [|lia]. *)
-  (*       unfold Nat.divide. *)
-  (*       specialize sizePow2 as P. *)
-  (*       specialize sizeGt1 as P0. *)
-  (*       rewrite <- P. *)
-  (*       destruct (Nat.log2_up Ifc.size). *)
-  (*       * exfalso; rewrite <- P in P0; simpl in P0; lia. *)
-  (*       * cbn [Nat.pow]. *)
-  (*         exists (2^n). *)
-  (*         apply Nat.mul_comm. *)
-  (*     + rewrite Nat.mul_comm. *)
-  (*       rewrite mul_div_exact; auto; try lia. *)
-  (*   - specialize sizePow2 as P. *)
-  (*     specialize sizeGt1 as P0. *)
-  (*     destruct (Nat.log2_up size). *)
-  (*     + exfalso; rewrite <- P in P0; simpl in P0; lia. *)
-  (*     + rewrite <- P; cbn[Nat.pow]. *)
-  (*       rewrite mul_div_undo; try lia. *)
-  (*       specialize (Nat.pow_nonzero 2 n ltac:(lia)) as P1. *)
-  (*       lia. *)
-  (* Qed. *)
 
+  Local Notation ifcParamsL := (Ifc.Build_Params (append (@name ifcParams) "L")
+                                                            (@k ifcParams)
+                                                            sizeL).
+  
+  Local Notation ifcParamsR := (Ifc.Build_Params (append (@name ifcParams) "R")
+                                                            (@k ifcParams)
+                                                            sizeR).
+  
   Local Lemma lgSize_sumL :
-    (@lgSize (Ifc.Build_Params (append (@name ifcParams) "L")
-                               (@k ifcParams)
-                               sizeL))
-    + (lgSize - (@lgSize (Ifc.Build_Params (append (@name ifcParams) "L")
-                                           (@k ifcParams)
-                                           sizeL))) = lgSize.
+    ((@lgSize ifcParamsL) + 1)
+    + ((lgSize + 1) - ((@lgSize ifcParamsL) + 1)) = (lgSize + 1).
   Proof.
     symmetry.
     apply le_plus_minus.
     unfold lgSize.
-    apply Nat.log2_up_le_mono.
+    apply plus_le_compat_r, Nat.log2_up_le_mono.
     rewrite sizeSum; unfold size; lia.
   Qed.
 
   Local Lemma lgSize_sumR :
-    (@lgSize (Ifc.Build_Params (append (@name ifcParams) "R")
-                               (@k ifcParams)
-                               sizeR))
-    + (lgSize - (@lgSize (Ifc.Build_Params (append (@name ifcParams) "R")
-                                           (@k ifcParams)
-                                           sizeR))) = lgSize.
+    ((@lgSize ifcParamsR) + 1)
+    + ((lgSize + 1) - ((@lgSize ifcParamsR) + 1)) = (lgSize + 1).
   Proof.
     symmetry.
     apply le_plus_minus.
     unfold lgSize.
-    apply Nat.log2_up_le_mono.
+    apply plus_le_compat_r, Nat.log2_up_le_mono.
     rewrite sizeSum; unfold size; lia.
   Qed.
   
@@ -104,9 +62,9 @@ Section DoubleFifo.
 
   Local Definition isFull ty: ActionT ty Bool := isFull Lfifo.
   
-  Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
-    LETA numL : Bit lgSize <- (Ifc.numFree Lfifo);
-    LETA numR : Bit lgSize <- (Ifc.numFree Rfifo);
+  Local Definition numFree ty: ActionT ty (Bit ((@lgSize ifcParams) + 1)) :=
+    LETA numL : Bit (lgSize + 1) <- (Ifc.numFree Lfifo);
+    LETA numR : Bit (lgSize + 1) <- (Ifc.numFree Rfifo);
     Ret (IF (#numL < $(sizeL))
          then (castBits lgSize_sumL (ZeroExtend _ #numL))
          else ($sizeL + castBits lgSize_sumR (ZeroExtend _ #numR))).

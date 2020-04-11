@@ -249,9 +249,16 @@ Section Proofs.
                    (Z.of_nat size - (wordVal0 - wordVal) mod 2 ^ Z.of_nat (lgSize + 1))
                    (2 ^ Z.of_nat (lgSize + 1))).
         + rewrite Nat2Z.inj_sub, Z2Nat.id; try lia.
-          apply Z.mod_pos_bound.
-          unfold lgSize in *.
-          rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
+          * rewrite <- (Z.mod_small
+                          (Z.of_nat size - (wordVal0 - wordVal) mod 2 ^ Z.of_nat (lgSize + 1))
+                          (2 ^ Z.of_nat (lgSize + 1))) at 1; auto; split; try lia.
+            unfold lgSize in *.
+            rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *.
+            specialize (Z.mod_pos_bound (wordVal0 - wordVal) (Z.of_nat size * 2) ltac:(lia))
+              as TMP; lia.
+          * apply Z.mod_pos_bound.
+            unfold lgSize in *.
+            rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
         + unfold lgSize in *.
           rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; try lia.
           specialize (Z.mod_pos_bound (wordVal0 - wordVal) (Z.of_nat size * 2) ltac:(lia)) as P1;
