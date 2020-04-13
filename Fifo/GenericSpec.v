@@ -25,19 +25,19 @@ Section GenSpec.
     if (Nat.ltb (length ls) size) then snoc a ls else ls.
 
   Local Definition nonDet ty: ActionT ty Void :=
-    Nondet lengthN: (Bit lgSize);
+    Nondet lengthN: (Bit (Nat.log2_up (size + 1)));
     Nondet emptyN: Bool;
-    Nondet fullN: Bool;
-    Write nonDetLenName: (Bit lgSize) <- #lengthN;
+    Write nonDetLenName: (Bit (Nat.log2_up (size + 1))) <- #lengthN;
     Write nonDetEmptyName: Bool <- #emptyN;
     Retv.
   
   Local Definition nlist := NativeKind (nil : list (type k)).
 
-  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
+  Local Definition numFree ty: ActionT ty (Bit (Nat.log2_up (size + 1))) :=
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
-    Ret (IF (#lengthN < $(size - (length data))) then #lengthN else $(size - (length data))).
+    Read lengthN: (Bit (Nat.log2_up (size + 1))) <- nonDetLenName;
+    Ret (IF (#lengthN < $(size - (length data)))
+         then #lengthN else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -46,8 +46,8 @@ Section GenSpec.
 
   Local Definition isFull ty: ActionT ty Bool :=
     ReadN data: nlist <- listName;
-    LETA free: (Bit (lgSize + 1)) <- numFree ty;
-    Ret (#free == $0).
+    Read lengthN: (Bit (Nat.log2_up (size + 1))) <- nonDetLenName;
+    Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     ReadN data: nlist <- listName;

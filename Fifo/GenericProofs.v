@@ -32,6 +32,8 @@ Section Proofs.
   
   Variable HCorrectL : FifoCorrect Lfifo fifoSpecL.
   Variable HCorrectR : FifoCorrect Rfifo fifoSpecR.
+
+  Variable HsizePos : size <> 0.
   
   Record myGenFifoR  (o_i o_s : RegsT) : Prop :=
     {
@@ -58,7 +60,7 @@ Section Proofs.
                                                else (sizeR - (length implRegValR))))
                                else $(sizeL - (length implRegValL)));
       HimplRegVal : specRegVals = implRegValL ++ implRegValR;
-      HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || negb (emptyb implRegValL));
+      HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || emptyb implRegValR);
       Ho_sCorrect : o_s =
                     [(GenericSpec.nonDetEmptyName, existT _ (SyntaxKind Bool) nonDetEmpVal);
                     (GenericSpec.listName, existT _ GenericSpec.nlist specRegVals);
@@ -114,52 +116,85 @@ Section Proofs.
     - hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
-      admit.
+      rewrite <- orb_assoc.
+      f_equal.
+      destruct implRegValR, implRegValL; simpl; auto.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
       rewrite sizeSum, app_length.
-      destruct weq, wltu.
-      + subst; destruct weq, wltu; auto.
-        * exfalso; apply n.
-          rewrite wordToNat_natToWord; auto.
-          unfold lgSize, size.
-          rewrite Nat.pow_add_r.
-          admit.
-          (* specialize (pow2_zero (@lgSize ifcParamsL)) as P; lia. *)
-        * exfalso; apply n.
-          admit.
-      + destruct weq, wltu; auto.
-        * destruct Nat.eqb.
-          -- destruct wltu.
-             ++ exfalso; apply n.
-                admit.
-             ++ exfalso; apply n.
-                admit.
-          -- exfalso; apply n.
-             clear n; arithmetizeWord; simpl in H5; unfold lgSize in *; rewrite sizeSum.
-             unfold size in H5.
-             rewrite Zmod_0_l in *.
-             rewrite <- H5.
-             (* Compute (2 ^ (Nat.log2_up 4)). *)
-             (* Compute (evalExpr (UniBit (TruncLsb _ 1) *)
-             (*                           (Var type (SyntaxKind (Bit (2 + 1))) *)
-             (*                                (natToWord 3 4)))). *)
-             (* Z.mod_small. *)
-             (* , Zmod_0_l; auto. *)
-             (* ++ split; [apply Nat2Z.is_nonneg|]. *)
-             (*    rewrite <- Zpow_of_nat. *)
-             (*    apply inj_lt. *)
-                
-             (*    log2_up_pow2 *)
-             (* rewrite Z.mod_small in H5. *)
+      destruct weq, wltu eqn:G; simpl.
+      + subst; simpl; reflexivity.
+      + subst.
+        admit.
+        (* subst; destruct weq; auto. *)
+        (* destruct (wltu ($ (wordToNat $ (0))) _ ) eqn:G0. *)
+        (* * exfalso; apply n. *)
+        (*   rewrite wordToNat_natToWord; auto. *)
+        (*   unfold lgSize, size. *)
+        (*   apply zero_lt_pow2. *)
+        (* * exfalso. *)
+        (*   apply n. *)
+        (*   rewrite wltu_ge in G0. *)
+        (*   rewrite wordToNat_natToWord in G0. *)
+        (*   -- admit. *)
+        (*   -- unfold lgSize. *)
+        (*      rewrite Nat.pow_add_r, sizeSum. *)
+        (*      apply (Nat.le_lt_trans _ _ _ (Nat.le_sub_l (sizeL + sizeR) _)). *)
+        (*      apply (Nat.lt_le_trans _ ((sizeL + sizeR) * 2) _). *)
+        (*      ++ rewrite <- Nat.add_0_r at 1. *)
+        (*         rewrite Nat.mul_comm. *)
+        (*         simpl; apply plus_lt_compat_l. *)
+        (*         rewrite <- sizeSum; lia. *)
+      (*      ++ simpl; apply Nat.mul_le_mono_r, log2_up_pow2. *)
+      + admit.
+      + admit.
+      (* + rewrite e in G. *)
+      (*   destruct weq; auto. *)
+      (*   exfalso; clear G e. *)
+      (*   apply n; clear n; destruct wltu eqn:G, Nat.eqb eqn:G0. *)
+      (*   -- destruct (wltu lenValR _) eqn:G1. *)
+      (*      ++ *)
+      (*        lia. *)
+      (*     Nat.le_sub_l *)
+      (*     rewrite wordToNat_natToWord in G0. *)
+      (*     rewrite wordToNat_natToWord in G0. *)
           
-             admit.
-        * admit.
-      + admit.
-      + admit.
+      (*     rewrite wordToNat_natToWord in G0. *)
+      (*     arithmetizeWord. *)
+      (*     (* this isn't true*) *)
+      (*     admit. *)
+      (* + destruct weq, wltu; auto. *)
+      (*   * destruct Nat.eqb. *)
+      (*     -- destruct wltu. *)
+      (*        ++ exfalso; apply n. *)
+      (*           admit. *)
+      (*        ++ exfalso; apply n. *)
+      (*           admit. *)
+      (*     -- exfalso; apply n. *)
+      (*        clear n; arithmetizeWord; simpl in H5; unfold lgSize in *; rewrite sizeSum. *)
+      (*        unfold size in H5. *)
+      (*        rewrite Zmod_0_l in *. *)
+      (*        rewrite <- H5. *)
+      (*        (* Compute (2 ^ (Nat.log2_up 4)). *) *)
+      (*        (* Compute (evalExpr (UniBit (TruncLsb _ 1) *) *)
+      (*        (*                           (Var type (SyntaxKind (Bit (2 + 1))) *) *)
+      (*        (*                                (natToWord 3 4)))). *) *)
+      (*        (* Z.mod_small. *) *)
+      (*        (* , Zmod_0_l; auto. *) *)
+      (*        (* ++ split; [apply Nat2Z.is_nonneg|]. *) *)
+      (*        (*    rewrite <- Zpow_of_nat. *) *)
+      (*        (*    apply inj_lt. *) *)
+                
+      (*        (*    log2_up_pow2 *) *)
+      (*        (* rewrite Z.mod_small in H5. *) *)
+          
+      (*        admit. *)
+      (*   * admit. *)
+      (* + admit. *)
+      (* + admit. *)
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
