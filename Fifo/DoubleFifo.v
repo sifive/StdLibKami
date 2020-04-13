@@ -6,96 +6,97 @@ Require Import StdLibKami.Fifo.Impl.
 Section DoubleFifo.
   
   Context {ifcParams : Ifc.Params}.
-  Local Definition ifcParamsL :=
-    Ifc.Build_Params (append name "L") k ((@size ifcParams)/2).
-  Local Definition ifcParamsR :=
-    Ifc.Build_Params (append name "R") k ((@size ifcParams)/2).
+  (* Variable sizeL sizeR : nat. *)
+  (* Local Definition ifcParamsL := *)
+  (*   Ifc.Build_Params (append name "L") k sizeL. *)
+  (* Local Definition ifcParamsR := *)
+  (*   Ifc.Build_Params (append name "R") k sizeR. *)
 
-  Class Params := { sizePow2 : Nat.pow 2 (Nat.log2_up size) = size;
-                    sizeGt1 : 1 < size;
-                    fifoL : @Fifo.Ifc.Ifc ifcParamsL;
-                    fifoR : @Fifo.Ifc.Ifc ifcParamsR }.
+  Class Params := { sizeL : nat;
+                    sizeR : nat;
+                    sizeSum : (@size ifcParams) = sizeL + sizeR;
+                    Lfifo : @Fifo.Ifc.Ifc (Ifc.Build_Params (append (@name ifcParams) "L")
+                                                            (@k ifcParams)
+                                                            sizeL);
+                    Rfifo : @Fifo.Ifc.Ifc (Ifc.Build_Params (append (@name ifcParams) "R")
+                                                            (@k ifcParams)
+                                                            sizeR);
+                    }.
 
   Context {params: Params}.
 
-  Local Lemma lgSize_double :
-    ((@lgSize ifcParamsL) + 1)%nat = @lgSize ifcParams.
+  Local Notation ifcParamsL := (Ifc.Build_Params (append (@name ifcParams) "L")
+                                                            (@k ifcParams)
+                                                            sizeL).
+  
+  Local Notation ifcParamsR := (Ifc.Build_Params (append (@name ifcParams) "R")
+                                                            (@k ifcParams)
+                                                            sizeR).
+  
+  Local Lemma lgSize_sumL :
+    ((@lgSize ifcParamsL) + 1)
+    + ((lgSize + 1) - ((@lgSize ifcParamsL) + 1)) = (lgSize + 1).
   Proof.
-    unfold Ifc.lgSize, Ifc.size.
-    cbn [ifcParamsL].
-    rewrite Nat.add_comm.
-    rewrite <- Nat.log2_up_mul_pow2; try lia.
-    - f_equal.
-      rewrite Nat.pow_1_r.
-      assert (Ifc.size mod 2 = 0) as P.
-      + rewrite Nat.mod_divide; [|lia].
-        unfold Nat.divide.
-        specialize sizePow2 as P.
-        specialize sizeGt1 as P0.
-        rewrite <- P.
-        destruct (Nat.log2_up Ifc.size).
-        * exfalso; rewrite <- P in P0; simpl in P0; lia.
-        * cbn [Nat.pow].
-          exists (2^n).
-          apply Nat.mul_comm.
-      + rewrite Nat.mul_comm.
-        rewrite mul_div_exact; auto; try lia.
-    - specialize sizePow2 as P.
-      specialize sizeGt1 as P0.
-      destruct (Nat.log2_up size).
-      + exfalso; rewrite <- P in P0; simpl in P0; lia.
-      + rewrite <- P; cbn[Nat.pow].
-        rewrite mul_div_undo; try lia.
-        specialize (Nat.pow_nonzero 2 n ltac:(lia)) as P1.
-        lia.
+    symmetry.
+    apply le_plus_minus.
+    unfold lgSize.
+    apply plus_le_compat_r, Nat.log2_up_le_mono.
+    rewrite sizeSum; unfold size; lia.
+  Qed.
+
+  Local Lemma lgSize_sumR :
+    ((@lgSize ifcParamsR) + 1)
+    + ((lgSize + 1) - ((@lgSize ifcParamsR) + 1)) = (lgSize + 1).
+  Proof.
+    symmetry.
+    apply le_plus_minus.
+    unfold lgSize.
+    apply plus_le_compat_r, Nat.log2_up_le_mono.
+    rewrite sizeSum; unfold size; lia.
   Qed.
   
   Local Open Scope kami_expr.
   Local Open Scope kami_action.
 
-  Local Definition isEmpty ty: ActionT ty Bool :=
-    LETA emptyL: Bool <- (Ifc.isEmpty fifoL);
-    LETA emptyR: Bool <- (Ifc.isEmpty fifoR);
-    Ret (#emptyL && #emptyR).
+  Local Definition isEmpty ty: ActionT ty Bool := isEmpty Rfifo.
 
-  Local Definition isFull ty: ActionT ty Bool :=
-    LETA fullL: Bool <- (Ifc.isFull fifoL);
-    LETA fullR: Bool <- (Ifc.isFull fifoR);
-    Ret (#fullL && #fullR).
+  Local Definition isFull ty: ActionT ty Bool := isFull Lfifo.
   
-  Local Definition numFree ty: ActionT ty (Bit (@lgSize ifcParams)) :=
-    LETA numL: Bit (@lgSize ifcParamsL) <- (Ifc.numFree fifoL);
-    LETA numR: Bit (@lgSize ifcParamsR) <- (Ifc.numFree fifoR);
-    Ret (castBits lgSize_double (ZeroExtend 1 (#numL + #numR))).
+  Local Definition numFree ty: ActionT ty (Bit ((@lgSize ifcParams) + 1)) :=
+    LETA numL : Bit (lgSize + 1) <- (Ifc.numFree Lfifo);
+    LETA numR : Bit (lgSize + 1) <- (Ifc.numFree Rfifo);
+    Ret (IF (#numL < $(sizeL))
+         then (castBits lgSize_sumL (ZeroExtend _ #numL))
+         else ($sizeL + castBits lgSize_sumR (ZeroExtend _ #numR))).
+  
+  Local Definition first ty: ActionT ty (Maybe k) := first Rfifo.
 
-  Local Definition first ty: ActionT ty (Maybe k) := first fifoR.
+  Local Definition deq ty: ActionT ty (Maybe k) := deq Rfifo.
 
-  Local Definition deq ty: ActionT ty (Maybe k) := deq fifoR.
-
-  Local Definition enq ty (new: ty k): ActionT ty Bool := enq fifoL new.
+  Local Definition enq ty (new: ty k): ActionT ty Bool := enq Lfifo new.
 
   Local Definition fillRule ty : ActionT ty Void :=
-    LETA fullR: Bool <- (Ifc.isFull fifoR);
-    LETA emptyL: Bool <- (Ifc.isEmpty fifoL);
+    LETA fullR: Bool <- (Ifc.isFull Rfifo);
+    LETA emptyL: Bool <- (Ifc.isEmpty Lfifo);
     If !(#fullR && #emptyL) then (
-      LETA val: Maybe k <- (Ifc.deq fifoL);
+      LETA val: Maybe k <- (Ifc.deq Lfifo);
       LET data <- #val @% "data";
-      LETA _ : Bool <- (Ifc.enq fifoR data);
+      LETA _ : Bool <- (Ifc.enq Rfifo data);
       Retv
       );
     Retv.
                     
-   Local Definition flush ty: ActionT ty Void :=
-     LETA _ <- (Ifc.flush fifoR);
-     LETA _ <- (Ifc.flush fifoL);
-     Retv.
+  Local Definition flush ty: ActionT ty Void :=
+    LETA _ <- (Ifc.flush Rfifo);
+    LETA _ <- (Ifc.flush Lfifo);
+    Retv.
 
-   Local Definition regs: list RegInitT := (Ifc.regs fifoL) ++ (Ifc.regs fifoR).                       
+  Local Definition regs: list RegInitT := (Ifc.regs Lfifo) ++ (Ifc.regs Rfifo).
 
   Definition impl: Ifc :=
     {|
       Ifc.regs := regs;
-      Ifc.regFiles := (Ifc.regFiles fifoL) ++ (Ifc.regFiles fifoR);
+      Ifc.regFiles := (Ifc.regFiles Lfifo) ++ (Ifc.regFiles Rfifo);
       Ifc.isEmpty := isEmpty;
       Ifc.isFull := isFull;
       Ifc.numFree := numFree;

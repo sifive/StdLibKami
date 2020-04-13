@@ -25,7 +25,7 @@ Section Fifo1.
     Read val: Bool <- validRegName;
     Ret (#val).
   
-  Local Definition numFree ty: ActionT ty (Bit lgSize) :=
+  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     Read val: Bool <- validRegName;
     Ret (IF #val then $0 else $1).
   

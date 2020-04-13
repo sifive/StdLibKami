@@ -15,7 +15,7 @@ Section Ifc.
       regFiles: list RegFileBase;
       isEmpty: forall {ty}, ActionT ty Bool;
       isFull: forall {ty}, ActionT ty Bool;
-      numFree: forall {ty}, ActionT ty (Bit lgSize);
+      numFree: forall {ty}, ActionT ty (Bit (lgSize + 1));
       first: forall {ty}, ActionT ty (Maybe k);
       deq: forall {ty}, ActionT ty (Maybe k);
       enq: forall {ty}, ty k -> ActionT ty Bool;

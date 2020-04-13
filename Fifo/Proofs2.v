@@ -1,195 +1,17 @@
 Require Import Kami.Lib.EclecticLib.
 Require Import Kami.All.
-Require Import StdLibKami.Fifo.Ifc.
-Require Import StdLibKami.Fifo.Impl.
-Require Import StdLibKami.Fifo.Spec.
 Require Import Kami.GallinaModules.Relations.
 Require Import Kami.GallinaModules.AuxLemmas.
 Require Import Kami.GallinaModules.AuxTactics.
-Require Import StdLibKami.RegArray.Proofs.
+Require Import StdLibKami.RegArray.Spec.
+Require Import StdLibKami.Fifo.Ifc.
+Require Import StdLibKami.Fifo.Impl.
+Require Import StdLibKami.Fifo.Spec.
+Require Import StdLibKami.Fifo.CorrectDef.
 
-Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
-  {
-    fifoRegs : list (Attribute FullKind);
-    fifoR : RegsT -> RegsT -> Prop;
-    isEmptyCorrect : EffectlessRelation fifoR (@isEmpty _ imp type) (@isEmpty _ spec type);
-    isEmptyWb : ActionWb fifoRegs (@isEmpty _ imp type);
-    isFullCorrect : EffectlessRelation fifoR (@isFull _ imp type) (@isFull _ spec type);
-    isFullWb : ActionWb fifoRegs (@isFull _ imp type);
-    numFreeCorrect : EffectlessRelation fifoR (@numFree _ imp type) (@numFree _ spec type);
-    numFreeWb : ActionWb fifoRegs (@numFree _ imp type);
-    firstCorrect : EffectlessRelation fifoR (@first _ imp type) (@first _ spec type);
-    firstWb : ActionWb fifoRegs (@first _ imp type);
-    deqCorrect : EffectfulRelation fifoR (@deq _ imp type) (@deq _ spec type);
-    deqWb : ActionWb fifoRegs (@deq _ imp type);
-    enqCorrect : forall val, EffectfulRelation fifoR (@enq _ imp type val) (@enq _ spec type val);
-    enqWb : forall val, ActionWb fifoRegs (@enq _ imp type val);
-    flushCorrect : EffectfulRelation fifoR (@flush _ imp type) (@flush _ spec type);
-  }.
-
-Section Proofs1.
-  Context {ifcParams' : Fifo.Ifc.Params}.
-  Variable Hsize1 : size = 1.
-  Variable impl1Params impl2Params : Impl.Params.
-  Local Definition fifoImpl1 := @Fifo.Impl.impl ifcParams' impl1Params.
-  Local Definition fifoImpl2 := @Fifo.Impl.impl ifcParams' impl2Params.
-
-  Record myFifoImpl1R  (implRegs : RegsT) (fifo1_bval : bool) (fifo1_dval : type k)
-         (o_i o_s : RegsT) : Prop :=
-    {
-      (* implRegs : RegsT; *)
-      (* fifo1_bval : bool; *)
-      (* fifo1_dval : type k; *)
-      implRegVal : implRegs = [(Fifo1.validRegName,
-                                existT _ (SyntaxKind Bool) fifo1_bval);
-                              (Fifo1.dataRegName,
-                               existT _ (SyntaxKind k) fifo1_dval)];
-      Ho_iCorrect1 : o_i = implRegs;
-      Ho_sCorrect1 : o_s = implRegs;
-      Ho_iNoDup1 : NoDup (map fst o_i);
-      Ho_sNoDup1 : NoDup (map fst o_s);
-    }.
-
-  Ltac Record_destruct :=
-    match goal with
-    |[ H : exists _ _ _, myFifoImpl1R _ _ _ _ _ |- _] =>
-     let implRegs := fresh "implRegs" in
-     let fifo1_bval := fresh "fifo1_bval" in
-     let fifo1_dval := fresh "fifo1_dval" in
-     let H0 := fresh "H" in
-     destruct H as [implRegs [fifo1_bval [fifo1_dval H0]]]; destruct H0
-    end.
-
-  Goal FifoCorrect fifoImpl1 fifoImpl2.
-    rewrite <- Nat.eqb_eq in Hsize1.
-    all : econstructor 1 with (fifoR := (fun o1 o2 =>
-                                           (exists implRegs fifo1_bval fifo1_dval,
-                                               myFifoImpl1R implRegs
-                                                            fifo1_bval fifo1_dval o1 o2)))
-                              (fifoRegs := [(Fifo1.validRegName,
-                                             SyntaxKind Bool);
-                                            (Fifo1.dataRegName,
-                                             SyntaxKind k)]).
-    all : red; unfold fifoImpl1, fifoImpl2, impl, spec, regArray,
-               isEmpty, flush, enq, deq, numFree, isFull, first,
-               Impl.isEmpty, Impl.flush, Impl.enq, Impl.deq, Impl.numFree,
-               Impl.isFull, Impl.first.
-    all : try rewrite Hsize1; unfold Fifo1.impl, Fifo1.isEmpty,
-                         Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
-                         Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2; eauto.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2; eauto.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2; eauto.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-      econstructor; repeat normal_solver; repeat my_risky_solver.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-      econstructor; repeat normal_solver; repeat my_risky_solver.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-      econstructor; repeat normal_solver; repeat my_risky_solver.
-  Qed.
-End Proofs1.
-
-Section Proofs2.
-  Context {ifcParams' : Fifo.Ifc.Params}.
-  Variable Hsize1 : size <> 1.
-  Variable impl1Params impl2Params : Impl.Params.
-  Local Definition regArray1 := @regArray ifcParams' impl1Params.
-  Local Definition regArray2 := @regArray ifcParams' impl2Params.
-  Local Definition fifoImpl1' := @Fifo.Impl.impl ifcParams' impl1Params.
-  Local Definition fifoImpl2' := @Fifo.Impl.impl ifcParams' impl2Params.
-  
-  Variable HRegArrayCorrect : RegArrayCorrect regArray1 regArray2.
-
-  Record myFifoImplR (regArrayR : RegsT -> RegsT -> Prop) regArrayRegs
-         (implRegs : RegsT) (enqVal deqVal : word (Fifo.Ifc.lgSize + 1))
-         (regArray1Regs regArray2Regs : RegsT) (o_i o_s : RegsT) : Prop :=
-    {   
-      (* implRegs : RegsT; *)
-      (* enqVal : word (Fifo.Ifc.lgSize + 1); *)
-      (* deqVal : word (Fifo.Ifc.lgSize + 1); *)
-      (* regArray1Regs : RegsT; *)
-      (* regArray2Regs : RegsT; *)
-      implRegVal' : implRegs = [(Fifo.Impl.deqPtrName,
-                                existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) deqVal);
-                              (Fifo.Impl.enqPtrName,
-                               existT _ (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))) enqVal)];
-      Ho_iCorrect : o_i = implRegs ++ regArray1Regs;
-      Ho_sCorrect : o_s = implRegs ++ regArray2Regs;
-      Ho_iNoDup : NoDup (map fst o_i);
-      Ho_sNoDup : NoDup (map fst o_s);
-      HRegArrayRegs : getKindAttr regArray1Regs = regArrayRegs;
-      HRegArray : regArrayR regArray1Regs regArray2Regs;
-    }.
-  
-  Ltac Record_destruct :=
-    match goal with
-    |[ H : exists _ _ _ _ _, myFifoImplR _ _ _ _ _ _ _ _ _ |- _] =>
-     let implRegs := fresh "implRegs" in
-     let enqVal := fresh "enqVal" in
-     let deqVal := fresh "deqVal" in
-     let regArray1Regs := fresh "regArray1Regs" in
-     let regArray2Regs := fresh "regArray2Regs" in
-     let H0 := fresh "H" in
-     destruct H as [implRegs [enqVal [deqVal [regArray1Regs [regArray2Regs H0]]]]];
-     destruct H0
-    end.
-
-  Goal FifoCorrect fifoImpl1' fifoImpl2'.
-    destruct HRegArrayCorrect.
-    rewrite <- Nat.eqb_neq in Hsize1.
-    all : econstructor 1 with (fifoR := (fun o1 o2 =>
-                                           (exists implRegs enqVal deqVal
-                                                  regArray1Regs regArray2Regs,
-                                               myFifoImplR regArrayR regArrayRegs implRegs
-                                                           enqVal deqVal
-                                                           regArray1Regs regArray2Regs o1 o2)))
-                        (fifoRegs := [(Fifo.Impl.deqPtrName,
-                                       (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))));
-                                      (Fifo.Impl.enqPtrName,
-                                       (SyntaxKind (Bit (Fifo.Ifc.lgSize + 1))))]
-                                       ++ regArrayRegs).
-    all : red; unfold fifoImpl1', fifoImpl2', impl, spec, regArray,
-               isEmpty, flush, enq, deq, numFree, isFull, first,
-               Impl.isEmpty, Impl.flush, Impl.enq, Impl.deq, Impl.numFree,
-               Impl.isFull, Impl.first.
-    all : try rewrite Hsize1; unfold Fifo1.impl, Fifo1.isEmpty,
-                         Fifo1.isFull, Fifo1.flush, Fifo1.numFree, Fifo1.first,
-                         Fifo1.deq, Fifo1.enq; intros; try Record_destruct.
-    all : unfold regArray1, Impl.isEmpty in *.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2.
-    - hyp_consumer; goal_consumer1.
-    - hyp_consumer; goal_consumer2; goal_consumer1.
-    - hyp_consumer; goal_consumer1.
-      econstructor; eauto; normalize_key_concl.
-    - hyp_consumer; goal_consumer2; goal_consumer1.
-    - hyp_consumer; goal_consumer1; econstructor; eauto; normalize_key_concl;
-      repeat rewrite doUpdRegs_preserves_keys; normalize_key_concl.
-      gka_doUpdReg_red; normal_solver; auto.
-    - hyp_consumer; goal_consumer2; goal_consumer1.
-    - hyp_consumer; goal_consumer1.
-      econstructor; eauto; normalize_key_concl.
-      Unshelve.
-      all : eauto; try exact nil; try exact WO.
-  Qed.
-  
-End Proofs2.
-
-Section Proofs3.
+Section Proofs.
   
   Context {ifcParams' : Fifo.Ifc.Params}.
-  (* Context {raIfcParams' : RegArray.Ifc.Params}. *)
   
   Variable pow2 : Nat.pow 2 (Nat.log2_up size) = size.
   Local Definition implParams : Fifo.Impl.Params := 
@@ -205,16 +27,12 @@ Section Proofs3.
     Record myFifoR  (implRegs specRegs : RegsT) (fifo1_bval : bool) (fifo1_dval : type k)
            (o_i o_s : RegsT) : Prop :=
       {
-        (* implRegs : RegsT; *)
-        (* specRegs : RegsT; *)
-        (* fifo1_bval : bool; *)
-        (* fifo1_dval : type k; *)
         implRegVal'' : implRegs = [(Fifo1.validRegName,
                                   existT _ (SyntaxKind Bool) fifo1_bval);
                                 (Fifo1.dataRegName,
                                  existT _ (SyntaxKind k) fifo1_dval)];
         specRegVal : specRegs = [(Spec.listName,
-                                  existT (fullType type) (Spec.nlist type) (if fifo1_bval
+                                  existT (fullType type) Spec.nlist (if fifo1_bval
                                                                             then [fifo1_dval]
                                                                             else nil))];
         Ho_iCorrect1' : o_i = implRegs;
@@ -286,6 +104,7 @@ Section Proofs3.
       - hyp_consumer; goal_consumer2.
       - hyp_consumer; goal_consumer1.
         econstructor; eauto; normalize_key_concl.
+      - hyp_consumer; goal_consumer2; eauto.
     Qed.
   
   End Size1.
@@ -298,14 +117,7 @@ Section Proofs3.
     Record myFifoSpecR (implRegs specRegs regArray : RegsT) (queueLen : Z)
            (enqVal deqVal : word (Fifo.Ifc.lgSize + 1)) (arrayVal : Fin.t size -> type k)
            (o_i o_s : RegsT) : Prop :=
-    {   
-      (* implRegs : RegsT; *)
-      (* specRegs : RegsT; *)
-      (* regArray : RegsT; *)
-      (* queueLen : Z; *)
-      (* enqVal : word (Fifo.Ifc.lgSize + 1); *)
-      (* deqVal : word (Fifo.Ifc.lgSize + 1); *)
-      (* arrayVal : Fin.t size -> type k; *)
+    {
       HqueueLen : queueLen = wordVal _ (enqVal ^- deqVal);
       Hbound : (queueLen <= Z.of_nat size)%Z;
       gt1_implRegVal : implRegs = [(Fifo.Impl.deqPtrName,
@@ -315,7 +127,7 @@ Section Proofs3.
       regArrayVal : regArray = [((name ++ ".regArray")%string,
                                   existT _ (SyntaxKind (Array size k)) arrayVal)];
       gt_1specRegVal : specRegs = [(Spec.listName,
-                                     existT (fullType type) (Fifo.Spec.nlist type)
+                                     existT (fullType type) Fifo.Spec.nlist
                                             (listInSpec (Z.to_nat queueLen)
                                                         (Z.to_nat ((wordVal _ deqVal)
                                                          mod (2 ^ Z.of_nat (Nat.log2_up size))))
@@ -369,11 +181,13 @@ Section Proofs3.
                  isEmpty, flush, enq, deq, numFree, isFull, first,
                  Impl.isEmpty, Impl.flush, Impl.enq, Impl.deq, Impl.numFree,
                  Impl.isFull, Impl.first,
-                 Spec.isEmpty, Spec.flush, Spec.enq, Spec.deq, Spec.numFree,
+                 Spec.read, Spec.isEmpty, Spec.flush, Spec.enq, Spec.deq, Spec.numFree,
                  Spec.isFull, Spec.first.
       all : try rewrite Hsize1; rewrite Nat.eqb_neq in Hsize1.
-      all : unfold Ifc.read, Ifc.write, regArray, implParams, Spec.spec, Spec.read, Spec.write,
-        Impl.isEmpty, Ifc.size, Ifc.k; intros; try Record_destruct.
+      all : unfold Ifc.read, Ifc.write, regArray, 
+            implParams, Spec.spec, Spec.read, Spec.write,
+            Impl.isEmpty, RegArray.Spec.spec, Spec.read, Spec.write, RegArray.Ifc.size,
+            RegArray.Ifc.k; intros; try Record_destruct.
       - hyp_consumer.
         goal_consumer1; simpl.
         destruct weq; subst; simpl; symmetry; unfold listInSpec.
@@ -435,9 +249,16 @@ Section Proofs3.
                    (Z.of_nat size - (wordVal0 - wordVal) mod 2 ^ Z.of_nat (lgSize + 1))
                    (2 ^ Z.of_nat (lgSize + 1))).
         + rewrite Nat2Z.inj_sub, Z2Nat.id; try lia.
-          apply Z.mod_pos_bound.
-          unfold lgSize in *.
-          rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
+          * rewrite <- (Z.mod_small
+                          (Z.of_nat size - (wordVal0 - wordVal) mod 2 ^ Z.of_nat (lgSize + 1))
+                          (2 ^ Z.of_nat (lgSize + 1))) at 1; auto; split; try lia.
+            unfold lgSize in *.
+            rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *.
+            specialize (Z.mod_pos_bound (wordVal0 - wordVal) (Z.of_nat size * 2) ltac:(lia))
+              as TMP; lia.
+          * apply Z.mod_pos_bound.
+            unfold lgSize in *.
+            rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; lia.
         + unfold lgSize in *.
           rewrite <- Zpow_of_nat, Nat.pow_add_r, pow2, Nat2Z.inj_mul in *; simpl in *; try lia.
           specialize (Z.mod_pos_bound (wordVal0 - wordVal) (Z.of_nat size * 2) ltac:(lia)) as P1;
@@ -486,7 +307,6 @@ Section Proofs3.
                specialize (hdCorrect x19 P1 P2 Hbound0 pow2 n') as P3.
                rewrite hd_error_Some in P3.
                unfold lgSize in *.
-               erewrite <- rew_swap; simpl; eauto.
                destruct (firstn _ _); [discriminate|].
                inv P3; simpl.
                f_equal.
@@ -549,7 +369,6 @@ Section Proofs3.
                   specialize (hdCorrect x29 P1 P2 Hbound0 pow2 n') as P3.
                   rewrite hd_error_Some in P3.
                   unfold lgSize in *.
-                  erewrite <- rew_swap; simpl; eauto.
                   destruct (firstn _ _); [discriminate|].
                   inv P3; simpl.
                   f_equal.
@@ -747,8 +566,10 @@ Section Proofs3.
         + simpl; doUpdRegs_red; unfold listInSpec.
           rewrite firstn_O; reflexivity.
         + rewrite doUpdRegs_preserves_keys; normalize_key_concl.
+      - hyp_consumer.
+        goal_consumer2; eauto.
     Qed.
 
   End SizeGT1.
 
-End Proofs3.
+End Proofs.
