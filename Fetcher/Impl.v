@@ -38,7 +38,7 @@ Section Impl.
   Local Definition isFull ty: ActionT ty Bool :=
     Read outstanding: Bit (lgSize + 1) <- outstandingName;
     LETA numFree <- Fifo.Ifc.numFree fifo;
-    Ret (#outstanding < ($size - #numFree)).
+    Ret (#numFree <= #outstanding).
 
   Local Definition canClear ty: ActionT ty Bool :=
     Read clearOutstanding: Bit (lgSize + 1) <- clearOutstandingName;

@@ -33,9 +33,9 @@ Section GenSpec.
   
   Local Definition nlist := NativeKind (nil : list (type k)).
 
-  Local Definition numFree ty: ActionT ty (Bit (Nat.log2_up (size + 1))) :=
+  Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit (Nat.log2_up (size + 1))) <- nonDetLenName;
+    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
     Ret (IF (#lengthN < $(size - (length data)))
          then #lengthN else $(size - (length data))).
   
@@ -46,7 +46,7 @@ Section GenSpec.
 
   Local Definition isFull ty: ActionT ty Bool :=
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit (Nat.log2_up (size + 1))) <- nonDetLenName;
+    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
     Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
