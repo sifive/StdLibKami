@@ -32,7 +32,7 @@ Section Proofs.
   
   Variable HCorrectL : FifoCorrect Lfifo fifoSpecL.
   Variable HCorrectR : FifoCorrect Rfifo fifoSpecR.
-
+  
   Variable HsizePos : size <> 0.
   
   Record myGenFifoR  (o_i o_s : RegsT) : Prop :=
@@ -363,14 +363,11 @@ Section Proofs.
              destruct implRegValR, implRegValL, x8; simpl; auto.
           -- fin_dep_destruct y; auto; simpl.
              destruct implRegValR, implRegValL, x8; simpl; auto.
-        * econstructor 1; auto; normalize_key_concl; simpl.
-          -- destruct HCorrectL; simpl in *.
-             admit.
-          -- destruct HCorrectL, HCorrectR; simpl in *.
-             admit.
-          -- destruct HCorrectL; simpl.
-             admit.
+        * econstructor 1; auto; normalize_key_concl; simpl;
+            try intro; repeat rewrite doUpdRegs_preserves_keys; auto.
           -- admit.
+          -- admit.
+          -- destruct HCorrectL; simpl.
           -- rewrite doUpdRegs_preserves_keys; auto.
           -- rewrite doUpdRegs_preserves_keys; auto.
           -- intro; repeat rewrite doUpdRegs_preserves_keys; auto.
