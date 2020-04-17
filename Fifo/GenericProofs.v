@@ -97,7 +97,7 @@ Section Proofs.
   Goal FifoCorrect fifoImpl fifoSpec.
     destruct HCorrectL, HCorrectR.
     econstructor 1 with (fifoR := myGenFifoR)
-                        (fifoRegs := fifoRegs ++ fifoRegs0).
+                        (fifoRegs := fifoRegs0 ++ fifoRegs).
     all : unfold EffectfulRelation, EffectlessRelation, ActionWb,
           fifoImpl, fifoSpec, impl, spec,
           isEmpty, isFull, numFree, first, deq, enq, flush,
@@ -367,16 +367,13 @@ Section Proofs.
             try intro; repeat rewrite doUpdRegs_preserves_keys; auto.
           -- admit.
           -- admit.
-          -- destruct HCorrectL; simpl.
-          -- rewrite doUpdRegs_preserves_keys; auto.
-          -- rewrite doUpdRegs_preserves_keys; auto.
-          -- intro; repeat rewrite doUpdRegs_preserves_keys; auto.
+          -- admit.
+          -- admit.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
-      goal_consumer1.
-      + rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0) in *.
-        simpl.
+      goal_consumer1; rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0) in *.
+      + simpl.
         destruct weq; subst; simpl.
         * destruct wltu eqn:G; auto.
           rewrite wltu_ge in G.
@@ -437,12 +434,43 @@ Section Proofs.
              ++ symmetry.
                 rewrite app_length, sizeSum.
                 rewrite Nat.eqb_neq in *; intro; apply G; lia.
-      + admit.
+      + econstructor 1; auto; normalize_key_concl; simpl;
+          try intro; repeat rewrite doUpdRegs_preserves_keys; auto; simpl in *.
+        * instantiate (1 := (if
+                                negb
+                                  (getBool (weq x10 $ (0))
+                                   || (Datatypes.length implRegValL =? sizeL)%nat)
+                              then GenericSpec.snocInBound val implRegValL
+                              else implRegValL)).
+          admit.
+        * instantiate (1 := implRegValR); auto.
+        * instantiate (1 := x10).
+          instantiate (1 := nonDetEmpValR).
+          admit.
+        * admit.
+        * admit.
+        * instantiate (1 := nonDetEmpValL).
+          admit.
+        * instantiate (1 := lenValR).
+          admit.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
       goal_consumer1.
-      admit.
+      + econstructor 1; auto; normalize_key_concl; simpl;
+          try intro; repeat rewrite doUpdRegs_preserves_keys; auto; simpl in *;
+            goal_consumer2.
+        * instantiate (1 := implRegValL); simpl; auto.
+        * admit.
+        * instantiate (1 := lenValL).
+          simpl.
+          admit.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
     - hyp_consumer.
       goal_consumer2.
       Unshelve.
