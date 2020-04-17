@@ -25,17 +25,17 @@ Section GenSpec.
     if (Nat.ltb (length ls) size) then snoc a ls else ls.
 
   Local Definition nonDet ty: ActionT ty Void :=
-    Nondet lengthN: (Bit (Nat.log2_up (size + 1)));
+    Nondet lengthN: Bit (lgSize + 1);
     Nondet emptyN: Bool;
-    Write nonDetLenName: (Bit (Nat.log2_up (size + 1))) <- #lengthN;
+    Write nonDetLenName: Bit (lgSize + 1) <- #lengthN;
     Write nonDetEmptyName: Bool <- #emptyN;
     Retv.
   
   Local Definition nlist := NativeKind (nil : list (type k)).
 
   Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
+    Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
     Ret (IF (#lengthN < $(size - (length data)))
          then #lengthN else $(size - (length data))).
   
@@ -45,37 +45,38 @@ Section GenSpec.
     Ret (#emptyN || $$(emptyb data)).
 
   Local Definition isFull ty: ActionT ty Bool :=
+    Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
-    Read lengthN: (Bit (lgSize + 1)) <- nonDetLenName;
     Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
+    Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
-    LETA empty: Bool <- isEmpty ty;
-    Ret (STRUCT { "valid" ::= #empty;
-                  "data" ::= (IF !#empty
+    Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data));
+                  "data" ::= (IF !(#emptyN || $$(emptyb data))
                               then getHead _ data
                               else Const ty Default )} : Maybe k @# ty).
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
+    Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
-    LETA empty: Bool <- isEmpty ty;
-    Ret (STRUCT { "valid" ::= #empty;
-                  "data" ::= (IF !#empty
+    Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data));
+                  "data" ::= (IF !(#emptyN || $$(emptyb data))
                               then getHead _ data
                               else Const ty Default)} : Maybe k @# ty).
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
+    Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
-    LETA full: Bool <- isFull ty;
     LET val <- ToNative #new;
-    WriteN listName: nlist <- (IF !#full
-                                  then Var _ nlist (snocInBound val data)
-                                  else Var _ nlist data);
-    Ret #full.
+    WriteN listName: nlist <- (IF !(#lengthN == $0 || $$(Nat.eqb (length data) size))
+                               then Var _ nlist (snocInBound val data)
+                               else Var _ nlist data);
+    Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
 
   Local Definition flush ty: ActionT ty Void :=
     WriteN listName: nlist <- Var _ nlist nil;
+    Write nonDetEmptyName: Bool <- $$true;
     Retv.
 
   Local Definition regs : list RegInitT :=
