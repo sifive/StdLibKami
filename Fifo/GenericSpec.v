@@ -21,23 +21,25 @@ Section GenSpec.
   Local Definition getHead ty (ls : list (type k)) : k @# ty :=
     FromNative k (Var ty (NativeKind (evalConstT Default)) (hd (evalConstT Default) ls)).
 
-  Local Definition snocInBound (a : type k) (ls : list (type k)) : list (type k) :=
-    if (Nat.ltb (length ls) size) then snoc a ls else ls.
+  (*Local Definition snocInBound (bnd : nat) (a : type k) (ls : list (type k)) : list (type k) :=
+    if (Nat.ltb (length ls) bnd) then snoc a ls else ls.*)
+  
+  Local Definition nlist := NativeKind (nil : list (type k)).
 
   Local Definition nonDet ty: ActionT ty Void :=
     Nondet lengthN: Bit (lgSize + 1);
     Nondet emptyN: Bool;
-    Write nonDetLenName: Bit (lgSize + 1) <- #lengthN;
+    ReadN data: nlist <- listName;
+    Write nonDetLenName: Bit (lgSize + 1)
+                         <- (IF (#lengthN < $(size - (length data)))
+                             then #lengthN
+                             else $(size - (length data)));
     Write nonDetEmptyName: Bool <- #emptyN;
     Retv.
-  
-  Local Definition nlist := NativeKind (nil : list (type k)).
 
   Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    ReadN data: nlist <- listName;
-    Ret (IF (#lengthN < $(size - (length data)))
-         then #lengthN else $(size - (length data))).
+    Ret #lengthN.
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -46,8 +48,7 @@ Section GenSpec.
 
   Local Definition isFull ty: ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    ReadN data: nlist <- listName;
-    Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
+    Ret (#lengthN == $0).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -69,10 +70,13 @@ Section GenSpec.
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
     LET val <- ToNative #new;
-    WriteN listName: nlist <- (IF !(#lengthN == $0 || $$(Nat.eqb (length data) size))
-                               then Var _ nlist (snocInBound val data)
+    Write nonDetLenName: Bit (lgSize + 1) <- (IF (#lengthN == $0)
+                                              then #lengthN
+                                              else #lengthN - $1);
+    WriteN listName: nlist <- (IF !(#lengthN == $0)
+                               then Var _ nlist (snoc(*InBound (wordToNat bnd)*) val data)
                                else Var _ nlist data);
-    Ret (#lengthN == $0 || $$(Nat.eqb (length data) size)).
+    Ret (#lengthN == $0).
 
   Local Definition flush ty: ActionT ty Void :=
     WriteN listName: nlist <- Var _ nlist nil;
