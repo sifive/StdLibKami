@@ -53,18 +53,28 @@ Section GenSpec.
   Local Definition first ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
-    Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data));
-                  "data" ::= (IF !(#emptyN || $$(emptyb data))
-                              then getHead _ data
-                              else Const ty Default )} : Maybe k @# ty).
+    Ret ((IF !(#emptyN || $$(emptyb data))
+          then (STRUCT { "valid" ::= $$true;
+                         "data" ::= getHead _ data})
+          else Const ty Default) : Maybe k @# ty).
+    (* Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data)); *)
+    (*               "data" ::= (IF !(#emptyN || $$(emptyb data)) *)
+    (*                           then getHead _ data *)
+    (*                           else Const ty Default )} : Maybe k @# ty). *)
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
-    Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data));
-                  "data" ::= (IF !(#emptyN || $$(emptyb data))
-                              then getHead _ data
-                              else Const ty Default)} : Maybe k @# ty).
+    Ret ((IF !(#emptyN || $$(emptyb data))
+          then (STRUCT { "valid" ::= $$true;
+                         "data" ::= getHead _ data})
+          else Const ty Default) : Maybe k @# ty). 
+   (* else Const ty Default)} *)
+       
+   (*  Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data)); *)
+   (*                "data" ::= (IF !(#emptyN || $$(emptyb data)) *)
+   (*                            then getHead _ data *)
+   (*                            else Const ty Default)} : Maybe k @# ty). *)
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;

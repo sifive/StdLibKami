@@ -30,8 +30,6 @@ Section Proofs.
   Local Definition fifoSpecL := @Fifo.GenericSpec.spec ifcParamsL.
   Local Definition fifoSpecR := @Fifo.GenericSpec.spec ifcParamsR.
   
-  Variable HCorrectL : FifoCorrect Lfifo fifoSpecL.
-  Variable HCorrectR : FifoCorrect Rfifo fifoSpecR.
   
   Variable HsizePos : size <> 0.
   
@@ -91,6 +89,8 @@ Section Proofs.
       Ho_sNoDup1 : NoDup (map fst o_s);
     }.
   
+  Variable HCorrectL : FifoCorrect Lfifo fifoSpecL.
+  Variable HCorrectR : FifoCorrect Rfifo fifoSpecR.
 
   Ltac Record_destruct :=
     match goal with
@@ -186,23 +186,28 @@ Section Proofs.
     - hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0).
+      simpl.
+      destruct (x || emptyb implRegValR) eqn:G; simpl; auto.
+      rewrite app_emptyb.
+      apply orb_false_elim in G; dest; rewrite H5 in *.
+      simpl.
       apply functional_extensionality_dep.
-      intros; fin_dep_destruct x1.
-      + simpl.
-        destruct implRegValR, implRegValL, x; simpl; auto.
-      + fin_dep_destruct y; auto; simpl.
-        destruct implRegValR, implRegValL, x; simpl; auto.
+      intros; fin_dep_destruct x1; auto.
+      fin_dep_destruct y; auto; simpl.
+      destruct implRegValR, implRegValL, x; simpl; auto; discriminate.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
       goal_consumer1.
-      + rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0).
+      + rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
+        destruct (x || emptyb implRegValR) eqn:G; simpl; auto.
+        rewrite app_emptyb.
+        apply orb_false_elim in G; dest; rewrite H5 in *.
+        simpl.
         apply functional_extensionality_dep.
-        intros; fin_dep_destruct x1.
-        * simpl.
-          destruct implRegValR, implRegValL, x; simpl; auto.
-        * fin_dep_destruct y; auto; simpl.
-          destruct implRegValR, implRegValL, x; simpl; auto.
+        intros; fin_dep_destruct x1; auto.
+        fin_dep_destruct y; auto; simpl.
+        destruct implRegValR, implRegValL, x; simpl; auto; discriminate.
       + econstructor 1; normalize_key_concl; simpl;
             try intro; repeat rewrite doUpdRegs_preserves_keys; eauto.
         * rewrite doUpdRegs_DisjKey; try solve_keys; auto.

@@ -1,11 +1,7 @@
 Require Import Kami.Lib.EclecticLib.
 Require Import Kami.All.
 Require Import StdLibKami.Fifo.Ifc.
-Require Import StdLibKami.Fifo.Impl.
-Require Import StdLibKami.Fifo.Spec.
 Require Import Kami.GallinaModules.Relations.
-Require Import Kami.GallinaModules.AuxLemmas.
-Require Import Kami.GallinaModules.AuxTactics.
 
 Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
   {
