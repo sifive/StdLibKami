@@ -1,6 +1,5 @@
 Require Import Coq.Logic.EqdepFacts.
 Require Import Kami.All.
-Require Import Kami.Lib.NatStr.
 Require Import Kami.GallinaModules.AuxLemmas.
 Require Import Kami.GallinaModules.AuxTactics.
 Require Import Kami.GallinaModules.Relations.
