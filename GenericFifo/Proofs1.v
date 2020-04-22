@@ -53,11 +53,11 @@ Section Proofs.
       HlenL : length implRegValL <= sizeL;
       HlenR : length implRegValR <= sizeR;
       HlenVal : lenVal = $(wordToNat lenValL);
+      (* if (wltu lenValL $(sizeL - (length implRegValL))) *)
+      (* then $(wordToNat lenValL) *)
+      (* else $(sizeL - (length implRegValL)) ;*)
       HlenValL : ((wordToNat lenValL) <= sizeL - (length implRegValL)); 
-      HlenValR : ((wordToNat lenValR) <= sizeR - (length implRegValR)); 
-                (* if (wltu lenValL $(sizeL - (length implRegValL))) *)
-                (* then $(wordToNat lenValL) *)
-                (* else $(sizeL - (length implRegValL)) ;*)
+      HlenValR : ((wordToNat lenValR) <= sizeR - (length implRegValR));
       HimplRegVal : specRegVals = implRegValR ++ implRegValL;
       (* HnonDetEmpVal : nonDetEmpVal = nonDetEmpValR; *)
       HnonDetEmpVal : nonDetEmpVal = (nonDetEmpValR || emptyb implRegValR);
@@ -113,7 +113,7 @@ Section Proofs.
       cbn [CorrectDef.fifoRegs CorrectDef.fifoR] in *;
       unfold fifoSpecR, fifoSpecL, spec,  Spec.enq, Spec.deq,
       Spec.first, Spec.isEmpty,
-      Spec.isFull, Spec.flush, Spec.numFree in *;
+      Spec.isFull, Spec.flush, Spec.numFree, Spec.propagate in *;
       cbn [propagate isEmpty isFull flush enq deq first numFree] in *;
       unfold Spec.nonDetEmptyName in *.
     - hyp_consumer;
@@ -121,7 +121,6 @@ Section Proofs.
         (Eqdep.EqdepTheory.UIP_refl _ _ x1) in *.
       unfold Spec.nonDetLenName, Spec.listName in *.
       + repeat (repeat goal_split; repeat goal_body; repeat normal_solver).
-        
         instantiate (1 := (nonDetEmpValR
                            || emptyb
                                 (if evalUniBool Neg (getBool (isEq (Bit (lgSize + 1))
@@ -148,7 +147,7 @@ Section Proofs.
                             else evalConstT $ (size - length (implRegValR ++ implRegValL)))).
         revert HdoUpdRegsR0.
         repeat goal_consumer1.
-        destruct String.eqb  eqn:G.
+        destruct String.eqb eqn:G.
         * rewrite String.eqb_eq in G.
           destruct String.eqb eqn:G0 in G; [rewrite append_remove_prefix in G; discriminate|].
           rewrite append_remove_prefix in G; discriminate.
@@ -183,15 +182,17 @@ Section Proofs.
           -- destruct isEq; auto.
              simpl in H16.
              destruct x4; try discriminate.
-             ++ destruct implRegValL; simpl;
-                  simpl; rewrite snoc_rapp, app_length; simpl in *;
-                    apply neq_wordVal in n; simpl in n;
-                      unfold wordToNat in *;
-                      arithmetizeWord; simpl in *;
-                        rewrite Zmod_0_l in *; lia.
+             simpl.
+             destruct implRegValL; simpl;
+               simpl; rewrite snoc_rapp, app_length; simpl in *;
+                 apply neq_wordVal in n; simpl in n;
+                   unfold wordToNat in *;
+                   arithmetizeWord; simpl in *;
+                     rewrite Zmod_0_l in *; lia.
           -- simpl; simpl in H16.
              destruct (x4 || emptyb implRegValL); simpl; auto.
-            destruct isEq; auto;
+             destruct implRegValL; simpl in *; lia.
+          -- destruct isEq; auto;
                simpl in H16, HdoUpdRegsR0;
                destruct x4, implRegValL; simpl;
                  rewrite snoc_rapp, app_length;
@@ -201,42 +202,59 @@ Section Proofs.
                    arithmetizeWord; simpl in *;
                      rewrite Zmod_0_l in n;
                      rewrite Zminus_mod_idemp_r, Z.mod_small; dest; lia.
-          -- repeat f_equal.
-             simpl in H16.
-             admit.
-             simpl in H16.
-             
-             admit.
-          -- admit.
-          -- simpl in H16.
-        5 : { simpl in H6.
-              destruct H6 as [P | [P|P]]; [| | contradiction];
-                rewrite append_remove_prefix in P; discriminate. }
-      instantiate (1 := false).
-      instantiate (1 := $0).
-      repeat doUpdRegs_simpl.
-      repeat doUpdRegs_red.
-      revert HdoUpdRegsR0 .
-      doUpdRegs_red.
-      intro.
-      admit.
-      repeat (repeat goal_split; repeat goal_body; repeat normal_solver).
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      doUpdRegs_simpl.
-      repeat doUpdRegs_red.
-      doUpdRegs_simpl.
-      do 30 doUpdRegs_simpl.
-      goal_consumer1.
-      goal_consumer1.
+          -- do 4 f_equal.
+             ++ simpl in H16.
+                destruct isEq; simpl in *.
+                ** rewrite e in H16.
+                   simpl in H16; discriminate.
+                ** destruct (x4 || emptyb implRegValL) eqn:G3; simpl.
+                   --- rewrite negb_true_iff, orb_true_r in H16; discriminate.
+                   --- rewrite orb_false_iff in G3; dest.
+                       destruct implRegValL; simpl in *; try discriminate.
+                       rewrite snoc_rapp, app_cons, app_assoc; reflexivity.
+             ++ f_equal.
+                admit. (* Not sure what is happening here *)
+          -- rewrite doUpdReg_preserves_getKindAttr, doUpdRegs_DisjKey; auto;
+               [ |rewrite doUpdRegs_preserves_keys
+                 |rewrite doUpdRegs_DisjKey ]; try solve_keys; auto.
+          -- rewrite doUpdRegs_DisjKey, doUpdReg_preserves_getKindAttr; auto.
+             intro; rewrite doUpdRegs_preserves_keys; revert k; fold (DisjKey x22 o_i2);
+               solve_keys.
+          -- simpl in H6.
+             repeat rewrite append_remove_prefix in H6.
+             destruct H6 as [P |[ P | P]]; [ | |contradiction ]; discriminate.
+     + repeat (repeat goal_split; repeat goal_body; repeat normal_solver).
+        instantiate (1 := (nonDetEmpValR || emptyb implRegValR)).
+        instantiate (1 := $(wordToNat lenValL)).
+       goal_consumer1.
+        econstructor 1; normalize_key_concl;
+          try intro; repeat rewrite doUpdRegs_preserves_keys; auto.
+        6 : { apply HfifoR1. }
+        6 : { apply HfifoR2. }
+        all : auto.
+        repeat f_equal.
+        simpl.
+        destruct wltu eqn:G; auto.
+        rewrite wltu_ge in G.
+        do 2 rewrite wordToNat_natToWord in G.
+        * rewrite sizeSum, app_length in *.
+          f_equal.
+          apply (Nat.le_trans _ _ (sizeL + sizeR - (length implRegValL + length implRegValR)))
+            in HlenValL; lia.
+        * arithmetizeWord; unfold wordToNat; simpl; dest.
+          unfold lgSize, size in H5.
+          unfold lgSize; rewrite sizeSum.
+          rewrite <- (Z2Nat.id wordVal), pow2_of_nat, <- Nat2Z.inj_lt in H5; auto.
+          apply (Nat.lt_le_trans _ (2 ^ (Nat.log2_up sizeL + 1))); auto.
+          apply Nat.pow_le_mono_r; [|apply plus_le_compat_r, Nat.log2_up_le_mono]; lia.
+        * unfold lgSize; rewrite sizeSum.
+          apply (Nat.le_lt_trans _ (sizeL + sizeR));[lia|].
+          apply (Nat.le_lt_trans _ (2 ^ (Nat.log2_up (sizeL + sizeR))));
+            [apply log2_up_pow2|apply Nat.pow_lt_mono_r;lia].
+        * unfold lgSize; rewrite sizeSum.
+          apply (Nat.le_lt_trans _ (sizeL + sizeR));[lia|].
+          apply (Nat.le_lt_trans _ (2 ^ (Nat.log2_up (sizeL + sizeR))));
+            [apply log2_up_pow2|apply Nat.pow_lt_mono_r;lia].
     - hyp_consumer.
       goal_consumer1.
       rewrite (Eqdep.EqdepTheory.UIP_refl _ _ x0); simpl.
