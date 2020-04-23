@@ -25,17 +25,16 @@ Section GenSpec.
   Local Definition propagate ty: ActionT ty Void :=
     Nondet lengthN: Bit (lgSize + 1);
     Nondet emptyN: Bool;
-    ReadN data: nlist <- listName;
-    Write nonDetLenName: Bit (lgSize + 1)
-                         <- (IF (#lengthN < $(size - (length data)))
-                             then #lengthN
-                             else $(size - (length data)));
+    Write nonDetLenName: Bit (lgSize + 1) <- #lengthN;
     Write nonDetEmptyName: Bool <- #emptyN;
     Retv.
 
   Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    Ret #lengthN.
+    ReadN data: nlist <- listName;
+    Ret (IF (#lengthN < $(size - (length data)))
+         then #lengthN
+         else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -44,7 +43,10 @@ Section GenSpec.
 
   Local Definition isFull ty: ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    Ret (#lengthN == $0).
+    ReadN data: nlist <- listName;
+    Ret ((IF (#lengthN < $(size - (length data)))
+          then #lengthN
+          else $(size - (length data))) == $0).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -69,13 +71,14 @@ Section GenSpec.
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
     LET val <- ToNative #new;
-    Write nonDetLenName: Bit (lgSize + 1) <- (IF (#lengthN == $0)
-                                              then #lengthN
-                                              else #lengthN - $1);
-    WriteN listName: nlist <- (IF !(#lengthN == $0)
+    WriteN listName: nlist <- (IF !((IF (#lengthN < $(size - (length data)))
+                                     then #lengthN
+                                     else $(size - (length data))) == $0)
                                then Var _ nlist (snoc val data)
                                else Var _ nlist data);
-    Ret (#lengthN == $0).
+    Ret ((IF (#lengthN < $(size - (length data)))
+          then #lengthN
+          else $(size - (length data))) == $0).
 
   Local Definition flush ty: ActionT ty Void :=
     WriteN listName: nlist <- Var _ nlist nil;
