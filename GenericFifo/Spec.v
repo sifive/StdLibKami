@@ -1,6 +1,5 @@
 Require Import Kami.AllNotations.
-Require Import StdLibKami.RegArray.Ifc.
-Require Import StdLibKami.Fifo.Ifc.
+Require Import StdLibKami.GenericFifo.Ifc.
 
 Section GenSpec.
   Context {ifcParams : Ifc.Params}.
@@ -20,26 +19,22 @@ Section GenSpec.
 
   Local Definition getHead ty (ls : list (type k)) : k @# ty :=
     FromNative k (Var ty (NativeKind (evalConstT Default)) (hd (evalConstT Default) ls)).
-
-  (*Local Definition snocInBound (bnd : nat) (a : type k) (ls : list (type k)) : list (type k) :=
-    if (Nat.ltb (length ls) bnd) then snoc a ls else ls.*)
   
   Local Definition nlist := NativeKind (nil : list (type k)).
 
-  Local Definition nonDet ty: ActionT ty Void :=
+  Local Definition propagate ty: ActionT ty Void :=
     Nondet lengthN: Bit (lgSize + 1);
     Nondet emptyN: Bool;
-    ReadN data: nlist <- listName;
-    Write nonDetLenName: Bit (lgSize + 1)
-                         <- (IF (#lengthN < $(size - (length data)))
-                             then #lengthN
-                             else $(size - (length data)));
+    Write nonDetLenName: Bit (lgSize + 1) <- #lengthN;
     Write nonDetEmptyName: Bool <- #emptyN;
     Retv.
 
   Local Definition numFree ty: ActionT ty (Bit (lgSize + 1)) :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    Ret #lengthN.
+    ReadN data: nlist <- listName;
+    Ret (IF (#lengthN < $(size - (length data)))
+         then #lengthN
+         else $(size - (length data))).
   
   Local Definition isEmpty ty: ActionT ty Bool :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -48,7 +43,10 @@ Section GenSpec.
 
   Local Definition isFull ty: ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
-    Ret (#lengthN == $0).
+    ReadN data: nlist <- listName;
+    Ret ((IF (#lengthN < $(size - (length data)))
+          then #lengthN
+          else $(size - (length data))) == $0).
   
   Local Definition first ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
@@ -57,36 +55,30 @@ Section GenSpec.
           then (STRUCT { "valid" ::= $$true;
                          "data" ::= getHead _ data})
           else Const ty Default) : Maybe k @# ty).
-    (* Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data)); *)
-    (*               "data" ::= (IF !(#emptyN || $$(emptyb data)) *)
-    (*                           then getHead _ data *)
-    (*                           else Const ty Default )} : Maybe k @# ty). *)
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
+    WriteN listName: nlist <- (IF !(#emptyN || $$(emptyb data))
+                               then Var _ nlist (tl data)
+                               else Var _ nlist data);
     Ret ((IF !(#emptyN || $$(emptyb data))
           then (STRUCT { "valid" ::= $$true;
                          "data" ::= getHead _ data})
           else Const ty Default) : Maybe k @# ty). 
-   (* else Const ty Default)} *)
-       
-   (*  Ret (STRUCT { "valid" ::= (#emptyN || $$(emptyb data)); *)
-   (*                "data" ::= (IF !(#emptyN || $$(emptyb data)) *)
-   (*                            then getHead _ data *)
-   (*                            else Const ty Default)} : Maybe k @# ty). *)
   
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
     LET val <- ToNative #new;
-    Write nonDetLenName: Bit (lgSize + 1) <- (IF (#lengthN == $0)
-                                              then #lengthN
-                                              else #lengthN - $1);
-    WriteN listName: nlist <- (IF !(#lengthN == $0)
-                               then Var _ nlist (snoc(*InBound (wordToNat bnd)*) val data)
+    WriteN listName: nlist <- (IF !((IF (#lengthN < $(size - (length data)))
+                                     then #lengthN
+                                     else $(size - (length data))) == $0)
+                               then Var _ nlist (snoc val data)
                                else Var _ nlist data);
-    Ret (#lengthN == $0).
+    Ret ((IF (#lengthN < $(size - (length data)))
+          then #lengthN
+          else $(size - (length data))) == $0).
 
   Local Definition flush ty: ActionT ty Void :=
     WriteN listName: nlist <- Var _ nlist nil;
@@ -98,6 +90,7 @@ Section GenSpec.
 
   Definition spec: Ifc :=
     {|
+      Ifc.propagate := propagate;
       Ifc.regs := regs;
       Ifc.regFiles := nil;
       Ifc.isEmpty := isEmpty;

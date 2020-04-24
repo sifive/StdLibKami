@@ -1,12 +1,14 @@
 Require Import Kami.Lib.EclecticLib.
 Require Import Kami.All.
-Require Import StdLibKami.Fifo.Ifc.
+Require Import StdLibKami.GenericFifo.Ifc.
 Require Import Kami.GallinaModules.Relations.
 
-Record FifoCorrect {FParams} (imp spec : @Fifo.Ifc.Ifc FParams) : Type :=
+Record GenericFifoCorrect {FParams} (imp spec : @GenericFifo.Ifc.Ifc FParams) : Type :=
   {
     fifoRegs : list (Attribute FullKind);
     fifoR : RegsT -> RegsT -> Prop;
+    propagateCorrect: EffectfulRelation fifoR (@propagate _ imp type) (@propagate _ spec type);
+    propagateWb : ActionWb fifoRegs (@propagate _ imp type);
     isEmptyCorrect : EffectlessRelation fifoR (@isEmpty _ imp type) (@isEmpty _ spec type);
     isEmptyWb : ActionWb fifoRegs (@isEmpty _ imp type);
     isFullCorrect : EffectlessRelation fifoR (@isFull _ imp type) (@isFull _ spec type);
