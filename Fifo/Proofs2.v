@@ -402,35 +402,62 @@ Section Proofs.
             -- rewrite Z.sub_diag, Zmod_0_l, Z.add_0_r.
                repeat rewrite Zminus_mod_idemp_r.
                rewrite Z.sub_diag, Zmod_0_l; repeat rewrite firstn_O; reflexivity.
-            -- rewrite tailCorrect; auto.
-               rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
-               assert (x19 <> x13) as n' by auto.
-               apply neq_wordVal in n'.
-               specialize (cutLen_pred P2 P1 Hbound0 pow2 n') as P3; unfold lgSize in *.
-               rewrite P3, Z2Nat.inj_sub; try lia.
-               rewrite rotateList_periodic at 1.
-               unfold convertToList at 1.
-               rewrite <- list_arr_length.
-               do 2 f_equal.
-               rewrite Zmod_mod', <- Zpow_of_nat, Nat2Z.id, pow2;
-                 [| rewrite <-Zpow_of_nat, pow2; lia
-                  | apply Z.mod_pos_bound; lia].
-               dest.
-               rewrite Nat2Z.inj_add, Z.pow_add_r, <-Zpow_of_nat, pow2, Z.pow_1_r in *; try lia.
-               apply Zlt_le_succ in H7.
-               rewrite <- Z.add_1_r in H7.
-               destruct (Zle_lt_or_eq _ _ H7).
-               ++ rewrite (Z.mod_small (_ + _) _); try lia.
-                  rewrite <- (Nat2Z.id size) at 3;
-                    rewrite <- (Nat2Z.id size) at 5.
-                  repeat rewrite <- Zmod_mod'; try lia.
-                  ** rewrite Z.add_mod_idemp_l; lia.
-                  ** apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
-               ++ rewrite H8, Z_mod_same_full, Nat.mod_0_l; auto.
-                  rewrite <- (Nat2Z.id size) at 3.
-                  rewrite <- Zmod_mod', Zplus_mod_idemp_l, Zmod_mod'
-                  , H8, Z.mul_comm, <- Zmod_mod', Z.mod_mul; try lia.
-                  apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
+            -- destruct emptyb eqn:G; simpl.
+               ++ exfalso.
+                  rewrite emptyb_true, firstn_nil_iff in G.
+                  destruct G.
+                  ** destruct
+                       (Z_lt_le_dec 0 (wordVal (Nat.log2_up size + 1) x19 -
+                                       wordVal (Nat.log2_up size + 1) x13)).
+                     --- rewrite Z.mod_small in H1; lia.
+                     --- rewrite <- Z2Nat.inj_0 in H1.
+                         apply Z2Nat.inj in H1;
+                           [ |apply Z.mod_pos_bound;
+                              specialize (Z_of_nat_pow_2_gt_0 (Nat.log2_up size + 1)) as TMP;
+                              lia
+                             |lia ].
+                         apply Z_mod_zero_opp_full in H1.
+                         rewrite Z.mod_small in H1; try lia.
+                         assert (wordVal (Nat.log2_up size + 1) x19 =
+                                 wordVal (Nat.log2_up size + 1) x13) as P3 by lia.
+                         apply neq_wordVal in n; lia.
+                  ** assert (length (rotateList
+                                       (Z.to_nat (wordVal (Nat.log2_up size + 1) x13
+                                                          mod 2 ^ Z.of_nat (Nat.log2_up size)))
+                                       (convertToList x29)) = 0) as P3.
+                     { setoid_rewrite H1; simpl; reflexivity. }
+                     unfold convertToList, list_arr in P3.
+                     rewrite rotateLength, map_length, getFins_length in P3; contradiction.
+               ++ rewrite tailCorrect; auto.
+                  rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_r.
+                  assert (x19 <> x13) as n' by auto.
+                  apply neq_wordVal in n'.
+                  specialize (cutLen_pred P2 P1 Hbound0 pow2 n') as P3; unfold lgSize in *.
+                  rewrite P3, Z2Nat.inj_sub; try lia.
+                  rewrite rotateList_periodic at 1.
+                  unfold convertToList at 1.
+                  rewrite <- list_arr_length.
+                  repeat f_equal.
+                  rewrite Zmod_mod', <- Zpow_of_nat, Nat2Z.id;
+                    [| rewrite <-Zpow_of_nat; lia
+                     |apply Z.mod_pos_bound; lia].
+                  dest.
+                  rewrite Nat2Z.inj_add, Z.pow_add_r, <-Zpow_of_nat, pow2, Z.pow_1_r in *;
+                    try lia.
+                  apply Zlt_le_succ in H7.
+                  rewrite <- Z.add_1_r in H7.
+                  destruct (Zle_lt_or_eq _ _ H7).
+                  ** rewrite (Z.mod_small (_ + _) _); try lia.
+                     rewrite <- (Nat2Z.id size) at 3;
+                       rewrite <- (Nat2Z.id size) at 5.
+                     repeat rewrite <- Zmod_mod'; try lia.
+                     --- rewrite Z.add_mod_idemp_l; lia.
+                     --- apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
+                  ** rewrite H8, Z_mod_same_full, Nat.mod_0_l; auto.
+                     rewrite <- (Nat2Z.id size) at 3.
+                     rewrite <- Zmod_mod', Zplus_mod_idemp_l, Zmod_mod'
+                     , H8, Z.mul_comm, <- Zmod_mod', Z.mod_mul; try lia.
+                     apply OMEGA2; [apply Z.mod_pos_bound|]; lia.
       - hyp_consumer.
         goal_consumer2.
       - hyp_consumer.
@@ -472,14 +499,14 @@ Section Proofs.
               rewrite Zplus_minus, Z.mod_small; auto.
             }
             econstructor 1; auto; normalize_key_concl; simpl.
-            -- specialize (cutLen_succ x27 P1 P2 Hbound0 pow2) as P4; unfold lgSize in *.
+            -- specialize (cutLen_succ x27 P1 P2 Hbound0 pow2) as P4; unfold lgSize in *; simpl.
                rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l, P4; lia.
             -- repeat f_equal.
                unfold Spec.snocInBound, listInSpec.
                destruct Nat.ltb eqn:G.
                ++ rewrite Nat.ltb_lt, firstn_length_le in G;
                     [| unfold convertToList; rewrite rotateLength, <- list_arr_length; lia].
-                  unfold lgSize in *.
+                  unfold lgSize in *; simpl.
                   rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l.
                   rewrite (listSnoc x27 P1 P2 Hbound0 pow2); auto.
                   repeat f_equal.
@@ -547,7 +574,7 @@ Section Proofs.
               rewrite Zplus_mod_idemp_l, Zplus_mod_idemp_r, Zminus_mod_idemp_l, Z.add_simpl_l,
               <- Zpow_of_nat, Nat.pow_add_r, Nat.pow_1_r, pow2, <- mod_Zmod, Nat.mod_small; lia.
             }
-            econstructor 1; auto; normalize_key_concl; simpl.
+            econstructor 1; auto; normalize_key_concl; simpl; try lia.
             repeat f_equal.
             unfold Spec.snocInBound, listInSpec.
             destruct Nat.ltb eqn:G; auto.

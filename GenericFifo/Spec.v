@@ -59,9 +59,13 @@ Section GenSpec.
   Local Definition deq ty: ActionT ty (Maybe k) :=
     Read emptyN: Bool <- nonDetEmptyName;
     ReadN data: nlist <- listName;
+    Nondet newEmptyN: Bool;
     WriteN listName: nlist <- (IF !(#emptyN || $$(emptyb data))
                                then Var _ nlist (tl data)
                                else Var _ nlist data);
+    Write nonDetEmptyName: Bool <- (IF !(#emptyN || $$(emptyb data))
+                                    then #newEmptyN
+                                    else #emptyN);
     Ret ((IF !(#emptyN || $$(emptyb data))
           then (STRUCT { "valid" ::= $$true;
                          "data" ::= getHead _ data})
@@ -70,19 +74,28 @@ Section GenSpec.
   Local Definition enq ty (new: ty k): ActionT ty Bool :=
     Read lengthN: Bit (lgSize + 1) <- nonDetLenName;
     ReadN data: nlist <- listName;
+    Nondet newLengthN: Bit (lgSize + 1);
     LET val <- ToNative #new;
     WriteN listName: nlist <- (IF !((IF (#lengthN < $(size - (length data)))
                                      then #lengthN
                                      else $(size - (length data))) == $0)
                                then Var _ nlist (snoc val data)
                                else Var _ nlist data);
-    Ret ((IF (#lengthN < $(size - (length data)))
-          then #lengthN
-          else $(size - (length data))) == $0).
+    Write nonDetLenName: Bit (lgSize + 1) <- (IF !((IF (#lengthN < $(size - (length data)))
+                                                    then #lengthN
+                                                    else $(size - (length data))) == $0)
+                                              then #newLengthN
+                                              else #lengthN);
+    Ret (!((IF (#lengthN < $(size - (length data)))
+            then #lengthN
+            else $(size - (length data))) == $0)).
 
   Local Definition flush ty: ActionT ty Void :=
+    Nondet newLengthN: Bit (lgSize + 1);
+    Nondet newEmptyN: Bool;
+    Write nonDetEmptyName: Bool <- #newEmptyN;
+    Write nonDetLenName: Bit (lgSize + 1) <- #newLengthN;
     WriteN listName: nlist <- Var _ nlist nil;
-    Write nonDetEmptyName: Bool <- $$true;
     Retv.
 
   Local Definition regs : list RegInitT :=

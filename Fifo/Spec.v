@@ -39,7 +39,9 @@ Section Spec.
 
   Local Definition deq ty: ActionT ty (Maybe k) :=
     ReadN data: nlist <- listName;
-    WriteN listName: nlist <- Var _ nlist (tl data);
+    WriteN listName: nlist <- (IF !$$(emptyb data)
+                               then Var _ nlist (tl data)
+                               else Var _ nlist data);
     Ret (STRUCT { "valid" ::= $$(negb (emptyb data));
                   "data" ::= getHead _ data } : Maybe k @# ty).
   

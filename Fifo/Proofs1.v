@@ -147,11 +147,12 @@ Section Proofs2.
     - hyp_consumer; goal_consumer1.
     - hyp_consumer; goal_consumer2; goal_consumer1.
     - hyp_consumer; goal_consumer1.
-      econstructor; eauto; normalize_key_concl.
+      econstructor; eauto; normalize_key_concl; reflexivity.
     - hyp_consumer; goal_consumer2; goal_consumer1.
-    - hyp_consumer; goal_consumer1; econstructor; eauto; normalize_key_concl;
-      repeat rewrite doUpdRegs_preserves_keys; normalize_key_concl.
-      gka_doUpdReg_red; normal_solver; auto.
+    - hyp_consumer; goal_consumer1.
+      + econstructor 1; eauto; normalize_key_concl; repeat my_simplifier; repeat my_simpl_solver.
+        rewrite doUpdReg_preserves_getKindAttr; auto.
+      + econstructor 1; eauto; normalize_key_concl.
     - hyp_consumer; goal_consumer2; goal_consumer1.
     - hyp_consumer; goal_consumer1.
       econstructor; eauto; normalize_key_concl.
