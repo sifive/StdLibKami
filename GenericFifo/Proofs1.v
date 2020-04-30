@@ -8,11 +8,6 @@ Require Import StdLibKami.GenericFifo.Spec.
 Require Import StdLibKami.GenericFifo.DoubleFifo.
 Require Import StdLibKami.GenericFifo.CorrectDef.
 
-
-Definition valsToSnd {k : Kind} (l : list (type k)) :=
-  map (fun x => existT (fullType type) (SyntaxKind k)
-                       (nth_default (evalConstT Default) l x)) (seq 0 (length l)).
-
 Section Proofs.
   Context {ifcParams : GenericFifo.Ifc.Params}.
   Context {dblParams : GenericFifo.DoubleFifo.Params}.
@@ -31,25 +26,15 @@ Section Proofs.
   
   Variable HsizePos : size <> 0.
   
-  Record myGenFifoR  (fifoRR fifoLR : RegsT -> RegsT -> Prop)
+  Record myGenFifoR (o_i1 o_i2 o_s1 o_s2 implRegsL implRegsR : RegsT)
+         (implRegValL implRegValR specRegVals : list (type k))
+         (nonDetEmpVal nonDetEmpValL nonDetEmpValR : bool)
+         (lenVal : word (lgSize + 1)) (lenValL : word ((@lgSize ifcParamsL) + 1))
+         (lenValR : word ((@lgSize ifcParamsR) + 1))
+         (fifoRR fifoLR : RegsT -> RegsT -> Prop)
          (fifoRegsL fifoRegsR : list (string * FullKind))
          (o_i o_s : RegsT) : Prop :=
     {
-      o_i1 : RegsT;
-      o_i2 : RegsT;
-      o_s1 : RegsT;
-      o_s2 : RegsT;
-      implRegsL : RegsT;
-      implRegsR : RegsT;
-      implRegValL : list (type k);
-      implRegValR : list (type k);
-      specRegVals : list (type k);
-      nonDetEmpVal : bool;
-      nonDetEmpValL : bool;
-      nonDetEmpValR : bool;
-      lenVal : word (lgSize + 1);
-      lenValL : word ((@lgSize ifcParamsL) + 1);
-      lenValR : word ((@lgSize ifcParamsR) + 1);
       HlenL : length implRegValL <= sizeL;
       HlenR : length implRegValR <= sizeR;
       HlenVal : lenVal = if (wltu lenValL $(sizeL - (length implRegValL)))
@@ -89,13 +74,43 @@ Section Proofs.
 
   Ltac Record_destruct :=
     match goal with
-    | [H : myGenFifoR _ _ _ _ _ _ |- _] =>
-      destruct H
+    | [H : exists _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ,
+          myGenFifoR _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ |- _] =>
+      let o_i1 := fresh "o_i1" in
+      let o_i2 := fresh "o_i2" in
+      let o_s1 := fresh "o_s1" in
+      let o_s2 := fresh "o_s2" in
+      let implRegsL := fresh "implRegsL" in
+      let implRegsR := fresh "implRegsR" in
+      let implRegValL := fresh "implRegValL" in
+      let implRegValR := fresh "implRegValR" in
+      let specRegVals := fresh "specRegVals" in
+      let nonDetEmpVal := fresh "nonDetEmpVal" in
+      let nonDetEmpValL := fresh "nonDepEmpValL" in
+      let nonDetEmpValR := fresh "nonDetEmpValR" in
+      let lenVal := fresh "lenVal" in
+      let lenValL := fresh "lenValL" in
+      let lenValR := fresh "lenValR" in
+      let H0 := fresh "H" in 
+      destruct H as
+          [o_i1 [o_i2 [o_s1 [o_s2 [implRegsL [implRegsR [implRegValL [implRegValR
+          [specRegVals [nonDetEmpVal [nonDetEmpValL [nonDetEmpValR [lenVal [lenValL
+          [lenValR H0]]]]]]]]]]]]]]]; destruct H0
     end.
   
  Goal GenericFifoCorrect fifoImpl fifoSpec.
-    econstructor 1 with (fifoR := myGenFifoR (fifoR HCorrectR) (fifoR HCorrectL)
-                                             (fifoRegs HCorrectL) (fifoRegs HCorrectR))
+   econstructor 1 with (fifoR :=
+                          fun o1 o2 =>
+                          (exists o_i1 o_i2 o_s1 o_s2 implRegsL implRegsR
+                                 implRegValL implRegValR specRegVals
+                                 nonDetEmpVal nonDetEmpValL nonDetEmpValR
+                                 lenVal lenValL lenValR,
+                            myGenFifoR o_i1 o_i2 o_s1 o_s2 implRegsL implRegsR
+                                       implRegValL implRegValR specRegVals
+                                       nonDetEmpVal nonDetEmpValL nonDetEmpValR
+                                       lenVal lenValL lenValR
+                                       (fifoR HCorrectR) (fifoR HCorrectL)
+                                             (fifoRegs HCorrectL) (fifoRegs HCorrectR) o1 o2))
                         (fifoRegs := (fifoRegs HCorrectL) ++ (fifoRegs HCorrectR)).
     all : unfold EffectfulRelation, EffectlessRelation, ActionWb,
           fifoImpl, fifoSpec, impl, spec,
@@ -190,7 +205,7 @@ Section Proofs.
                 solve_keys. }
         -- destruct x4, implRegValL; simpl in *; auto; lia.
         -- destruct isEq; simpl in *; auto.
-           destruct (x4 || emptyb implRegValL) eqn:G; simpl; try discriminate.
+           destruct (x4 || emptyb implRegValL) eqn:G; simpl; try discriminate; simpl.
            rewrite snoc_rapp, app_length; simpl.
            destruct wltu eqn:G0 in n.
            ++ rewrite wltu_lt, wordToNat_natToWord in G0; try lia.
@@ -665,7 +680,7 @@ Section Proofs.
         econstructor 1; normalize_key_concl; simpl; auto;
           try intro; repeat rewrite doUpdRegs_preserves_keys; auto.
         6 : { rewrite doUpdRegs_DisjKey; try solve_keys; auto.
-              apply HfifoR1. }
+              apply HfifoR3. }
         6 : apply HdoUpdRegsR.
         all : auto.
         * simpl.
@@ -882,7 +897,7 @@ Section Proofs.
           try intro; repeat rewrite doUpdRegs_preserves_keys; auto; simpl in *.
         6 : { apply HdoUpdRegsR. }
         6 : { rewrite doUpdRegs_DisjKey; [|solve_keys].
-              apply HfifoR2. }
+              apply HfifoR4. }
         all : auto.
         * destruct weq; simpl; auto.
           rewrite snoc_rapp, app_length; simpl.
@@ -1450,32 +1465,20 @@ Section Proofs.
     - hyp_consumer.
       goal_consumer2.
     - hyp_consumer.
-      goal_consumer1.
+      repeat (repeat goal_split; repeat goal_body; repeat normal_solver).
+      instantiate (1 := (if wltu x2 $ (sizeL)
+                         then $ (wordToNat x2)
+                         else $ (sizeL))).
+      instantiate (1 := true).
+      repeat (repeat doUpdRegs_simpl; doUpdRegs_red; repeat normal_solver).
       econstructor 1; auto; normalize_key_concl; simpl;
         try intro; repeat rewrite doUpdRegs_preserves_keys; auto; simpl in *.
       + instantiate (1 := nil); simpl; lia.
       + instantiate (1 := nil); simpl; lia.
-      + instantiate (1 := $0).
+      + instantiate (1 := x2).
         rewrite orb_true_r.
-        repeat f_equal; simpl.
-        * destruct wltu eqn:G;
-            [rewrite wltu_lt in G|rewrite wltu_ge in G].
-          -- rewrite wordToNat_natToWord; auto.
-             apply zero_lt_pow2.
-          -- do 2 rewrite wordToNat_natToWord in G.
-             ++ destruct (le_lt_or_eq _ _ G); [lia|].
-                rewrite H15; reflexivity.
-             ++ apply zero_lt_pow2.
-             ++ unfold lgSize, size.
-                apply (Nat.le_lt_trans _ sizeL); [lia|].
-                apply (Nat.le_lt_trans _ (2 ^ (Nat.log2_up sizeL)))
-                ;[apply log2_up_pow2|].
-                apply Nat.pow_lt_mono_r; lia.
-             ++ unfold lgSize, size.
-                apply (Nat.le_lt_trans _ sizeL); [lia|].
-                apply (Nat.le_lt_trans _ (2 ^ (Nat.log2_up sizeL)))
-                ;[apply log2_up_pow2|].
-                apply Nat.pow_lt_mono_r; lia.
+        repeat f_equal.
+        * simpl; rewrite Nat.sub_0_r; reflexivity.
       + rewrite doUpdRegs_DisjKey.
         * rewrite doUpdReg_preserves_getKindAttr; auto.
         * intro; rewrite doUpdRegs_preserves_keys; revert k; fold (DisjKey x0 o_i1).
@@ -1503,4 +1506,5 @@ Section Proofs.
       Unshelve.
       all : eauto; (exact false||exact $0).
  Qed.
+ 
 End Proofs.

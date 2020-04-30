@@ -86,14 +86,16 @@ Section GenSpec.
                                                     else $(size - (length data))) == $0)
                                               then #newLengthN
                                               else #lengthN);
-    Ret ((IF (#lengthN < $(size - (length data)))
-          then #lengthN
-          else $(size - (length data))) == $0).
+    Ret (!((IF (#lengthN < $(size - (length data)))
+            then #lengthN
+            else $(size - (length data))) == $0)).
 
   Local Definition flush ty: ActionT ty Void :=
+    Nondet newLengthN: Bit (lgSize + 1);
+    Nondet newEmptyN: Bool;
+    Write nonDetEmptyName: Bool <- #newEmptyN;
+    Write nonDetLenName: Bit (lgSize + 1) <- #newLengthN;
     WriteN listName: nlist <- Var _ nlist nil;
-    Write nonDetEmptyName: Bool <- $$true;
-    Write nonDetLenName: Bit (lgSize + 1) <- $0;
     Retv.
 
   Local Definition regs : list RegInitT :=
